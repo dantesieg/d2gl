@@ -49,6 +49,7 @@ void main()
 layout(location = 0) out vec4 FragColor;
 layout(location = 1) out vec4 FragColorMap;
 layout(location = 2) out vec4 FragColorMask;
+layout(location = 3) out vec4 FragLight; // game vertex lighting (world), see dynamic_light_source
 
 layout(std140) uniform ubo_Colors {
 	vec4 u_Palette[256];
@@ -56,6 +57,7 @@ layout(std140) uniform ubo_Colors {
 };
 
 uniform sampler2DArray u_Texture;
+uniform int u_BlendIndex; // pipeline blend index: 0 opaque, 1 multiply, 2 additive, 3 alpha
 
 in vec2 v_TexCoord;
 in vec4 v_Color1;
@@ -95,6 +97,17 @@ void main()
 	FragColorMask = vec4(0.0);
 	if(v_Flags.w == 10u)
 		FragColorMask = FragColor;
+
+	// Light attachment: opaque textured draws store their per-vertex light (pargb,
+	// no texture); additive draws (spells, fire) add their colour as emitted light.
+	// Attachment blend is One_Zero for opaque and One_One otherwise, so 0 = no change.
+	FragLight = vec4(0.0);
+	if (v_Flags.w == 0u && v_Flags.y == 0u) {
+		if (u_BlendIndex == 0)
+			FragLight = vec4(v_Color1.rgb, 1.0);
+		else if (u_BlendIndex == 2)
+			FragLight = vec4(FragColor.rgb * 0.5, 0.0);
+	}
 }
 
 #endif

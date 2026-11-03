@@ -19,6 +19,10 @@
 // Screen-space dynamic lighting: bright, saturated (mostly warm) pixels of
 // the world are treated as emitters, blurred wide at low resolution and used
 // to light the surrounding pixels. Runs in the PreFx stage, so UI is untouched.
+// u_Source 1: the light comes instead from the game's own vertex lighting
+// (GlideVertex pargb of opaque world draws, captured by glide.glsl into
+// u_VLightTexture). Only light above the ambient level is kept, so uniform
+// ambient light changes nothing; coloured light is boosted.
 
 #ifdef VERTEX
 
@@ -48,8 +52,10 @@ layout(location = 2) out vec4 FragColorMask;
 uniform sampler2D u_Texture;
 uniform sampler2D u_LightTexture1;
 uniform sampler2D u_LightTexture2;
+uniform sampler2D u_VLightTexture; // full res: rgb = vertex light, a = opaque coverage
 uniform vec2 u_RelSize;
 uniform float u_Intensity;
+uniform int u_Source;
 
 in vec2 v_TexCoord;
 flat in uvec4 v_Flags;
@@ -76,6 +82,39 @@ vec3 Extract()
 	return e * 0.25;
 }
 
+// Ambient = darkest covered sample of a 5x5 grid over the screen (the game light
+// never drops below ambient). Uncovered (void) samples are skipped.
+vec3 Ambient()
+{
+	vec3 amb = vec3(1.0);
+	float lo = 2.0;
+	for (int y = 0; y < 5; y++) {
+		for (int x = 0; x < 5; x++) {
+			vec4 s = texture(u_VLightTexture, (vec2(x, y) + 0.5) * 0.2);
+			float l = dot(s.rgb, vec3(0.299, 0.587, 0.114));
+			if (s.a > 0.5 && l < lo) {
+				lo = l;
+				amb = s.rgb;
+			}
+		}
+	}
+	return amb;
+}
+
+vec3 VExtract()
+{
+	vec2 o = u_RelSize * 0.25;
+	vec4 s = texture(u_VLightTexture, v_TexCoord + vec2(-o.x, -o.y));
+	s += texture(u_VLightTexture, v_TexCoord + vec2(o.x, -o.y));
+	s += texture(u_VLightTexture, v_TexCoord + vec2(-o.x, o.y));
+	s += texture(u_VLightTexture, v_TexCoord + vec2(o.x, o.y));
+	s *= 0.25;
+	vec3 e = max(s.rgb - Ambient() * s.a, 0.0);
+	float mx = max(e.r, max(e.g, e.b));
+	float sat = (mx - min(e.r, min(e.g, e.b))) / max(mx, 0.0001);
+	return e * (0.25 + 1.75 * sat);
+}
+
 vec3 Blur(vec2 dir)
 {
 	vec3 res = texture(u_LightTexture2, v_TexCoord).rgb * 0.1964825501511404;
@@ -88,15 +127,19 @@ vec3 Blur(vec2 dir)
 void main()
 {
 	switch (v_Flags.x) {
-		case 0u: FragColor = vec4(Extract(), 1.0); break;
+		case 0u: FragColor = vec4(u_Source == 1 ? VExtract() : Extract(), 1.0); break;
 		case 1u: FragColor = vec4(Blur(vec2(u_RelSize.x, 0.0)), 1.0); break;
 		case 2u: FragColor = vec4(Blur(vec2(0.0, u_RelSize.y)), 1.0); break;
 		case 3u:
 			vec3 base = texture(u_Texture, v_TexCoord).rgb;
 			vec3 light = texture(u_LightTexture1, v_TexCoord).rgb * u_Intensity;
-			light = mix(light, light * vec3(1.0, 0.78, 0.5), 0.35);
+			if (u_Source == 0)
+				light = mix(light, light * vec3(1.0, 0.78, 0.5), 0.35);
 			vec3 lit = base + base * light * 2.5 + light * 0.18;
 			FragColor = vec4(clamp(lit, 0.0, 1.0), 1.0);
+		break;
+		case 4u: // debug: raw light buffer, ambient swatch in the top-left corner
+			FragColor = vec4(v_TexCoord.x < 0.06 && v_TexCoord.y < 0.06 ? Ambient() : texture(u_VLightTexture, v_TexCoord).rgb, 1.0);
 		break;
 	}
 

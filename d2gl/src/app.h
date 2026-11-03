@@ -147,6 +147,8 @@ struct D2GLApp {
 		Range<float> normals_strength = { 1.0f, 0.1f, 3.0f };
 		bool shafts = false;
 		Range<float> shafts_strength = { 1.0f, 0.1f, 3.0f };
+		Select<int> source = { 1, { { "Screen-Space", 0 }, { "Game Vertex Lighting", 1 } } };
+		bool debug = false;
 	} dynamic_light;
 
 	struct {

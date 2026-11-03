@@ -208,7 +208,11 @@ void saveIni()
 		"light_normals_strength=%.3f\n"
 		"; Light shafts (god rays) around light sources (needs dynamic_light).\n"
 		"light_shafts=%s\n"
-		"light_shafts_strength=%.3f\n\n"
+		"light_shafts_strength=%.3f\n"
+		"; Light source for dynamic_light: 0 = screen-space (bright pixels), 1 = game vertex lighting.\n"
+		"dynamic_light_source=%d\n"
+		"; Debug: show the captured game light buffer in place of the world (needs dynamic_light).\n"
+		"dynamic_light_debug=%s\n\n"
 		"; Stretch viewport to window size.\n"
 		"stretched_horizontal=%s\n"
 		"stretched_vertical=%s\n\n\n";
@@ -233,6 +237,8 @@ void saveIni()
 		App.dynamic_light.normals_strength.value,
 		boolString(App.dynamic_light.shafts),
 		App.dynamic_light.shafts_strength.value,
+		App.dynamic_light.source.selected,
+		boolString(App.dynamic_light.debug),
 		boolString(App.viewport.stretched.x),
 		boolString(App.viewport.stretched.y));
 	out_file << buf;
@@ -371,6 +377,8 @@ void loadIni()
 		App.dynamic_light.normals_strength.value = getFloat("Graphic", "light_normals_strength", App.dynamic_light.normals_strength);
 		App.dynamic_light.shafts = getBool("Graphic", "light_shafts", App.dynamic_light.shafts);
 		App.dynamic_light.shafts_strength.value = getFloat("Graphic", "light_shafts_strength", App.dynamic_light.shafts_strength);
+		App.dynamic_light.source.selected = getInt("Graphic", "dynamic_light_source", App.dynamic_light.source.selected, 0, 1);
+		App.dynamic_light.debug = getBool("Graphic", "dynamic_light_debug", App.dynamic_light.debug);
 
 		App.viewport.stretched.x = getBool("Graphic", "stretched_horizontal", App.viewport.stretched.x);
 		App.viewport.stretched.y = getBool("Graphic", "stretched_vertical", App.viewport.stretched.y);

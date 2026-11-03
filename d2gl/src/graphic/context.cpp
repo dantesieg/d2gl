@@ -236,7 +236,7 @@ Context::Context()
 		};
 		game_pipeline_ci.attachment_blends.clear();
 		for (auto& blend : g_blend_types)
-			game_pipeline_ci.attachment_blends.push_back({ blend.second.second, BlendType::SAlpha_OneMinusSAlpha, BlendType::SAlpha_OneMinusSAlpha });
+			game_pipeline_ci.attachment_blends.push_back({ blend.second.second, BlendType::SAlpha_OneMinusSAlpha, BlendType::SAlpha_OneMinusSAlpha, blend.second.first == 0 ? BlendType::One_Zero : BlendType::One_One });
 		m_game_pipeline = Context::createPipeline(game_pipeline_ci);
 
 		TextureCreateInfo lut_texture_ci;
@@ -286,6 +286,7 @@ Context::Context()
 			{ BindingType::Texture, "u_Texture", TEXTURE_SLOT_PREFX, &m_prefx_texture },
 			{ BindingType::FBTexture, "u_LightTexture1", TEXTURE_SLOT_LIGHT1, &m_light_framebuffer },
 			{ BindingType::Texture, "u_LightTexture2", TEXTURE_SLOT_LIGHT2, &m_light_texture },
+			{ BindingType::FBTexture, "u_VLightTexture", TEXTURE_SLOT_VLIGHT, &m_game_framebuffer, 3 },
 		};
 		m_light_pipeline = Context::createPipeline(light_pipeline_ci);
 		m_light_pipeline->setUniformMat4f("u_MVP", glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f));
@@ -421,17 +422,27 @@ void Context::renderThread(void* context)
 				} break;
 				case CommandType::SetBlendState:
 					ctx->bindPipeline(ctx->m_game_pipeline, command->index);
+					ctx->m_game_pipeline->setUniform1i("u_BlendIndex", command->index);
 					break;
 				case CommandType::DrawIndexed:
 					if (command->draw.count > 0)
 						glDrawElementsBaseVertex(GL_TRIANGLES, command->draw.count, GL_UNSIGNED_INT, 0, command->draw.start);
 					break;
 				case CommandType::PreFx:
-					if (App.dynamic_light.active && ctx->m_light_tex_size.x > 0 && ctx->m_light_tex_size.y > 0) {
+					if (App.dynamic_light.active && App.dynamic_light.debug && ctx->gameDrawBufferCount() == 4) {
+						// Debug: raw game light buffer in place of the world (ambient swatch top-left).
+						FrameBuffer::setDrawBuffers(1);
+						ctx->bindPipeline(ctx->m_light_pipeline);
+						ctx->drawQuad(4);
+					} else if (App.dynamic_light.active && ctx->m_light_tex_size.x > 0 && ctx->m_light_tex_size.y > 0) {
+						const int vsource = ctx->gameDrawBufferCount() == 4 ? 1 : 0;
+						if (vsource)
+							FrameBuffer::setDrawBuffers(1);
 						ctx->m_prefx_texture->fillFromBuffer(ctx->m_game_framebuffer);
 						ctx->bindPipeline(ctx->m_light_pipeline);
 						ctx->m_light_pipeline->setUniformVec2f("u_RelSize", { 1.0f / ctx->m_light_tex_size.x, 1.0f / ctx->m_light_tex_size.y });
 						ctx->m_light_pipeline->setUniform1f("u_Intensity", App.dynamic_light.intensity.value);
+						ctx->m_light_pipeline->setUniform1i("u_Source", vsource);
 						ctx->bindFrameBuffer(ctx->m_light_framebuffer, false);
 						ctx->setViewport(ctx->m_light_tex_size);
 						ctx->drawQuad(0);
@@ -448,6 +459,7 @@ void Context::renderThread(void* context)
 							ctx->bindPipeline(ctx->m_lightfx_pipeline);
 							ctx->m_lightfx_pipeline->setUniformVec2f("u_RelSize", { 1.0f / ctx->m_light_tex_size.x, 1.0f / ctx->m_light_tex_size.y });
 							ctx->m_lightfx_pipeline->setUniform1f("u_Intensity", App.dynamic_light.intensity.value);
+							ctx->m_lightfx_pipeline->setUniform1i("u_Source", vsource);
 							ctx->m_lightfx_pipeline->setUniform1f("u_Normals", App.dynamic_light.normals ? App.dynamic_light.normals_strength.value : 0.0f);
 							ctx->m_lightfx_pipeline->setUniform1f("u_Shafts", App.dynamic_light.shafts ? App.dynamic_light.shafts_strength.value : 0.0f);
 							if (App.dynamic_light.shafts)
@@ -495,12 +507,12 @@ void Context::renderThread(void* context)
 					ctx->drawQuad(3 + App.bloom.active, 0, App.lut.selected);
 
 					ctx->bindPipeline(ctx->m_game_pipeline, command->index);
-					FrameBuffer::setDrawBuffers(ctx->m_game_framebuffer->getAttachmentCount());
+					FrameBuffer::setDrawBuffers(ctx->gameDrawBufferCount());
 					break;
 				case CommandType::WorldSnapshot:
 					ctx->m_world_framebuffer->getTexture()->fillFromBuffer(ctx->m_game_framebuffer);
 					ctx->bindFrameBuffer(ctx->m_game_framebuffer, false);
-					FrameBuffer::setDrawBuffers(ctx->m_game_framebuffer->getAttachmentCount());
+					FrameBuffer::setDrawBuffers(ctx->gameDrawBufferCount());
 					ctx->m_world_ready = true;
 					break;
 				case CommandType::Begin:
@@ -509,6 +521,11 @@ void Context::renderThread(void* context)
 						ctx->bindDefaultFrameBuffer();
 						ctx->setViewport(App.window.size);
 					} else {
+						if (ISGLIDE3X()) {
+							// Set draw buffers first so the clear also covers the light attachment.
+							ctx->bindFrameBuffer(ctx->m_game_framebuffer, false);
+							FrameBuffer::setDrawBuffers(ctx->gameDrawBufferCount());
+						}
 						ctx->bindFrameBuffer(ctx->m_game_framebuffer, ISGLIDE3X());
 						ctx->setViewport(cmd->m_game_size);
 					}
@@ -650,6 +667,8 @@ void Context::onResize(glm::uvec2 w_size, glm::uvec2 g_size, uint32_t bpp)
 				{ TEXTURE_SLOT_GAME, { 0.0f, 0.0f, 0.0f, 1.0f }, { GL_LINEAR, GL_LINEAR } },
 				{ TEXTURE_SLOT_MAP, { 0.0f, 0.0f, 0.0f, 0.0f } },
 				{ TEXTURE_SLOT_MASK, { 0.0f, 0.0f, 0.0f, 0.0f }, { GL_LINEAR, GL_LINEAR }, { GL_R8, GL_RED } },
+				// Game vertex lighting (GlideVertex pargb) of world draws; alpha = coverage.
+				{ TEXTURE_SLOT_VLIGHT, { 0.0f, 0.0f, 0.0f, 0.0f }, { GL_LINEAR, GL_LINEAR } },
 			};
 		else
 			frambuffer_ci.attachments = { { TEXTURE_SLOT_GAME } };
@@ -745,6 +764,16 @@ void Context::onResize(glm::uvec2 w_size, glm::uvec2 g_size, uint32_t bpp)
 
 	modules::MiniMap::Instance().resize();
 	toggleVsync();
+}
+
+// The light attachment (3) is only written while game vertex lighting is in use.
+uint32_t Context::gameDrawBufferCount() const
+{
+	const uint32_t count = m_game_framebuffer->getAttachmentCount();
+	if (count < 4)
+		return count;
+	const bool vlight = App.dynamic_light.active && (App.dynamic_light.source.selected == 1 || App.dynamic_light.debug) && App.gl_caps.independent_blending;
+	return vlight ? 4 : 3;
 }
 
 void Context::onShaderChange()

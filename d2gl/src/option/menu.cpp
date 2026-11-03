@@ -352,6 +352,10 @@ void Menu::draw()
 					drawSlider_m(float, "", App.dynamic_light.intensity, "%.3f", "", dynamic_light_intensity)
 						saveFloat("Graphic", "dynamic_light_intensity", App.dynamic_light.intensity.value);
 					drawDescription("Dynamic lighting intensity.", m_colors[Color::Gray], 12);
+					drawCombo_m("Light Source", App.dynamic_light.source, "Screen-space guesses lights from bright pixels; game vertex lighting uses the game's own light map.", false, 17, dynamic_light_source)
+						saveInt("Graphic", "dynamic_light_source", App.dynamic_light.source.selected);
+					drawCheckbox_m("Light Buffer Debug View", App.dynamic_light.debug, "Show the captured game light buffer in place of the world.", dynamic_light_debug)
+						saveBool("Graphic", "dynamic_light_debug", App.dynamic_light.debug);
 					drawCheckbox_m("Normal-Mapped Lighting", App.dynamic_light.normals, "Shade sprites and walls toward nearby lights for a 3D look.", light_normals)
 						saveBool("Graphic", "light_normals", App.dynamic_light.normals);
 					ImGui::BeginDisabled(!App.dynamic_light.normals);

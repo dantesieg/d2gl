@@ -57,6 +57,7 @@ uniform vec2 u_RelSize;            // 1 / light buffer size
 uniform float u_Intensity;
 uniform float u_Normals;           // 0 = off
 uniform float u_Shafts;            // 0 = off
+uniform int u_Source;              // 1 = game vertex light (real colours, no warm tint)
 
 in vec2 v_TexCoord;
 flat in uvec4 v_Flags;
@@ -97,7 +98,8 @@ void main()
 	} else {
 		vec3 base = texture(u_Texture, v_TexCoord).rgb;
 		vec3 light = texture(u_LightTexture2, v_TexCoord).rgb * u_Intensity;
-		light = mix(light, light * vec3(1.0, 0.78, 0.5), 0.35);
+		if (u_Source == 0)
+			light = mix(light, light * vec3(1.0, 0.78, 0.5), 0.35);
 		float shade = 1.0;
 		if (u_Normals > 0.0) {
 			vec2 px = 1.0 / vec2(textureSize(u_Texture, 0));
