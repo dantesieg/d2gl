@@ -203,6 +203,14 @@ void saveIni()
 		"; Dynamic lighting: light sources glow and light the world around them.\n"
 		"dynamic_light=%s\n"
 		"dynamic_light_intensity=%.3f\n\n"
+		"; Heat haze: slight shimmer around hot, bright pixels (world only).\n"
+		"heat_haze=%s\n\n"
+		"; Drifting fog tinted per act (world only, density: 0.1-1.0).\n"
+		"fog=%s\n"
+		"fog_density=%.3f\n\n"
+		"; HDR-style tonemapping (world only, exposure: 0.5-2.0).\n"
+		"tonemap=%s\n"
+		"tonemap_exposure=%.3f\n\n"
 		"; Stretch viewport to window size.\n"
 		"stretched_horizontal=%s\n"
 		"stretched_vertical=%s\n\n\n";
@@ -223,6 +231,11 @@ void saveIni()
 		App.bloom.gamma.value,
 		boolString(App.dynamic_light.active),
 		App.dynamic_light.intensity.value,
+		boolString(App.atmos.heat_haze),
+		boolString(App.atmos.fog),
+		App.atmos.fog_density.value,
+		boolString(App.tonemap.active),
+		App.tonemap.exposure.value,
 		boolString(App.viewport.stretched.x),
 		boolString(App.viewport.stretched.y));
 	out_file << buf;
@@ -357,6 +370,11 @@ void loadIni()
 		App.bloom.gamma.value = getFloat("Graphic", "bloom_gamma", App.bloom.gamma);
 		App.dynamic_light.active = getBool("Graphic", "dynamic_light", App.dynamic_light.active);
 		App.dynamic_light.intensity.value = getFloat("Graphic", "dynamic_light_intensity", App.dynamic_light.intensity);
+		App.atmos.heat_haze = getBool("Graphic", "heat_haze", App.atmos.heat_haze);
+		App.atmos.fog = getBool("Graphic", "fog", App.atmos.fog);
+		App.atmos.fog_density.value = getFloat("Graphic", "fog_density", App.atmos.fog_density);
+		App.tonemap.active = getBool("Graphic", "tonemap", App.tonemap.active);
+		App.tonemap.exposure.value = getFloat("Graphic", "tonemap_exposure", App.tonemap.exposure);
 
 		App.viewport.stretched.x = getBool("Graphic", "stretched_horizontal", App.viewport.stretched.x);
 		App.viewport.stretched.y = getBool("Graphic", "stretched_vertical", App.viewport.stretched.y);

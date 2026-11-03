@@ -353,6 +353,24 @@ void Menu::draw()
 						saveFloat("Graphic", "dynamic_light_intensity", App.dynamic_light.intensity.value);
 					drawDescription("Dynamic lighting intensity.", m_colors[Color::Gray], 12);
 				ImGui::EndDisabled();
+				drawSeparator();
+				drawCheckbox_m("Heat Haze", App.atmos.heat_haze, "Slight shimmer around hot, bright pixels.", heat_haze)
+					saveBool("Graphic", "heat_haze", App.atmos.heat_haze);
+				drawCheckbox_m("Drifting Fog", App.atmos.fog, "Low animated fog, tinted per act.", fog)
+					saveBool("Graphic", "fog", App.atmos.fog);
+				ImGui::BeginDisabled(!App.atmos.fog);
+					drawSlider_m(float, "", App.atmos.fog_density, "%.3f", "", fog_density)
+						saveFloat("Graphic", "fog_density", App.atmos.fog_density.value);
+					drawDescription("Fog density.", m_colors[Color::Gray], 12);
+				ImGui::EndDisabled();
+				drawSeparator();
+				drawCheckbox_m("HDR Tonemapping", App.tonemap.active, "Expands highlights so brights pop without crushing darks.", tonemap)
+					saveBool("Graphic", "tonemap", App.tonemap.active);
+				ImGui::BeginDisabled(!App.tonemap.active);
+					drawSlider_m(float, "", App.tonemap.exposure, "%.3f", "", tonemap_exposure)
+						saveFloat("Graphic", "tonemap_exposure", App.tonemap.exposure.value);
+					drawDescription("Tonemap exposure.", m_colors[Color::Gray], 12);
+				ImGui::EndDisabled();
 			ImGui::EndDisabled();
 			drawSeparator();
 			drawLabel("Stretched Viewport", m_colors[Color::Orange]);

@@ -1,0 +1,126 @@
+/*
+	D2GL: Diablo 2 LoD Glide/DDraw to OpenGL Wrapper.
+	Copyright (C) 2023  Bayaraa
+
+	This program is free software: you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation, either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+// World-only atmosphere and tonemapping, run at the end of the PreFx stage
+// (after dynamic light, bloom and LUT), so the UI is untouched.
+// Flag 0: heat haze + drifting fog. Flag 1: HDR-style tonemap within LDR.
+
+#ifdef VERTEX
+
+layout(location = 0) in vec2 Position;
+layout(location = 1) in vec2 TexCoord;
+layout(location = 5) in uvec4 Flags;
+
+uniform mat4 u_MVP;
+
+out vec2 v_TexCoord;
+flat out uvec4 v_Flags;
+
+void main()
+{
+	gl_Position = u_MVP * vec4(Position, 0.0, 1.0);
+	v_TexCoord = TexCoord;
+	v_Flags = Flags;
+}
+
+// =============================================================
+#elif FRAGMENT
+
+layout(location = 0) out vec4 FragColor;
+layout(location = 1) out vec4 FragColorMap;
+layout(location = 2) out vec4 FragColorMask;
+
+uniform sampler2D u_Texture;
+uniform vec2 u_RelSize;
+uniform float u_Time;
+uniform float u_Haze;
+uniform float u_Fog;
+uniform vec4 u_FogTint;
+uniform float u_Exposure;
+
+in vec2 v_TexCoord;
+flat in uvec4 v_Flags;
+
+float Hash(vec2 p)
+{
+	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+float Noise(vec2 p)
+{
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	f = f * f * (3.0 - 2.0 * f);
+	return mix(mix(Hash(i), Hash(i + vec2(1.0, 0.0)), f.x), mix(Hash(i + vec2(0.0, 1.0)), Hash(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+
+float Heat(vec2 uv)
+{
+	vec3 c = texture(u_Texture, uv).rgb;
+	return smoothstep(0.6, 0.95, c.r) * smoothstep(0.25, 0.6, c.r - c.b);
+}
+
+vec3 Atmosphere()
+{
+	vec2 uv = v_TexCoord;
+	if (u_Haze > 0.0) {
+		vec2 r = u_RelSize * 6.0;
+		float h = Heat(uv + vec2(r.x, 0.0)) + Heat(uv - vec2(r.x, 0.0)) + Heat(uv + vec2(0.0, r.y)) + Heat(uv - vec2(0.0, r.y));
+		h += Heat(uv + r) + Heat(uv - r) + Heat(uv + vec2(r.x, -r.y)) + Heat(uv + vec2(-r.x, r.y));
+		h = clamp(h * 0.25, 0.0, 1.0);
+		vec2 px = uv / u_RelSize;
+		vec2 d = vec2(sin(px.y * 0.35 + u_Time * 3.1), cos(px.x * 0.27 + px.y * 0.11 + u_Time * 2.3));
+		uv += d * h * u_RelSize * 1.5;
+	}
+	vec3 col = texture(u_Texture, uv).rgb;
+	if (u_Fog > 0.0) {
+		vec2 p = uv / u_RelSize / 260.0;
+		float n = Noise(p + vec2(u_Time * 0.05, u_Time * 0.02)) * 0.65 + Noise(p * 2.3 - vec2(u_Time * 0.03, -u_Time * 0.04)) * 0.35;
+		n = smoothstep(0.3, 0.85, n);
+		float lum = dot(col, vec3(0.299, 0.587, 0.114));
+		float f = u_Fog * 0.3 * n * (1.0 - lum * 0.7);
+		col = mix(col, u_FogTint.rgb * (0.25 + lum * 0.5), f);
+	}
+	return col;
+}
+
+vec3 ACES(vec3 x)
+{
+	return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0);
+}
+
+vec3 Tonemap()
+{
+	vec3 c = texture(u_Texture, v_TexCoord).rgb;
+	vec3 lin = pow(c, vec3(2.2));
+	vec3 hdr = lin / (1.0 - min(lin, vec3(0.999)) * 0.75);
+	const float pre = 0.6;
+	vec3 tm = ACES(hdr * pre * u_Exposure) / ACES(vec3(4.0 * pre)).r;
+	float l = dot(lin, vec3(0.2126, 0.7152, 0.0722));
+	vec3 res = mix(lin * u_Exposure, tm, smoothstep(0.0, 0.2, l));
+	return pow(clamp(res, 0.0, 1.0), vec3(1.0 / 2.2));
+}
+
+void main()
+{
+	FragColor = vec4(v_Flags.x == 0u ? Atmosphere() : Tonemap(), 1.0);
+	FragColorMap = vec4(0.0);
+	FragColorMask = vec4(0.0);
+}
+
+#endif
