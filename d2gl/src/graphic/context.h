@@ -44,6 +44,7 @@ namespace d2gl {
 #define TEXTURE_SLOT_PREFX 4
 #define TEXTURE_SLOT_BLOOM1 5
 #define TEXTURE_SLOT_BLOOM2 6
+#define TEXTURE_SLOT_WORLD 7
 
 #define TEXTURE_SLOT_LUT 11
 #define TEXTURE_SLOT_CURSOR 12
@@ -164,6 +165,9 @@ class Context {
 	std::unique_ptr<Texture> m_lut_texture;
 	std::unique_ptr<Texture> m_prefx_texture;
 	std::unique_ptr<Pipeline> m_prefx_pipeline;
+	std::unique_ptr<Pipeline> m_uilayer_pipeline;
+	std::unique_ptr<FrameBuffer> m_world_framebuffer;
+	bool m_world_ready = false;
 
 public:
 	Context();

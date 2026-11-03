@@ -272,6 +272,10 @@ const char* g_shader_postfx = {
 #include "shaders/postfx.glsl.h"
 };
 
+const char* g_shader_uilayer = {
+#include "shaders/uilayer.glsl.h"
+};
+
 const char* g_shader_mod = {
 #include "shaders/mod.glsl.h"
 };

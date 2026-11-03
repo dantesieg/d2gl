@@ -279,6 +279,15 @@ Context::Context()
 		};
 		m_prefx_pipeline = Context::createPipeline(prefx_pipeline_ci);
 		m_prefx_pipeline->setUniformMat4f("u_MVP", glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f));
+
+		PipelineCreateInfo uilayer_pipeline_ci = { "uilayer" };
+		uilayer_pipeline_ci.shader = g_shader_uilayer;
+		uilayer_pipeline_ci.bindings = {
+			{ BindingType::FBTexture, "u_FrameTexture", TEXTURE_SLOT_GAME, &m_game_framebuffer, 0 },
+			{ BindingType::FBTexture, "u_WorldTexture", TEXTURE_SLOT_WORLD, &m_world_framebuffer, 0 },
+		};
+		m_uilayer_pipeline = Context::createPipeline(uilayer_pipeline_ci);
+		m_uilayer_pipeline->setUniformMat4f("u_MVP", glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f));
 	} else {
 		UniformBufferCreateInfo ubo_ci;
 		ubo_ci.variables = { { "palette", 256 * sizeof(glm::vec4) } };
@@ -441,7 +450,17 @@ void Context::renderThread(void* context)
 					ctx->bindPipeline(ctx->m_game_pipeline, command->index);
 					FrameBuffer::setDrawBuffers(ctx->m_game_framebuffer->getAttachmentCount());
 					break;
+				case CommandType::WorldSnapshot:
+					glBindFramebuffer(GL_READ_FRAMEBUFFER, ctx->m_game_framebuffer->getId());
+					glReadBuffer(GL_COLOR_ATTACHMENT0);
+					glBindFramebuffer(GL_DRAW_FRAMEBUFFER, ctx->m_world_framebuffer->getId());
+					glBlitFramebuffer(0, 0, cmd->m_game_size.x, cmd->m_game_size.y, 0, 0, cmd->m_game_size.x, cmd->m_game_size.y, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+					glBindFramebuffer(GL_FRAMEBUFFER, ctx->m_game_framebuffer->getId());
+					FrameBuffer::setDrawBuffers(ctx->m_game_framebuffer->getAttachmentCount());
+					ctx->m_world_ready = true;
+					break;
 				case CommandType::Begin:
+					ctx->m_world_ready = false;
 					if (cmd->m_screen == GameScreen::Movie) {
 						ctx->bindDefaultFrameBuffer();
 						ctx->setViewport(App.window.size);
@@ -476,10 +495,14 @@ void Context::renderThread(void* context)
 							ctx->drawQuad();
 						}
 
+						// world-only shader: the preset runs on the snapshot taken before the UI was drawn,
+						// and the UI is laid on top crisply by the uilayer pass below.
+						const bool ui_layer = ISGLIDE3X() && App.shader.world_only && ctx->m_world_ready;
+						const auto& upscale_in = ui_layer ? ctx->m_world_framebuffer : ctx->m_game_framebuffer;
 						if (App.sharpen.active || App.fxaa.active)
-							Upscaler::Instance().process(ctx->m_game_framebuffer, vp_size, vp_offset, ctx->m_postfx_framebuffer);
+							Upscaler::Instance().process(upscale_in, vp_size, vp_offset, ctx->m_postfx_framebuffer);
 						else
-							Upscaler::Instance().process(ctx->m_game_framebuffer, vp_size, vp_offset);
+							Upscaler::Instance().process(upscale_in, vp_size, vp_offset);
 
 						if (App.sharpen.active) {
 							if (App.fxaa.active)
@@ -501,6 +524,13 @@ void Context::renderThread(void* context)
 							ctx->setViewport(vp_size, vp_offset);
 							ctx->bindPipeline(ctx->m_postfx_pipeline);
 							ctx->drawQuad(2 + App.gl_caps.compute_shader, App.fxaa.presets.selected);
+						}
+
+						if (ui_layer) {
+							ctx->bindDefaultFrameBuffer();
+							ctx->setViewport(vp_size, vp_offset);
+							ctx->bindPipeline(ctx->m_uilayer_pipeline);
+							ctx->drawQuad();
 						}
 					}
 					break;
@@ -605,6 +635,11 @@ void Context::onResize(glm::uvec2 w_size, glm::uvec2 g_size, uint32_t bpp)
 			prefx_texture_ci.size = game_size;
 			prefx_texture_ci.slot = TEXTURE_SLOT_PREFX;
 			m_prefx_texture = Context::createTexture(prefx_texture_ci);
+
+			FrameBufferCreateInfo world_frambuffer_ci;
+			world_frambuffer_ci.size = game_size;
+			world_frambuffer_ci.attachments = { { TEXTURE_SLOT_WORLD, { 0.0f, 0.0f, 0.0f, 1.0f }, { GL_LINEAR, GL_LINEAR } } };
+			m_world_framebuffer = Context::createFrameBuffer(world_frambuffer_ci);
 		} else {
 			TextureCreateInfo texture_ci;
 			texture_ci.size = game_size;
@@ -645,6 +680,8 @@ void Context::onResize(glm::uvec2 w_size, glm::uvec2 g_size, uint32_t bpp)
 
 	m_postfx_ubo->updateDataVec2f("rel_size", { 1.0f / App.viewport.size.x, 1.0f / App.viewport.size.y });
 	m_mod_pipeline->setUniformVec2f("u_Scale", App.viewport.scale);
+	if (m_uilayer_pipeline)
+		m_uilayer_pipeline->setUniformVec2f("u_Scale", App.viewport.scale);
 
 	const glm::ivec2 vp_size = { App.viewport.stretched.x ? App.window.size.x : App.viewport.size.x, App.viewport.stretched.y ? App.window.size.y : App.viewport.size.y };
 	const glm::ivec2 vp_offset = { App.viewport.stretched.x ? 0 : App.viewport.offset.x, App.viewport.stretched.y ? 0 : App.viewport.offset.y };
@@ -679,6 +716,10 @@ void Context::onStageChange()
 			if (ISGLIDE3X() && (App.bloom.active || App.lut.selected) && *d2::screen_shift != SCREENPANEL_BOTH) {
 				flushVertices();
 				m_command_buffer[m_frame_index].pushCommand(CommandType::PreFx, m_current_blend_index);
+			}
+			if (ISGLIDE3X() && App.shader.world_only) {
+				flushVertices();
+				m_command_buffer[m_frame_index].pushCommand(CommandType::WorldSnapshot);
 			}
 			break;
 		case DrawStage::Map:

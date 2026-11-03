@@ -303,6 +303,10 @@ void Menu::draw()
 					App.shader.selected = App.shader.presets.selected;
 			ImGui::EndDisabled();
 			drawDescription("RetroArch's slang shader preset files (.slangp).", m_colors[Color::Gray]);
+			ImGui::BeginDisabled(!ISGLIDE3X());
+				drawCheckbox_m("Shader On World Only", App.shader.world_only, "UI and text skip the shader and stay crisp.", shader_world_only)
+					saveBool("Graphic", "shader_world_only", App.shader.world_only);
+			ImGui::EndDisabled();
 			childBegin("##w3", true);
 			drawSeparator();
 			drawCheckbox_m("Luma Sharpen", App.sharpen.active, "", sharpen)

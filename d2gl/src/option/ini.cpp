@@ -182,7 +182,9 @@ void saveIni()
 		"[Graphic]\n\n"
 		"; Upscale shader.\n"
 		"; RetroArch's slang shader preset files (.slangp).\n"
-		"shader_preset=%d\n\n"
+		"shader_preset=%s\n"
+		"; Apply the shader preset to the game world only; UI and text stay crisp (glide mode).\n"
+		"shader_world_only=%s\n\n"
 		"; Color grading (LUT) (only available in glide mode).\n"
 		"; Set one of 1-%d predefined luts. 0 = game default.\n"
 		"lut=%d\n\n"
@@ -204,6 +206,7 @@ void saveIni()
 
 	sprintf_s(buf, graphic_setting,
 		App.shader.preset.c_str(),
+		boolString(App.shader.world_only),
 		App.lut.items.size() - 1,
 		App.lut.selected,
 		boolString(App.sharpen.active),
@@ -331,6 +334,7 @@ void loadIni()
 		App.background_fps.range.value = getInt("Screen", "background_fps_value", App.background_fps.range.value, App.background_fps.range.min, App.background_fps.range.max);
 
 		App.shader.preset = getString("Graphic", "shader_preset", App.shader.preset);
+		App.shader.world_only = getBool("Graphic", "shader_world_only", App.shader.world_only);
 		App.lut.selected = getInt("Graphic", "lut", App.lut.selected, 0, App.lut.items.size() - 1);
 		App.fxaa.active = getBool("Graphic", "fxaa", App.fxaa.active);
 		App.fxaa.presets.selected = getInt("Graphic", "fxaa_preset", App.fxaa.presets.selected, 0, 2);

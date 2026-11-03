@@ -117,6 +117,7 @@ struct D2GLApp {
 		Select<std::string> presets = {};
 		std::string preset = "bilinear.slangp";
 		int selected = 0;
+		bool world_only = false;
 	} shader;
 
 	Select<int> lut = {};
