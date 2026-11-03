@@ -360,6 +360,24 @@ void Menu::draw()
 					drawSlider_m(float, "", App.dynamic_light.intensity, "%.3f", "", dynamic_light_intensity)
 						saveFloat("Graphic", "dynamic_light_intensity", App.dynamic_light.intensity.value);
 					drawDescription("Dynamic lighting intensity.", m_colors[Color::Gray], 12);
+					drawCombo_m("Light Source", App.dynamic_light.source, "Screen-space guesses lights from bright pixels; game vertex lighting uses the game's own light map.", false, 17, dynamic_light_source)
+						saveInt("Graphic", "dynamic_light_source", App.dynamic_light.source.selected);
+					drawCheckbox_m("Light Buffer Debug View", App.dynamic_light.debug, "Show the captured game light buffer in place of the world.", dynamic_light_debug)
+						saveBool("Graphic", "dynamic_light_debug", App.dynamic_light.debug);
+					drawCheckbox_m("Normal-Mapped Lighting", App.dynamic_light.normals, "Shade sprites and walls toward nearby lights for a 3D look.", light_normals)
+						saveBool("Graphic", "light_normals", App.dynamic_light.normals);
+					ImGui::BeginDisabled(!App.dynamic_light.normals);
+						drawSlider_m(float, "", App.dynamic_light.normals_strength, "%.3f", "", light_normals_strength)
+							saveFloat("Graphic", "light_normals_strength", App.dynamic_light.normals_strength.value);
+						drawDescription("Normal-mapped lighting strength.", m_colors[Color::Gray], 12);
+					ImGui::EndDisabled();
+					drawCheckbox_m("Light Shafts", App.dynamic_light.shafts, "Rays of light streaming from light sources.", light_shafts)
+						saveBool("Graphic", "light_shafts", App.dynamic_light.shafts);
+					ImGui::BeginDisabled(!App.dynamic_light.shafts);
+						drawSlider_m(float, "", App.dynamic_light.shafts_strength, "%.3f", "", light_shafts_strength)
+							saveFloat("Graphic", "light_shafts_strength", App.dynamic_light.shafts_strength.value);
+						drawDescription("Light shafts strength.", m_colors[Color::Gray], 12);
+					ImGui::EndDisabled();
 				ImGui::EndDisabled();
 				drawSeparator();
 				drawCheckbox_m("Heat Haze", App.atmos.heat_haze, "Slight shimmer around hot, bright pixels.", heat_haze)

@@ -50,6 +50,7 @@ layout(location = 0) out vec4 FragColor;
 layout(location = 1) out vec4 FragColorMap;
 layout(location = 2) out vec4 FragColorMask;
 layout(location = 3) out vec4 FragColorShadow; // r: shadow/AO darkness, g: occluder (additive)
+layout(location = 4) out vec4 FragLight; // game vertex lighting (world), see dynamic_light_source
 
 layout(std140) uniform ubo_Colors {
 	vec4 u_Palette[256];
@@ -57,6 +58,7 @@ layout(std140) uniform ubo_Colors {
 };
 
 uniform sampler2DArray u_Texture;
+uniform int u_BlendIndex; // pipeline blend index: 0 opaque, 1 multiply, 2 additive, 3 alpha
 
 in vec2 v_TexCoord;
 in vec4 v_Color1;
@@ -69,6 +71,7 @@ void main()
 	// v_Flags.x high nibble: 1 multiply shadow, 2 opaque occluder, 3 AO ellipse, 4 alpha shadow, 5 alpha occluder
 	uint sk = v_Flags.x >> 4u;
 	FragColorShadow = vec4(0.0);
+	FragLight = vec4(0.0);
 	if (sk == 3u) {
 		float e = 1.0 - smoothstep(0.15, 1.0, length(v_TexCoord * 2.0 - 1.0));
 		FragColor = vec4(1.0, 1.0, 1.0, 0.0);
@@ -112,6 +115,17 @@ void main()
 		FragColorMask = FragColor;
 	else if(v_Flags.w == 11u)
 		FragColorMask = vec4(0.05, 0.0, 0.0, FragColor.a);
+
+	// Light attachment: opaque textured draws store their per-vertex light (pargb,
+	// no texture); additive draws (spells, fire) add their colour as emitted light.
+	// Attachment blend is One_Zero for opaque and One_One otherwise, so 0 = no change.
+	// World (0) and water floors (11) count; FragColor is read before shadow edits.
+	if ((v_Flags.w == 0u || v_Flags.w == 11u) && v_Flags.y == 0u) {
+		if (u_BlendIndex == 0)
+			FragLight = vec4(v_Color1.rgb, 1.0);
+		else if (u_BlendIndex == 2)
+			FragLight = vec4(FragColor.rgb * 0.5, 0.0);
+	}
 
 	if (sk == 1u) {
 		FragColorShadow.r = 1.0 - dot(FragColor.rgb, vec3(0.299, 0.587, 0.114));

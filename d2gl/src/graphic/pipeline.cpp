@@ -292,6 +292,10 @@ const char* g_shader_worldfx = {
 #include "shaders/worldfx.glsl.h"
 };
 
+const char* g_shader_lightfx = {
+#include "shaders/lightfx.glsl.h"
+};
+
 const char* g_shader_mod = {
 #include "shaders/mod.glsl.h"
 };

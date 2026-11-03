@@ -56,6 +56,7 @@ namespace d2gl {
 #define TEXTURE_SLOT_MAP 15
 #define TEXTURE_SLOT_SHADOW1 16
 #define TEXTURE_SLOT_SHADOW2 17
+#define TEXTURE_SLOT_VLIGHT 18 // game framebuffer attachment 4 (needs > 18 texture units)
 
 #define IMAGE_UNIT_BLUR 0
 #define IMAGE_UNIT_FXAA 1
@@ -177,14 +178,17 @@ class Context {
 	std::unique_ptr<Pipeline> m_atmos_pipeline;
 	std::unique_ptr<Pipeline> m_worldfx_pipeline;
 	std::unique_ptr<Pipeline> m_shimmer_pipeline;
+	std::unique_ptr<Pipeline> m_lightfx_pipeline;
 	std::unique_ptr<FrameBuffer> m_light_framebuffer;
 	std::unique_ptr<Texture> m_light_texture;
 	glm::uvec2 m_light_tex_size = { 0, 0 };
+	uint32_t gameDrawBufferCount() const;
 	std::unique_ptr<FrameBuffer> m_world_framebuffer;
 	bool m_world_ready = false;
 
 	// Soft shadows / ambient occlusion (game framebuffer attachment 3: r = darkness, g = occluder)
 	bool m_shadow_supported = false;
+	bool m_vlight_supported = false;
 	bool m_shadow_fx = false;
 	bool m_shadow_seen = false;
 	uint8_t m_shadow_draw = 0; // 0: normal, 1: unit shadow, 2: ground/tile

@@ -205,7 +205,17 @@ void saveIni()
 		"bloom_gamma=%.3f\n\n"
 		"; Dynamic lighting: light sources glow and light the world around them.\n"
 		"dynamic_light=%s\n"
-		"dynamic_light_intensity=%.3f\n\n"
+		"dynamic_light_intensity=%.3f\n"
+		"; Normal-mapped lighting: pseudo normals from the image, shaded toward lights (needs dynamic_light).\n"
+		"light_normals=%s\n"
+		"light_normals_strength=%.3f\n"
+		"; Light shafts (god rays) around light sources (needs dynamic_light).\n"
+		"light_shafts=%s\n"
+		"light_shafts_strength=%.3f\n"
+		"; Light source for dynamic_light: 0 = screen-space (bright pixels), 1 = game vertex lighting.\n"
+		"dynamic_light_source=%d\n"
+		"; Debug: show the captured game light buffer in place of the world (needs dynamic_light).\n"
+		"dynamic_light_debug=%s\n\n"
 		"; Heat haze: slight shimmer around hot, bright pixels (world only).\n"
 		"heat_haze=%s\n\n"
 		"; Drifting fog tinted per act (world only, density: 0.1-1.0).\n"
@@ -250,6 +260,12 @@ void saveIni()
 		App.bloom.gamma.value,
 		boolString(App.dynamic_light.active),
 		App.dynamic_light.intensity.value,
+		boolString(App.dynamic_light.normals),
+		App.dynamic_light.normals_strength.value,
+		boolString(App.dynamic_light.shafts),
+		App.dynamic_light.shafts_strength.value,
+		App.dynamic_light.source.selected,
+		boolString(App.dynamic_light.debug),
 		boolString(App.atmos.heat_haze),
 		boolString(App.atmos.fog),
 		App.atmos.fog_density.value,
@@ -406,6 +422,12 @@ void loadIni()
 		App.bloom.gamma.value = getFloat("Graphic", "bloom_gamma", App.bloom.gamma);
 		App.dynamic_light.active = getBool("Graphic", "dynamic_light", App.dynamic_light.active);
 		App.dynamic_light.intensity.value = getFloat("Graphic", "dynamic_light_intensity", App.dynamic_light.intensity);
+		App.dynamic_light.normals = getBool("Graphic", "light_normals", App.dynamic_light.normals);
+		App.dynamic_light.normals_strength.value = getFloat("Graphic", "light_normals_strength", App.dynamic_light.normals_strength);
+		App.dynamic_light.shafts = getBool("Graphic", "light_shafts", App.dynamic_light.shafts);
+		App.dynamic_light.shafts_strength.value = getFloat("Graphic", "light_shafts_strength", App.dynamic_light.shafts_strength);
+		App.dynamic_light.source.selected = getInt("Graphic", "dynamic_light_source", App.dynamic_light.source.selected, 0, 1);
+		App.dynamic_light.debug = getBool("Graphic", "dynamic_light_debug", App.dynamic_light.debug);
 		App.atmos.heat_haze = getBool("Graphic", "heat_haze", App.atmos.heat_haze);
 		App.atmos.fog = getBool("Graphic", "fog", App.atmos.fog);
 		App.atmos.fog_density.value = getFloat("Graphic", "fog_density", App.atmos.fog_density);
