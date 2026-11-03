@@ -451,11 +451,8 @@ void Context::renderThread(void* context)
 					FrameBuffer::setDrawBuffers(ctx->m_game_framebuffer->getAttachmentCount());
 					break;
 				case CommandType::WorldSnapshot:
-					glBindFramebuffer(GL_READ_FRAMEBUFFER, ctx->m_game_framebuffer->getId());
-					glReadBuffer(GL_COLOR_ATTACHMENT0);
-					glBindFramebuffer(GL_DRAW_FRAMEBUFFER, ctx->m_world_framebuffer->getId());
-					glBlitFramebuffer(0, 0, cmd->m_game_size.x, cmd->m_game_size.y, 0, 0, cmd->m_game_size.x, cmd->m_game_size.y, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-					glBindFramebuffer(GL_FRAMEBUFFER, ctx->m_game_framebuffer->getId());
+					ctx->m_world_framebuffer->getTexture()->fillFromBuffer(ctx->m_game_framebuffer);
+					ctx->bindFrameBuffer(ctx->m_game_framebuffer, false);
 					FrameBuffer::setDrawBuffers(ctx->m_game_framebuffer->getAttachmentCount());
 					ctx->m_world_ready = true;
 					break;
@@ -527,7 +524,7 @@ void Context::renderThread(void* context)
 						}
 
 						if (ui_layer) {
-							ctx->bindDefaultFrameBuffer();
+							FrameBuffer::unBind(); // not bindDefaultFrameBuffer(): that clears the shaded world
 							ctx->setViewport(vp_size, vp_offset);
 							ctx->bindPipeline(ctx->m_uilayer_pipeline);
 							ctx->drawQuad();
