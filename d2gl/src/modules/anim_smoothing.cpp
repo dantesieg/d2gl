@@ -13,7 +13,7 @@ static int64_t nowUs()
 
 void AnimSmoothing::drawPrevious(d2::CellContext* cell, int x, int y, uint32_t gamma, int draw_mode, uint8_t* palette)
 {
-	if (!App.animation_smoothing || !ISGLIDE3X() || !cell || !isVerMin(V_113c))
+	if (!App.animation_smoothing || !ISGLIDE3X() || !cell || !(isVerMin(V_113c)))
 		return;
 	if (App.game.screen != GameScreen::InGame || App.game.draw_stage != DrawStage::World)
 		return;
