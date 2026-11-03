@@ -389,9 +389,20 @@ BufferData loadFile(const std::string& file_path)
 
 		delete[] cache;
 		return { 0 };
-	} else
-		error_log("File (MPQ): \"%s\" could not opened!", path.c_str());
+	}
 
+	// Loose files next to the game (e.g. data\shaders\ added by the user) work without -direct.
+	std::ifstream file(getCurrentDir() + path, std::ios::binary | std::ios::ate);
+	if (file.is_open()) {
+		const size_t size = (size_t)file.tellg();
+		uint8_t* data = new uint8_t[size + 1];
+		file.seekg(0);
+		file.read((char*)data, size);
+		data[size] = 0;
+		return { size, data };
+	}
+
+	error_log("File: \"%s\" not found in MPQ or on disk.", path.c_str());
 	return { 0 };
 }
 

@@ -35,7 +35,7 @@ Upscaler::Upscaler()
 	delete[] buffer.data;
 
 	auto lines = helpers::strToLines(preset_list);
-	if (App.direct) {
+	{ // user presets in data\shaders\ are picked up with or without -direct
 		std::string shader_path = helpers::getCurrentDir() + "data\\shaders\\";
 		if (std::filesystem::is_directory(shader_path)) {
 			for (const auto& p : std::filesystem::recursive_directory_iterator(shader_path)) {
@@ -47,7 +47,8 @@ Upscaler::Upscaler()
 				if (extension == ".slangp") {
 					std::string path = p.path().string();
 					path.erase(0, shader_path.length());
-					lines.push_back(path);
+					if (std::find(lines.begin(), lines.end(), path) == lines.end())
+						lines.push_back(path);
 				}
 			}
 		}
@@ -58,7 +59,7 @@ Upscaler::Upscaler()
 		helpers::trimString(line, "\t\n\v\f\r ");
 		auto buf = helpers::loadFile("shaders\\" + line);
 		if (!buf.size)
-			return;
+			continue;
 
 		size_t pass_count = 1;
 		std::string preset_source((const char*)buf.data, buf.size);
