@@ -67,6 +67,7 @@ void setWindowRect();
 void setWindowMetrics();
 void setCursorLock();
 void setCursorUnlock();
+void checkCursorLock();
 void windowResize();
 void toggleDarkmode();
 void setDPIAwareness();
