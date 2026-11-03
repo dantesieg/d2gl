@@ -801,7 +801,20 @@ void Context::setBlendState(uint32_t index)
 	flushVertices();
 	m_current_blend_index = g_blend_types.at(index).first;
 	if (!m_blend_locked)
-		m_command_buffer[m_frame_index].pushCommand(CommandType::SetBlendState, m_current_blend_index);
+		m_command_buffer[m_frame_index].pushCommand(CommandType::SetBlendState, effectiveBlendIndex());
+}
+
+// Animation smoothing: draw opaque (One_Zero) quads alpha-blended at a fixed alpha.
+void Context::setAlphaOverride(uint8_t alpha)
+{
+	if (alpha == m_alpha_override)
+		return;
+	const uint32_t old_blend = effectiveBlendIndex();
+	flushVertices();
+	m_alpha_override = alpha;
+	const uint32_t new_blend = effectiveBlendIndex();
+	if (!m_blend_locked && new_blend != old_blend)
+		m_command_buffer[m_frame_index].pushCommand(CommandType::SetBlendState, new_blend);
 }
 
 void Context::beginFrame()
@@ -902,6 +915,10 @@ void Context::pushVertex(const GlideVertex* vertex, glm::vec2 fix, glm::ivec2 of
 	m_vertices.ptr->color2 = m_vertex_params.color;
 	m_vertices.ptr->tex_ids = m_vertex_params.tex_ids;
 	m_vertices.ptr->flags = m_vertex_params.flags;
+	if (m_alpha_override < 255 && m_current_blend_index == 0) {
+		m_vertices.ptr->color1 = (vertex->pargb & 0x00FFFFFF) | ((uint32_t)m_alpha_override << 24);
+		m_vertices.ptr->flags.z = 2;
+	}
 
 	m_vertices.ptr++;
 	m_vertices.count++;

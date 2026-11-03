@@ -152,6 +152,7 @@ struct D2GLApp {
 
 	bool hd_cursor = false;
 	bool motion_prediction = false;
+	bool animation_smoothing = false;
 	bool skip_intro = false;
 	bool no_pickup = false;
 	bool show_item_quantity = false;

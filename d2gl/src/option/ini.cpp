@@ -244,6 +244,8 @@ void saveIni()
 		"mini_map_height=%d\n\n"
 		"; D2DX's Motion Prediction.\n"
 		"motion_prediction=%s\n\n"
+		"; Cross-fade unit animation frames between 25 Hz game ticks (glide only).\n"
+		"animation_smoothing=%s\n\n"
 		"; Skip the Intro videos.\n"
 		"skip_intro=%s\n\n"
 		"; Auto /nopickup option on launch (exclude 1.09d).\n"
@@ -266,6 +268,7 @@ void saveIni()
 		App.mini_map.width.value,
 		App.mini_map.height.value,
 		boolString(App.motion_prediction),
+		boolString(App.animation_smoothing),
 		boolString(App.skip_intro),
 		boolString(App.no_pickup),
 		boolString(App.show_item_quantity),
@@ -371,6 +374,7 @@ void loadIni()
 		App.mini_map.height.value = getInt("Feature", "mini_map_height", App.mini_map.height.value, App.mini_map.height.min, App.mini_map.height.max);
 
 		App.motion_prediction = getBool("Feature", "motion_prediction", App.motion_prediction);
+		App.animation_smoothing = getBool("Feature", "animation_smoothing", App.animation_smoothing);
 		App.skip_intro = getBool("Feature", "skip_intro", App.skip_intro);
 		App.no_pickup = getBool("Feature", "no_pickup", App.no_pickup);
 		App.show_item_quantity = getBool("Feature", "show_item_quantity", App.show_item_quantity);
