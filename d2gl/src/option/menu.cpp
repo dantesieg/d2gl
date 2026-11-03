@@ -371,6 +371,8 @@ void Menu::draw()
 					drawSlider_m(float, "", App.tonemap.exposure, "%.3f", "", tonemap_exposure)
 						saveFloat("Graphic", "tonemap_exposure", App.tonemap.exposure.value);
 					drawDescription("Tonemap exposure.", m_colors[Color::Gray], 12);
+				ImGui::EndDisabled();
+				drawSeparator();
 				drawCheckbox_m("Soft Shadows", App.soft_shadows.active, "Unit shadows are blurred with a soft falloff.", soft_shadows)
 					saveBool("Graphic", "soft_shadows", App.soft_shadows.active);
 				ImGui::BeginDisabled(!App.soft_shadows.active);
@@ -385,6 +387,22 @@ void Menu::draw()
 					drawSlider_m(float, "", App.ambient_occlusion.strength, "%.3f", "", ambient_occlusion_strength)
 						saveFloat("Graphic", "ambient_occlusion_strength", App.ambient_occlusion.strength.value);
 					drawDescription("Ambient occlusion strength.", m_colors[Color::Gray], 12);
+				ImGui::EndDisabled();
+				drawSeparator();
+				drawCheckbox_m("Water Reflections", App.water.active, "Water floors reflect the world above them.", water_reflections)
+					saveBool("Graphic", "water_reflections", App.water.active);
+				ImGui::BeginDisabled(!App.water.active);
+					drawSlider_m(float, "", App.water.strength, "%.3f", "", water_reflection_strength)
+						saveFloat("Graphic", "water_reflection_strength", App.water.strength.value);
+					drawDescription("Water reflection strength.", m_colors[Color::Gray], 12);
+				ImGui::EndDisabled();
+				drawSeparator();
+				drawCheckbox_m("Deband", App.deband.active, "Smooth 8-bit palette banding in world gradients.", deband)
+					saveBool("Graphic", "deband", App.deband.active);
+				ImGui::BeginDisabled(!App.deband.active);
+					drawSlider_m(float, "", App.deband.strength, "%.3f", "", deband_strength)
+						saveFloat("Graphic", "deband_strength", App.deband.strength.value);
+					drawDescription("Deband strength.", m_colors[Color::Gray], 12);
 				ImGui::EndDisabled();
 			ImGui::EndDisabled();
 			drawSeparator();

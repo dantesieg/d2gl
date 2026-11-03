@@ -105,9 +105,13 @@ void main()
 			FragColor = vec4(0.0);
 	}
 
-	FragColorMask = vec4(0.0);
+	// Mask: 10 = cursor (r > 0.1). Water floors (11) write a low 0.05 marker;
+	// later world draws (0) cover it again with their own alpha.
+	FragColorMask = vec4(0.0, 0.0, 0.0, v_Flags.w == 0u ? FragColor.a : 0.0);
 	if(v_Flags.w == 10u)
 		FragColorMask = FragColor;
+	else if(v_Flags.w == 11u)
+		FragColorMask = vec4(0.05, 0.0, 0.0, FragColor.a);
 
 	if (sk == 1u) {
 		FragColorShadow.r = 1.0 - dot(FragColor.rgb, vec3(0.299, 0.587, 0.114));

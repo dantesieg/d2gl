@@ -217,6 +217,12 @@ void saveIni()
 		"; Ambient occlusion: darken the ground under players and monsters (strength: 0.1-1.0).\n"
 		"ambient_occlusion=%s\n"
 		"ambient_occlusion_strength=%.3f\n\n"
+		"; Water reflections: water floors reflect the world above them (strength: 0.1-1.0).\n"
+		"water_reflections=%s\n"
+		"water_reflection_strength=%.3f\n\n"
+		"; Palette debanding: smooth 8-bit gradient steps in the world (strength: 0.1-1.0).\n"
+		"deband=%s\n"
+		"deband_strength=%.3f\n\n"
 		"; Stretch viewport to window size.\n"
 		"stretched_horizontal=%s\n"
 		"stretched_vertical=%s\n\n\n";
@@ -246,6 +252,10 @@ void saveIni()
 		App.soft_shadows.softness.value,
 		boolString(App.ambient_occlusion.active),
 		App.ambient_occlusion.strength.value,
+		boolString(App.water.active),
+		App.water.strength.value,
+		boolString(App.deband.active),
+		App.deband.strength.value,
 		boolString(App.viewport.stretched.x),
 		boolString(App.viewport.stretched.y));
 	out_file << buf;
@@ -395,6 +405,10 @@ void loadIni()
 		App.soft_shadows.softness.value = getFloat("Graphic", "soft_shadows_softness", App.soft_shadows.softness);
 		App.ambient_occlusion.active = getBool("Graphic", "ambient_occlusion", App.ambient_occlusion.active);
 		App.ambient_occlusion.strength.value = getFloat("Graphic", "ambient_occlusion_strength", App.ambient_occlusion.strength);
+		App.water.active = getBool("Graphic", "water_reflections", App.water.active);
+		App.water.strength.value = getFloat("Graphic", "water_reflection_strength", App.water.strength);
+		App.deband.active = getBool("Graphic", "deband", App.deband.active);
+		App.deband.strength.value = getFloat("Graphic", "deband_strength", App.deband.strength);
 
 		App.viewport.stretched.x = getBool("Graphic", "stretched_horizontal", App.viewport.stretched.x);
 		App.viewport.stretched.y = getBool("Graphic", "stretched_vertical", App.viewport.stretched.y);

@@ -168,6 +168,16 @@ struct D2GLApp {
 
 	struct {
 		bool active = false;
+		Range<float> strength = { 0.5f, 0.1f, 1.0f };
+	} water;
+
+	struct {
+		bool active = false;
+		Range<float> strength = { 0.5f, 0.1f, 1.0f };
+	} deband;
+
+	struct {
+		bool active = false;
 		Range<float> scale = { 1.0f, 0.8f, 1.2f };
 	} hd_text;
 
