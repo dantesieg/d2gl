@@ -67,6 +67,8 @@ void main()
 {
 	if (v_Flags.y == 1u)
 		FragColor = v_Color2;
+	else if (v_Flags.y == 2u) // local = iterated (per-vertex colour)
+		FragColor = v_Color1;
 	else
 	{
 		float red = texture(u_Texture, vec3(v_TexCoord, v_TexIds.x)).r;
@@ -80,7 +82,7 @@ void main()
 	FragColor.r = u_Gamma[int(FragColor.r * 255)].r;
 	FragColor.g = u_Gamma[int(FragColor.g * 255)].g;
 	FragColor.b = u_Gamma[int(FragColor.b * 255)].b;
-	FragColor.a = v_Flags.z == 1u ? v_Color2.a : 1.0;
+	FragColor.a = v_Flags.z == 1u ? v_Color2.a : (v_Flags.z == 2u ? v_Color1.a : 1.0);
 
 	FragColorMap = vec4(0.0);
 	if (v_Flags.w > 0u && v_Flags.w < 10u)

@@ -62,7 +62,7 @@ FX_ENTRY void FX_CALL grAlphaBlendFunction(GrAlphaBlendFnc_t rgb_sf, GrAlphaBlen
 
 FX_ENTRY void FX_CALL grAlphaCombine(GrCombineFunction_t function, GrCombineFactor_t factor, GrCombineLocal_t local, GrCombineOther_t other, FxBool invert)
 {
-	GlideWrapper->grAlphaCombine(function);
+	GlideWrapper->grAlphaCombine(function, local);
 }
 
 FX_ENTRY void FX_CALL grChromakeyMode(GrChromakeyMode_t mode)
@@ -72,7 +72,7 @@ FX_ENTRY void FX_CALL grChromakeyMode(GrChromakeyMode_t mode)
 
 FX_ENTRY void FX_CALL grColorCombine(GrCombineFunction_t function, GrCombineFactor_t factor, GrCombineLocal_t local, GrCombineOther_t other, FxBool invert)
 {
-	GlideWrapper->grColorCombine(function);
+	GlideWrapper->grColorCombine(function, local);
 }
 
 FX_ENTRY void FX_CALL grConstantColorValue(GrColor_t value)

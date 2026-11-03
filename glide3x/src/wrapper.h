@@ -50,9 +50,9 @@ public:
 	void grDrawVertexArray(FxU32 mode, FxU32 count, void** pointers);
 	void grDrawVertexArrayContiguous(FxU32 mode, FxU32 count, void* pointers);
 	void grAlphaBlendFunction(GrAlphaBlendFnc_t rgb_df);
-	void grAlphaCombine(GrCombineFunction_t function);
+	void grAlphaCombine(GrCombineFunction_t function, GrCombineLocal_t local);
 	void grChromakeyMode(GrChromakeyMode_t mode);
-	void grColorCombine(GrCombineFunction_t function);
+	void grColorCombine(GrCombineFunction_t function, GrCombineLocal_t local);
 	void grConstantColorValue(GrColor_t value);
 	void grLoadGammaTable(FxU32 nentries, FxU32* red, FxU32* green, FxU32* blue);
 	void guGammaCorrectionRGB(FxFloat red, FxFloat green, FxFloat blue);

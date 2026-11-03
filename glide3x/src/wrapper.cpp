@@ -134,9 +134,19 @@ void Wrapper::grAlphaBlendFunction(GrAlphaBlendFnc_t rgb_df)
 	ctx->setBlendState(static_cast<uint32_t>(rgb_df));
 }
 
-void Wrapper::grAlphaCombine(GrCombineFunction_t function)
+// Glide "local" is the constant colour or the per-vertex (iterated) colour; the shader
+// used to assume constant, so untextured rects drawn with vertex colours picked up a stale
+// constant (e.g. Median XL skill popups). 1 = constant, 2 = iterated.
+static uint8_t localFlag(GrCombineFunction_t function, GrCombineLocal_t local)
 {
-	ctx->setVertexFlagZ(function == GR_COMBINE_FUNCTION_LOCAL);
+	if (function != GR_COMBINE_FUNCTION_LOCAL)
+		return 0;
+	return local == GR_COMBINE_LOCAL_ITERATED ? 2 : 1;
+}
+
+void Wrapper::grAlphaCombine(GrCombineFunction_t function, GrCombineLocal_t local)
+{
+	ctx->setVertexFlagZ(localFlag(function, local));
 }
 
 void Wrapper::grChromakeyMode(GrChromakeyMode_t mode)
@@ -144,9 +154,9 @@ void Wrapper::grChromakeyMode(GrChromakeyMode_t mode)
 	ctx->setVertexFlagX(mode == GR_CHROMAKEY_ENABLE);
 }
 
-void Wrapper::grColorCombine(GrCombineFunction_t function)
+void Wrapper::grColorCombine(GrCombineFunction_t function, GrCombineLocal_t local)
 {
-	ctx->setVertexFlagY(function == GR_COMBINE_FUNCTION_LOCAL);
+	ctx->setVertexFlagY(localFlag(function, local));
 }
 
 void Wrapper::grConstantColorValue(GrColor_t value)
