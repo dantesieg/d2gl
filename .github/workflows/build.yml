@@ -2,11 +2,11 @@ name: build
 on: [push, workflow_dispatch]
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
       - uses: microsoft/setup-msbuild@v2
-      - run: msbuild d2gl.sln /m /p:Configuration=Release /p:Platform=x86
+      - run: msbuild d2gl.sln /m /p:Configuration=Release /p:Platform=x86 /p:PlatformToolset=v143
       - uses: actions/upload-artifact@v4
         with:
           name: d2gl
