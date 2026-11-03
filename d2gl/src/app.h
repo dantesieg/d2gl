@@ -146,6 +146,17 @@ struct D2GLApp {
 	} dynamic_light;
 
 	struct {
+		bool heat_haze = false;
+		bool fog = false;
+		Range<float> fog_density = { 0.5f, 0.1f, 1.0f };
+	} atmos;
+
+	struct {
+		bool active = false;
+		Range<float> exposure = { 1.0f, 0.5f, 2.0f };
+	} tonemap;
+
+	struct {
 		bool active = false;
 		Range<float> scale = { 1.0f, 0.8f, 1.2f };
 	} hd_text;

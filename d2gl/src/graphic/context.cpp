@@ -290,6 +290,14 @@ Context::Context()
 		m_light_pipeline = Context::createPipeline(light_pipeline_ci);
 		m_light_pipeline->setUniformMat4f("u_MVP", glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f));
 
+		PipelineCreateInfo atmos_pipeline_ci = { "atmos" };
+		atmos_pipeline_ci.shader = g_shader_atmos;
+		atmos_pipeline_ci.bindings = {
+			{ BindingType::Texture, "u_Texture", TEXTURE_SLOT_PREFX, &m_prefx_texture },
+		};
+		m_atmos_pipeline = Context::createPipeline(atmos_pipeline_ci);
+		m_atmos_pipeline->setUniformMat4f("u_MVP", glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f));
+
 		PipelineCreateInfo uilayer_pipeline_ci = { "uilayer" };
 		uilayer_pipeline_ci.shader = g_shader_uilayer;
 		uilayer_pipeline_ci.bindings = {
@@ -476,6 +484,30 @@ void Context::renderThread(void* context)
 						FrameBuffer::setDrawBuffers(1);
 					}
 					ctx->drawQuad(3 + App.bloom.active, 0, App.lut.selected);
+
+					if (App.atmos.heat_haze || App.atmos.fog || App.tonemap.active) {
+						FrameBuffer::setDrawBuffers(1);
+						ctx->bindPipeline(ctx->m_atmos_pipeline);
+						ctx->m_atmos_pipeline->setUniformVec2f("u_RelSize", { 1.0f / cmd->m_game_size.x, 1.0f / cmd->m_game_size.y });
+						if (App.atmos.heat_haze || App.atmos.fog) {
+							static const auto t0 = std::chrono::steady_clock::now();
+							const float t = std::fmod(std::chrono::duration<float>(std::chrono::steady_clock::now() - t0).count(), 3600.0f);
+							const int level = App.game.screen == GameScreen::InGame ? *d2::level_no : 0;
+							static const glm::vec3 tints[5] = { { 0.70f, 0.74f, 0.80f }, { 0.86f, 0.76f, 0.58f }, { 0.58f, 0.72f, 0.56f }, { 0.78f, 0.34f, 0.26f }, { 0.82f, 0.88f, 0.96f } };
+							const int act = level >= 109 ? 4 : level >= 103 ? 3 : level >= 75 ? 2 : level >= 40 ? 1 : 0;
+							ctx->m_prefx_texture->fillFromBuffer(ctx->m_game_framebuffer);
+							ctx->m_atmos_pipeline->setUniform1f("u_Time", t);
+							ctx->m_atmos_pipeline->setUniform1f("u_Haze", App.atmos.heat_haze ? 1.0f : 0.0f);
+							ctx->m_atmos_pipeline->setUniform1f("u_Fog", App.atmos.fog ? App.atmos.fog_density.value : 0.0f);
+							ctx->m_atmos_pipeline->setUniformVec4f("u_FogTint", glm::vec4(tints[act], 1.0f));
+							ctx->drawQuad(0);
+						}
+						if (App.tonemap.active) {
+							ctx->m_prefx_texture->fillFromBuffer(ctx->m_game_framebuffer);
+							ctx->m_atmos_pipeline->setUniform1f("u_Exposure", App.tonemap.exposure.value);
+							ctx->drawQuad(1);
+						}
+					}
 
 					ctx->bindPipeline(ctx->m_game_pipeline, command->index);
 					FrameBuffer::setDrawBuffers(ctx->m_game_framebuffer->getAttachmentCount());
