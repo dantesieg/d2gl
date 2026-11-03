@@ -24,6 +24,7 @@
 #include "modules/hd_text.h"
 #include "modules/mini_map.h"
 #include "modules/motion_prediction.h"
+#include "modules/item_beams.h"
 #include "win32.h"
 
 namespace d2gl::option {
@@ -433,6 +434,18 @@ void Menu::draw()
 			ImGui::BeginDisabled(!ISGLIDE3X());
 				drawCheckbox_m("Animation Smoothing", App.animation_smoothing, "Cross-fade character, monster and missile animation frames (glide only).", animation_smoothing)
 					saveBool("Feature", "animation_smoothing", App.animation_smoothing);
+			ImGui::EndDisabled();
+			drawSeparator();
+			ImGui::BeginDisabled(!ISGLIDE3X());
+				drawCheckbox_m("Item Beams", App.item_beams.active, "Coloured light beams over ground items by quality (glide only).", item_beams)
+				{
+					modules::ItemBeams::Instance().toggle(App.item_beams.active);
+					saveBool("Feature", "item_beams", App.item_beams.active);
+				}
+				ImGui::BeginDisabled(!App.item_beams.active);
+					drawCombo_m("", App.item_beams.min_quality, "Minimum item quality that gets a beam.", false, 17, item_beams_min_quality)
+						saveInt("Feature", "item_beams_min_quality", App.item_beams.min_quality.selected);
+				ImGui::EndDisabled();
 			ImGui::EndDisabled();
 			drawSeparator();
 			drawCheckbox_m("Skip Intro", App.skip_intro, "Auto skip intro videos on launch.", skip_intro)

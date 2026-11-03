@@ -201,6 +201,7 @@ public:
 
 	void pushVertex(const GlideVertex* vertex, glm::vec2 fix = { 0.0f, 0.0f }, glm::ivec2 offset = { 0, 0 });
 	bool pushFlatQuad(glm::vec2 pos, glm::vec2 size, uint32_t color);
+	void pushAdditiveQuads(const glm::vec2* pos, const uint32_t* colors, uint32_t quad_count);
 	void flushVertices();
 	void drawQuad(int8_t flag_x = 0, int8_t flag_y = 0, int16_t tex_id = 0);
 

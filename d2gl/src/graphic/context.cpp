@@ -965,6 +965,35 @@ bool Context::pushFlatQuad(glm::vec2 pos, glm::vec2 size, uint32_t color)
 	return true;
 }
 
+// Untextured per-vertex coloured quads (0xAARRGGBB, rgb premultiplied), One_One blend (pipeline 2).
+void Context::pushAdditiveQuads(const glm::vec2* pos, const uint32_t* colors, uint32_t quad_count)
+{
+	if (!ISGLIDE3X() || !pos || !colors || quad_count == 0 || m_blend_locked)
+		return;
+
+	flushVertices();
+	m_command_buffer[m_frame_index].pushCommand(CommandType::SetBlendState, 2);
+
+	for (uint32_t q = 0; q < quad_count; q++) {
+		if (m_vertices.count >= MAX_VERTICES - 4)
+			flushVertices();
+		for (uint32_t i = q * 4; i < q * 4 + 4; i++) {
+			m_vertices.ptr->position = { glm::detail::toFloat16(pos[i].x), glm::detail::toFloat16(pos[i].y) };
+			m_vertices.ptr->tex_coord = { 0.0f, 0.0f };
+			m_vertices.ptr->color1 = colors[i];
+			m_vertices.ptr->color2 = 0xFFFFFFFF;
+			m_vertices.ptr->tex_ids = { 0, 0 };
+			m_vertices.ptr->flags = { 0, 2, 0, 0 }; // iterated colour, alpha 1
+			m_vertices.ptr++;
+			m_vertices.count++;
+			m_frame.vertex_count++;
+		}
+	}
+
+	flushVertices();
+	m_command_buffer[m_frame_index].pushCommand(CommandType::SetBlendState, effectiveBlendIndex());
+}
+
 void Context::flushVertices()
 {
 	if (m_vertices.count == 0)

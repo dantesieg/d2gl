@@ -153,6 +153,11 @@ struct D2GLApp {
 	bool hd_cursor = false;
 	bool motion_prediction = false;
 	bool animation_smoothing = false;
+
+	struct {
+		bool active = false;
+		Select<int> min_quality = { 1, { { "Magic", 0 }, { "Rare / Rune", 1 }, { "Set", 2 }, { "Unique", 3 } } };
+	} item_beams;
 	bool skip_intro = false;
 	bool no_pickup = false;
 	bool show_item_quantity = false;

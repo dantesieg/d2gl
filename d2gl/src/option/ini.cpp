@@ -246,6 +246,10 @@ void saveIni()
 		"motion_prediction=%s\n\n"
 		"; Cross-fade unit animation frames between 25 Hz game ticks (glide only).\n"
 		"animation_smoothing=%s\n\n"
+		"; Coloured light beams over ground items (glide only).\n"
+		"; item_beams_min_quality: 0 magic, 1 rare/rune, 2 set, 3 unique.\n"
+		"item_beams=%s\n"
+		"item_beams_min_quality=%d\n\n"
 		"; Skip the Intro videos.\n"
 		"skip_intro=%s\n\n"
 		"; Auto /nopickup option on launch (exclude 1.09d).\n"
@@ -269,6 +273,8 @@ void saveIni()
 		App.mini_map.height.value,
 		boolString(App.motion_prediction),
 		boolString(App.animation_smoothing),
+		boolString(App.item_beams.active),
+		App.item_beams.min_quality.selected,
 		boolString(App.skip_intro),
 		boolString(App.no_pickup),
 		boolString(App.show_item_quantity),
@@ -375,6 +381,8 @@ void loadIni()
 
 		App.motion_prediction = getBool("Feature", "motion_prediction", App.motion_prediction);
 		App.animation_smoothing = getBool("Feature", "animation_smoothing", App.animation_smoothing);
+		App.item_beams.active = getBool("Feature", "item_beams", App.item_beams.active);
+		App.item_beams.min_quality.selected = getInt("Feature", "item_beams_min_quality", App.item_beams.min_quality.selected, 0, 3);
 		App.skip_intro = getBool("Feature", "skip_intro", App.skip_intro);
 		App.no_pickup = getBool("Feature", "no_pickup", App.no_pickup);
 		App.show_item_quantity = getBool("Feature", "show_item_quantity", App.show_item_quantity);
