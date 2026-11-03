@@ -176,6 +176,7 @@ class Context {
 	std::unique_ptr<Pipeline> m_light_pipeline;
 	std::unique_ptr<Pipeline> m_atmos_pipeline;
 	std::unique_ptr<Pipeline> m_worldfx_pipeline;
+	std::unique_ptr<Pipeline> m_shimmer_pipeline;
 	std::unique_ptr<FrameBuffer> m_light_framebuffer;
 	std::unique_ptr<Texture> m_light_texture;
 	glm::uvec2 m_light_tex_size = { 0, 0 };

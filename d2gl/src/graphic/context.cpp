@@ -24,6 +24,8 @@
 #include "modules/hd_text.h"
 #include "modules/mini_map.h"
 #include "modules/motion_prediction.h"
+#include "modules/adaptive_sharpen.h"
+#include "modules/portal_shimmer.h"
 #include "option/menu.h"
 #include "upscaler.h"
 #include "win32.h"
@@ -318,6 +320,12 @@ Context::Context()
 		m_worldfx_pipeline = Context::createPipeline(worldfx_pipeline_ci);
 		m_worldfx_pipeline->setUniformMat4f("u_MVP", glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f));
 
+		PipelineCreateInfo shimmer_pipeline_ci = { "shimmer" };
+		shimmer_pipeline_ci.shader = g_shader_shimmer;
+		shimmer_pipeline_ci.bindings = { { BindingType::Texture, "u_Texture", TEXTURE_SLOT_PREFX, &m_prefx_texture } };
+		m_shimmer_pipeline = Context::createPipeline(shimmer_pipeline_ci);
+		m_shimmer_pipeline->setUniformMat4f("u_MVP", glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f));
+
 		PipelineCreateInfo uilayer_pipeline_ci = { "uilayer" };
 		uilayer_pipeline_ci.shader = g_shader_uilayer;
 		uilayer_pipeline_ci.bindings = {
@@ -487,6 +495,22 @@ void Context::renderThread(void* context)
 						FrameBuffer::setDrawBuffers(1);
 						ctx->drawQuad(3);
 					}
+					if (App.portal_shimmer) {
+						const auto& shimmer = modules::PortalShimmer::Instance().get(frame_index);
+						if (shimmer.count) {
+							const double t = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+							ctx->m_prefx_texture->fillFromBuffer(ctx->m_game_framebuffer);
+							ctx->bindPipeline(ctx->m_shimmer_pipeline);
+							ctx->m_shimmer_pipeline->setUniformVec4fArray("u_Sources", shimmer.data, shimmer.count);
+							ctx->m_shimmer_pipeline->setUniform1i("u_Count", (int)shimmer.count);
+							ctx->m_shimmer_pipeline->setUniformVec2f("u_Size", glm::vec2(cmd->m_game_size));
+							ctx->m_shimmer_pipeline->setUniform1f("u_Time", (float)fmod(t, 3600.0));
+							ctx->bindFrameBuffer(ctx->m_game_framebuffer, false);
+							ctx->setViewport(cmd->m_game_size);
+							FrameBuffer::setDrawBuffers(1);
+							ctx->drawQuad();
+						}
+					}
 					if (App.bloom.active || App.lut.selected) {
 					ctx->m_prefx_texture->fillFromBuffer(ctx->m_game_framebuffer);
 					ctx->bindPipeline(ctx->m_prefx_pipeline);
@@ -596,7 +620,8 @@ void Context::renderThread(void* context)
 						ctx->drawQuad();
 					} else {
 						if (App.sharpen.active) {
-							const auto sharpen_data = glm::vec3(App.sharpen.strength.value, App.sharpen.clamp.value, App.sharpen.radius.value);
+							const float sharpen_factor = App.sharpen.adaptive ? modules::AdaptiveSharpen::Instance().getFactor() : 1.0f;
+							const auto sharpen_data = glm::vec3(App.sharpen.strength.value * sharpen_factor, App.sharpen.clamp.value, App.sharpen.radius.value);
 							if (ctx->m_sharpen_data != sharpen_data) {
 								ctx->m_postfx_ubo->updateDataVec4f("sharpen", glm::vec4(sharpen_data, 1.0f));
 								ctx->m_sharpen_data = sharpen_data;
@@ -863,7 +888,8 @@ void Context::onStageChange()
 				flushVertices();
 				m_command_buffer[m_frame_index].pushCommand(CommandType::SoftShadow, effectiveBlendIndex());
 			}
-			if (ISGLIDE3X() && (App.bloom.active || App.lut.selected || App.dynamic_light.active || App.deband.active || App.water.active || App.atmos.heat_haze || App.atmos.fog || App.tonemap.active) && *d2::screen_shift != SCREENPANEL_BOTH) {
+			modules::PortalShimmer::Instance().commit(m_frame_index);
+			if (ISGLIDE3X() && (App.bloom.active || App.lut.selected || App.dynamic_light.active || App.deband.active || App.water.active || App.atmos.heat_haze || App.atmos.fog || App.tonemap.active || App.portal_shimmer) && *d2::screen_shift != SCREENPANEL_BOTH) {
 				flushVertices();
 				m_command_buffer[m_frame_index].pushCommand(CommandType::PreFx, m_current_blend_index);
 			}
@@ -955,6 +981,7 @@ void Context::beginFrame()
 	m_shadow_draw = 0;
 	modules::HDText::Instance().reset();
 	modules::MotionPrediction::Instance().update();
+	modules::AdaptiveSharpen::Instance().update();
 
 	m_command_buffer[m_frame_index].pushCommand(CommandType::Begin);
 }

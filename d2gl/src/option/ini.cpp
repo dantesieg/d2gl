@@ -192,7 +192,10 @@ void saveIni()
 		"sharpen=%s\n"
 		"sharpen_strength=%.3f\n"
 		"sharpen_clamp=%.3f\n"
-		"sharpen_radius=%.3f\n\n"
+		"sharpen_radius=%.3f\n"
+		"; Ease sharpening down while moving; sharpen_adaptive_min = fraction kept while moving (0.0-1.0).\n"
+		"sharpen_adaptive=%s\n"
+		"sharpen_adaptive_min=%.3f\n\n"
 		"; Fast approximate anti-aliasing (preset: 0-2).\n"
 		"fxaa=%s\n"
 		"fxaa_preset=%d\n\n"
@@ -223,6 +226,8 @@ void saveIni()
 		"; Palette debanding: smooth 8-bit gradient steps in the world (strength: 0.1-1.0).\n"
 		"deband=%s\n"
 		"deband_strength=%.3f\n\n"
+		"; Refraction ripple and glow around portals and active waypoints (glide mode).\n"
+		"portal_shimmer=%s\n\n"
 		"; Stretch viewport to window size.\n"
 		"stretched_horizontal=%s\n"
 		"stretched_vertical=%s\n\n\n";
@@ -236,6 +241,8 @@ void saveIni()
 		App.sharpen.strength.value,
 		App.sharpen.clamp.value,
 		App.sharpen.radius.value,
+		boolString(App.sharpen.adaptive),
+		App.sharpen.adaptive_min.value,
 		boolString(App.fxaa.active),
 		App.fxaa.presets.selected,
 		boolString(App.bloom.active),
@@ -256,6 +263,7 @@ void saveIni()
 		App.water.strength.value,
 		boolString(App.deband.active),
 		App.deband.strength.value,
+		boolString(App.portal_shimmer),
 		boolString(App.viewport.stretched.x),
 		boolString(App.viewport.stretched.y));
 	out_file << buf;
@@ -390,6 +398,8 @@ void loadIni()
 		App.sharpen.strength.value = getFloat("Graphic", "sharpen_strength", App.sharpen.strength);
 		App.sharpen.clamp.value = getFloat("Graphic", "sharpen_clamp", App.sharpen.clamp);
 		App.sharpen.radius.value = getFloat("Graphic", "sharpen_radius", App.sharpen.radius);
+		App.sharpen.adaptive = getBool("Graphic", "sharpen_adaptive", App.sharpen.adaptive);
+		App.sharpen.adaptive_min.value = getFloat("Graphic", "sharpen_adaptive_min", App.sharpen.adaptive_min);
 
 		App.bloom.active = getBool("Graphic", "bloom", App.bloom.active);
 		App.bloom.exposure.value = getFloat("Graphic", "bloom_exposure", App.bloom.exposure);
@@ -409,6 +419,7 @@ void loadIni()
 		App.water.strength.value = getFloat("Graphic", "water_reflection_strength", App.water.strength);
 		App.deband.active = getBool("Graphic", "deband", App.deband.active);
 		App.deband.strength.value = getFloat("Graphic", "deband_strength", App.deband.strength);
+		App.portal_shimmer = getBool("Graphic", "portal_shimmer", App.portal_shimmer);
 
 		App.viewport.stretched.x = getBool("Graphic", "stretched_horizontal", App.viewport.stretched.x);
 		App.viewport.stretched.y = getBool("Graphic", "stretched_vertical", App.viewport.stretched.y);
