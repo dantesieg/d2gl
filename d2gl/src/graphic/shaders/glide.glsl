@@ -49,6 +49,7 @@ void main()
 layout(location = 0) out vec4 FragColor;
 layout(location = 1) out vec4 FragColorMap;
 layout(location = 2) out vec4 FragColorMask;
+layout(location = 3) out vec4 FragColorShadow; // r: shadow/AO darkness, g: occluder (additive)
 
 layout(std140) uniform ubo_Colors {
 	vec4 u_Palette[256];
@@ -65,6 +66,18 @@ flat in uvec4 v_Flags;
 
 void main()
 {
+	// v_Flags.x high nibble: 1 multiply shadow, 2 opaque occluder, 3 AO ellipse, 4 alpha shadow, 5 alpha occluder
+	uint sk = v_Flags.x >> 4u;
+	FragColorShadow = vec4(0.0);
+	if (sk == 3u) {
+		float e = 1.0 - smoothstep(0.15, 1.0, length(v_TexCoord * 2.0 - 1.0));
+		FragColor = vec4(1.0, 1.0, 1.0, 0.0);
+		FragColorMap = vec4(0.0);
+		FragColorMask = vec4(0.0);
+		FragColorShadow = vec4(e * v_Color2.a, 0.0, 0.0, 0.0);
+		return;
+	}
+
 	if (v_Flags.y == 1u)
 		FragColor = v_Color2;
 	else if (v_Flags.y == 2u) // local = iterated (per-vertex colour)
@@ -73,7 +86,7 @@ void main()
 	{
 		float red = texture(u_Texture, vec3(v_TexCoord, v_TexIds.x)).r;
 
-		if (v_Flags.x == 1u && red == 0.0)
+		if ((v_Flags.x & 15u) == 1u && red == 0.0)
 			discard;
 
 		FragColor = v_Color1 * u_Palette[int(red * 255)];
@@ -95,6 +108,17 @@ void main()
 	FragColorMask = vec4(0.0);
 	if(v_Flags.w == 10u)
 		FragColorMask = FragColor;
+
+	if (sk == 1u) {
+		FragColorShadow.r = 1.0 - dot(FragColor.rgb, vec3(0.299, 0.587, 0.114));
+		FragColor = vec4(1.0);
+	} else if (sk == 4u) {
+		FragColorShadow.r = FragColor.a * (1.0 - dot(FragColor.rgb, vec3(0.299, 0.587, 0.114)));
+		FragColor.a = 0.0;
+	} else if (sk == 2u)
+		FragColorShadow.g = 1.0;
+	else if (sk == 5u)
+		FragColorShadow.g = FragColor.a;
 }
 
 #endif

@@ -276,7 +276,23 @@ void __stdcall drawImageFastHooked(CellContext* cell, int x, int y, uint8_t pale
 void __stdcall drawShadowHooked(CellContext* cell, int x, int y)
 {
 	const auto pos = modules::MotionPrediction::Instance().drawImage(x, y, D2DrawFn::Shadow);
+	if (!App.context->isShadowFxActive()) {
+		drawShadow(cell, pos.x, pos.y);
+		return;
+	}
+
+	// Ambient occlusion: soft dark ellipse at the feet of players and monsters.
+	const auto unit = d2::currently_drawing_unit;
+	if (App.ambient_occlusion.active && (!unit || unit->dwType == d2::UnitType::Player || unit->dwType == d2::UnitType::Monster)) {
+		float rx = 22.0f;
+		if (cell && isVerMin(V_113c) && cell->v113.pCurGfxCell)
+			rx = glm::clamp((float)cell->v113.pCurGfxCell->width * 0.35f, 14.0f, 64.0f);
+		App.context->pushAOEllipse({ (float)pos.x, (float)pos.y }, { rx, rx * 0.5f }, App.ambient_occlusion.strength.value);
+	}
+
+	App.context->setShadowDraw(1);
 	drawShadow(cell, pos.x, pos.y);
+	App.context->setShadowDraw(0);
 }
 
 void __stdcall drawSolidRectExHooked(int left, int top, int right, int bottom, uint32_t color, int draw_mode)
@@ -307,7 +323,10 @@ bool __stdcall drawGroundTileHooked(TileContext* tile, GFXLight* light, int x, i
 	}
 
 	const auto offset = modules::MotionPrediction::Instance().getGlobalOffset();
-	return drawGroundTile(tile, light, x - offset.x, y - offset.y, world_x, world_y, alpha, screen_panels, tile_data);
+	App.context->setShadowDraw(2);
+	const bool ret = drawGroundTile(tile, light, x - offset.x, y - offset.y, world_x, world_y, alpha, screen_panels, tile_data);
+	App.context->setShadowDraw(0);
+	return ret;
 }
 
 bool __stdcall drawWallTileHooked(TileContext* tile, int x, int y, GFXLight* light, int screen_panels)
@@ -325,7 +344,10 @@ bool __stdcall drawTransWallTileHooked(TileContext* tile, int x, int y, GFXLight
 bool __stdcall drawShadowTileHooked(TileContext* tile, int x, int y, int draw_mode, int screen_panels)
 {
 	const auto offset = modules::MotionPrediction::Instance().getGlobalOffset(true);
-	return drawShadowTile(tile, x - offset.x, y - offset.y, draw_mode, screen_panels);
+	App.context->setShadowDraw(2);
+	const bool ret = drawShadowTile(tile, x - offset.x, y - offset.y, draw_mode, screen_panels);
+	App.context->setShadowDraw(0);
+	return ret;
 }
 
 void __fastcall takeScreenShotHooked()

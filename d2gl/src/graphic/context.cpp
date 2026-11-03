@@ -122,6 +122,7 @@ Context::Context()
 		App.gl_caps.independent_blending = true;
 		trace_log("OpenGL: Independent blending available.");
 	}
+	m_shadow_supported = App.gl_caps.independent_blending && max_texture_unit > TEXTURE_SLOT_SHADOW2;
 
 	glDisable(GL_CULL_FACE);
 	glDisable(GL_DEPTH_TEST);
@@ -236,7 +237,7 @@ Context::Context()
 		};
 		game_pipeline_ci.attachment_blends.clear();
 		for (auto& blend : g_blend_types)
-			game_pipeline_ci.attachment_blends.push_back({ blend.second.second, BlendType::SAlpha_OneMinusSAlpha, BlendType::SAlpha_OneMinusSAlpha });
+			game_pipeline_ci.attachment_blends.push_back({ blend.second.second, BlendType::SAlpha_OneMinusSAlpha, BlendType::SAlpha_OneMinusSAlpha, BlendType::One_One });
 		m_game_pipeline = Context::createPipeline(game_pipeline_ci);
 
 		TextureCreateInfo lut_texture_ci;
@@ -297,6 +298,16 @@ Context::Context()
 		};
 		m_atmos_pipeline = Context::createPipeline(atmos_pipeline_ci);
 		m_atmos_pipeline->setUniformMat4f("u_MVP", glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f));
+		PipelineCreateInfo shadow_pipeline_ci = { "shadow" };
+		shadow_pipeline_ci.shader = g_shader_shadow;
+		shadow_pipeline_ci.attachment_blends = { { BlendType::NoBlend }, { BlendType::Zero_SColor } };
+		shadow_pipeline_ci.bindings = {
+			{ BindingType::FBTexture, "u_ShadowMask", TEXTURE_SLOT_SHADOW, &m_game_framebuffer, 3 },
+			{ BindingType::FBTexture, "u_ShadowTexture1", TEXTURE_SLOT_SHADOW1, &m_shadow_framebuffer },
+			{ BindingType::Texture, "u_ShadowTexture2", TEXTURE_SLOT_SHADOW2, &m_shadow_texture },
+		};
+		m_shadow_pipeline = Context::createPipeline(shadow_pipeline_ci);
+		m_shadow_pipeline->setUniformMat4f("u_MVP", glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f));
 
 		PipelineCreateInfo uilayer_pipeline_ci = { "uilayer" };
 		uilayer_pipeline_ci.shader = g_shader_uilayer;
@@ -512,6 +523,29 @@ void Context::renderThread(void* context)
 					ctx->bindPipeline(ctx->m_game_pipeline, command->index);
 					FrameBuffer::setDrawBuffers(ctx->m_game_framebuffer->getAttachmentCount());
 					break;
+				case CommandType::SoftShadow:
+					if (ctx->m_shadow_tex_size.x > 0 && ctx->m_shadow_tex_size.y > 0) {
+						ctx->bindPipeline(ctx->m_shadow_pipeline);
+						ctx->m_shadow_pipeline->setUniformVec2f("u_RelSize", { 1.0f / ctx->m_shadow_tex_size.x, 1.0f / ctx->m_shadow_tex_size.y });
+						ctx->m_shadow_pipeline->setUniform1f("u_Softness", App.soft_shadows.active ? App.soft_shadows.softness.value : 1.0f);
+						ctx->bindFrameBuffer(ctx->m_shadow_framebuffer, false);
+						ctx->setViewport(ctx->m_shadow_tex_size);
+						ctx->drawQuad(0);
+						for (int i = 0; i < 2; i++) {
+							ctx->m_shadow_texture->fillFromBuffer(ctx->m_shadow_framebuffer);
+							ctx->drawQuad(1);
+							ctx->m_shadow_texture->fillFromBuffer(ctx->m_shadow_framebuffer);
+							ctx->drawQuad(2);
+						}
+						ctx->bindFrameBuffer(ctx->m_game_framebuffer, false);
+						ctx->setViewport(cmd->m_game_size);
+						FrameBuffer::setDrawBuffers(1);
+						ctx->bindPipeline(ctx->m_shadow_pipeline, 1);
+						ctx->drawQuad(3);
+						ctx->bindPipeline(ctx->m_game_pipeline, command->index);
+						FrameBuffer::setDrawBuffers(ctx->m_game_framebuffer->getAttachmentCount());
+					}
+					break;
 				case CommandType::WorldSnapshot:
 					ctx->m_world_framebuffer->getTexture()->fillFromBuffer(ctx->m_game_framebuffer);
 					ctx->bindFrameBuffer(ctx->m_game_framebuffer, false);
@@ -665,6 +699,7 @@ void Context::onResize(glm::uvec2 w_size, glm::uvec2 g_size, uint32_t bpp)
 				{ TEXTURE_SLOT_GAME, { 0.0f, 0.0f, 0.0f, 1.0f }, { GL_LINEAR, GL_LINEAR } },
 				{ TEXTURE_SLOT_MAP, { 0.0f, 0.0f, 0.0f, 0.0f } },
 				{ TEXTURE_SLOT_MASK, { 0.0f, 0.0f, 0.0f, 0.0f }, { GL_LINEAR, GL_LINEAR }, { GL_R8, GL_RED } },
+				{ TEXTURE_SLOT_SHADOW, { 0.0f, 0.0f, 0.0f, 0.0f }, { GL_LINEAR, GL_LINEAR } },
 			};
 		else
 			frambuffer_ci.attachments = { { TEXTURE_SLOT_GAME } };
@@ -701,6 +736,18 @@ void Context::onResize(glm::uvec2 w_size, glm::uvec2 g_size, uint32_t bpp)
 			light_texture_ci.slot = TEXTURE_SLOT_LIGHT2;
 			light_texture_ci.filter = { GL_LINEAR, GL_LINEAR };
 			m_light_texture = Context::createTexture(light_texture_ci);
+
+			m_shadow_tex_size = { game_size.x / 2, game_size.y / 2 };
+			FrameBufferCreateInfo shadow_frambuffer_ci;
+			shadow_frambuffer_ci.size = m_shadow_tex_size;
+			shadow_frambuffer_ci.attachments = { { TEXTURE_SLOT_SHADOW1, {}, { GL_LINEAR, GL_LINEAR } } };
+			m_shadow_framebuffer = Context::createFrameBuffer(shadow_frambuffer_ci);
+
+			TextureCreateInfo shadow_texture_ci;
+			shadow_texture_ci.size = m_shadow_tex_size;
+			shadow_texture_ci.slot = TEXTURE_SLOT_SHADOW2;
+			shadow_texture_ci.filter = { GL_LINEAR, GL_LINEAR };
+			m_shadow_texture = Context::createTexture(shadow_texture_ci);
 
 			TextureCreateInfo prefx_texture_ci;
 			prefx_texture_ci.size = game_size;
@@ -784,6 +831,10 @@ void Context::onStageChange()
 		case DrawStage::UI:
 			addPanelOccluders();
 			modules::HDText::drawFpsCounter();
+			if (m_shadow_fx && m_shadow_seen && *d2::screen_shift != SCREENPANEL_BOTH) {
+				flushVertices();
+				m_command_buffer[m_frame_index].pushCommand(CommandType::SoftShadow, effectiveBlendIndex());
+			}
 			if (ISGLIDE3X() && (App.bloom.active || App.lut.selected || App.dynamic_light.active) && *d2::screen_shift != SCREENPANEL_BOTH) {
 				flushVertices();
 				m_command_buffer[m_frame_index].pushCommand(CommandType::PreFx, m_current_blend_index);
@@ -871,6 +922,9 @@ void Context::beginFrame()
 	m_frame.drawcall_count = 0;
 
 	App.game.draw_stage = DrawStage::World;
+	m_shadow_fx = ISGLIDE3X() && m_shadow_supported && App.game.screen == GameScreen::InGame && (App.soft_shadows.active || App.ambient_occlusion.active);
+	m_shadow_seen = false;
+	m_shadow_draw = 0;
 	modules::HDText::Instance().reset();
 	modules::MotionPrediction::Instance().update();
 
@@ -951,6 +1005,19 @@ void Context::pushVertex(const GlideVertex* vertex, glm::vec2 fix, glm::ivec2 of
 		m_vertices.ptr->color1 = (vertex->pargb & 0x00FFFFFF) | ((uint32_t)m_alpha_override << 24);
 		m_vertices.ptr->flags.z = 2;
 	}
+	if (m_shadow_fx && App.game.draw_stage == DrawStage::World && m_shadow_draw != 2) {
+		// High nibble of flag x tags shadow-buffer writes (see glide.glsl).
+		const uint32_t blend = effectiveBlendIndex();
+		uint8_t kind = 0;
+		if (m_shadow_draw == 1) {
+			if (App.soft_shadows.active)
+				kind = blend == 1 ? 1 : (blend == 3 ? 4 : 0);
+		} else if (m_shadow_seen)
+			kind = blend == 0 ? 2 : (blend == 3 ? 5 : 0);
+		if (kind == 1 || kind == 4)
+			m_shadow_seen = true;
+		m_vertices.ptr->flags.x |= (uint8_t)(kind << 4);
+	}
 
 	m_vertices.ptr++;
 	m_vertices.count++;
@@ -1024,6 +1091,45 @@ void Context::pushAdditiveQuads(const glm::vec2* pos, const uint32_t* colors, ui
 
 	flushVertices();
 	m_command_buffer[m_frame_index].pushCommand(CommandType::SetBlendState, effectiveBlendIndex());
+}
+
+void Context::pushAOEllipse(glm::vec2 center, glm::vec2 radius, float strength)
+{
+	if (!m_shadow_fx || App.game.draw_stage != DrawStage::World)
+		return;
+
+	if (m_vertices.count >= MAX_VERTICES - 4)
+		flushVertices();
+
+	// AO quads keep the frame untouched (alpha 0) and only add darkness to attachment 3.
+	const bool switch_blend = !m_blend_locked && effectiveBlendIndex() != 3;
+	if (switch_blend) {
+		flushVertices();
+		m_command_buffer[m_frame_index].pushCommand(CommandType::SetBlendState, 3);
+	}
+
+	const glm::vec2 corners[4] = { center - radius, { center.x + radius.x, center.y - radius.y }, center + radius, { center.x - radius.x, center.y + radius.y } };
+	const glm::vec2 uvs[4] = { { 0.0f, 0.0f }, { 1.0f, 0.0f }, { 1.0f, 1.0f }, { 0.0f, 1.0f } };
+	const uint32_t color = (uint32_t)(glm::clamp(strength, 0.0f, 1.0f) * 255.0f) | 0xFFFFFF00;
+
+	for (int i = 0; i < 4; i++) {
+		m_vertices.ptr->position = { glm::detail::toFloat16(corners[i].x), glm::detail::toFloat16(corners[i].y) };
+		m_vertices.ptr->tex_coord = uvs[i];
+		m_vertices.ptr->color1 = 0xFFFFFFFF;
+		m_vertices.ptr->color2 = color;
+		m_vertices.ptr->tex_ids = { 0, 0 };
+		m_vertices.ptr->flags = { (uint8_t)(3 << 4), 1, 1, 0 };
+
+		m_vertices.ptr++;
+		m_vertices.count++;
+		m_frame.vertex_count++;
+	}
+	m_shadow_seen = true;
+
+	if (switch_blend) {
+		flushVertices();
+		m_command_buffer[m_frame_index].pushCommand(CommandType::SetBlendState, effectiveBlendIndex());
+	}
 }
 
 void Context::flushVertices()

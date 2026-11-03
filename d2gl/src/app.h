@@ -158,6 +158,16 @@ struct D2GLApp {
 
 	struct {
 		bool active = false;
+		Range<float> softness = { 1.5f, 0.5f, 4.0f };
+	} soft_shadows;
+
+	struct {
+		bool active = false;
+		Range<float> strength = { 0.45f, 0.1f, 1.0f };
+	} ambient_occlusion;
+
+	struct {
+		bool active = false;
 		Range<float> scale = { 1.0f, 0.8f, 1.2f };
 	} hd_text;
 

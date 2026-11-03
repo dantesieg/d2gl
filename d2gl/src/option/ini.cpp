@@ -211,6 +211,12 @@ void saveIni()
 		"; HDR-style tonemapping (world only, exposure: 0.5-2.0).\n"
 		"tonemap=%s\n"
 		"tonemap_exposure=%.3f\n\n"
+		"; Soft unit shadows: blurred shadows multiplied into the world (softness: 0.5-4.0).\n"
+		"soft_shadows=%s\n"
+		"soft_shadows_softness=%.3f\n\n"
+		"; Ambient occlusion: darken the ground under players and monsters (strength: 0.1-1.0).\n"
+		"ambient_occlusion=%s\n"
+		"ambient_occlusion_strength=%.3f\n\n"
 		"; Stretch viewport to window size.\n"
 		"stretched_horizontal=%s\n"
 		"stretched_vertical=%s\n\n\n";
@@ -236,6 +242,10 @@ void saveIni()
 		App.atmos.fog_density.value,
 		boolString(App.tonemap.active),
 		App.tonemap.exposure.value,
+		boolString(App.soft_shadows.active),
+		App.soft_shadows.softness.value,
+		boolString(App.ambient_occlusion.active),
+		App.ambient_occlusion.strength.value,
 		boolString(App.viewport.stretched.x),
 		boolString(App.viewport.stretched.y));
 	out_file << buf;
@@ -381,6 +391,10 @@ void loadIni()
 		App.atmos.fog_density.value = getFloat("Graphic", "fog_density", App.atmos.fog_density);
 		App.tonemap.active = getBool("Graphic", "tonemap", App.tonemap.active);
 		App.tonemap.exposure.value = getFloat("Graphic", "tonemap_exposure", App.tonemap.exposure);
+		App.soft_shadows.active = getBool("Graphic", "soft_shadows", App.soft_shadows.active);
+		App.soft_shadows.softness.value = getFloat("Graphic", "soft_shadows_softness", App.soft_shadows.softness);
+		App.ambient_occlusion.active = getBool("Graphic", "ambient_occlusion", App.ambient_occlusion.active);
+		App.ambient_occlusion.strength.value = getFloat("Graphic", "ambient_occlusion_strength", App.ambient_occlusion.strength);
 
 		App.viewport.stretched.x = getBool("Graphic", "stretched_horizontal", App.viewport.stretched.x);
 		App.viewport.stretched.y = getBool("Graphic", "stretched_vertical", App.viewport.stretched.y);
