@@ -132,6 +132,8 @@ struct D2GLApp {
 		Range<float> strength = { 1.16f, 0.1f, 3.0f };
 		Range<float> clamp = { 0.15f, 0.0f, 1.0f };
 		Range<float> radius = { 0.4f, 0.0f, 6.0f };
+		bool adaptive = false;
+		Range<float> adaptive_min = { 0.3f, 0.0f, 1.0f };
 	} sharpen;
 
 	struct {
@@ -144,6 +146,8 @@ struct D2GLApp {
 		bool active = false;
 		Range<float> intensity = { 1.0f, 0.1f, 3.0f };
 	} dynamic_light;
+
+	bool portal_shimmer = false;
 
 	struct {
 		bool active = false;

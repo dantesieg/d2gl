@@ -35,6 +35,8 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)src\modules\mini_map.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\modules\motion_prediction.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\modules\anim_smoothing.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)src\modules\portal_shimmer.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)src\modules\adaptive_sharpen.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\option\ini.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\option\menu.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\modules\hd_text\font.cpp" />
@@ -115,6 +117,8 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)src\modules\mini_map.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\modules\motion_prediction.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\modules\anim_smoothing.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)src\modules\portal_shimmer.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)src\modules\adaptive_sharpen.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\option\ini.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\option\menu.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\pch.h" />

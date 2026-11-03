@@ -321,6 +321,13 @@ void Menu::draw()
 				drawSlider_m(float, "", App.sharpen.radius, "%.3f", "", sharpen_radius)
 					saveFloat("Graphic", "sharpen_radius", App.sharpen.radius.value);
 				drawDescription("Radius of the sampling pattern.", m_colors[Color::Gray], 12);
+				drawCheckbox_m("Motion Adaptive", App.sharpen.adaptive, "Ease sharpening down while moving to cut shimmer.", sharpen_adaptive)
+					saveBool("Graphic", "sharpen_adaptive", App.sharpen.adaptive);
+				ImGui::BeginDisabled(!App.sharpen.adaptive);
+					drawSlider_m(float, "", App.sharpen.adaptive_min, "%.3f", "", sharpen_adaptive_min)
+						saveFloat("Graphic", "sharpen_adaptive_min", App.sharpen.adaptive_min.value);
+					drawDescription("Fraction of strength kept while moving.", m_colors[Color::Gray], 12);
+				ImGui::EndDisabled();
 			ImGui::EndDisabled();
 			drawSeparator();
 			drawCheckbox_m("FXAA", App.fxaa.active, "Fast approximate anti-aliasing.", fxaa)
@@ -353,6 +360,9 @@ void Menu::draw()
 						saveFloat("Graphic", "dynamic_light_intensity", App.dynamic_light.intensity.value);
 					drawDescription("Dynamic lighting intensity.", m_colors[Color::Gray], 12);
 				ImGui::EndDisabled();
+				drawSeparator();
+				drawCheckbox_m("Portal Shimmer", App.portal_shimmer, "Refraction ripple and glow around portals and active waypoints.", portal_shimmer)
+					saveBool("Graphic", "portal_shimmer", App.portal_shimmer);
 			ImGui::EndDisabled();
 			drawSeparator();
 			drawLabel("Stretched Viewport", m_colors[Color::Orange]);
