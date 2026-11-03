@@ -290,6 +290,15 @@ Context::Context()
 		m_light_pipeline = Context::createPipeline(light_pipeline_ci);
 		m_light_pipeline->setUniformMat4f("u_MVP", glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f));
 
+		PipelineCreateInfo worldfx_pipeline_ci = { "worldfx" };
+		worldfx_pipeline_ci.shader = g_shader_worldfx;
+		worldfx_pipeline_ci.bindings = {
+			{ BindingType::Texture, "u_Texture", TEXTURE_SLOT_PREFX, &m_prefx_texture },
+			{ BindingType::FBTexture, "u_MaskTexture", TEXTURE_SLOT_MASK, &m_game_framebuffer, 2 },
+		};
+		m_worldfx_pipeline = Context::createPipeline(worldfx_pipeline_ci);
+		m_worldfx_pipeline->setUniformMat4f("u_MVP", glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f));
+
 		PipelineCreateInfo uilayer_pipeline_ci = { "uilayer" };
 		uilayer_pipeline_ci.shader = g_shader_uilayer;
 		uilayer_pipeline_ci.bindings = {
@@ -422,6 +431,23 @@ void Context::renderThread(void* context)
 						glDrawElementsBaseVertex(GL_TRIANGLES, command->draw.count, GL_UNSIGNED_INT, 0, command->draw.start);
 					break;
 				case CommandType::PreFx:
+					if (App.deband.active || App.water.active) {
+						ctx->setViewport(cmd->m_game_size);
+						FrameBuffer::setDrawBuffers(1);
+						if (App.deband.active) {
+							ctx->m_prefx_texture->fillFromBuffer(ctx->m_game_framebuffer);
+							ctx->bindPipeline(ctx->m_worldfx_pipeline);
+							ctx->m_worldfx_pipeline->setUniform1f("u_Strength", App.deband.strength.value);
+							ctx->drawQuad(0);
+						}
+						if (App.water.active) {
+							ctx->m_prefx_texture->fillFromBuffer(ctx->m_game_framebuffer);
+							ctx->bindPipeline(ctx->m_worldfx_pipeline);
+							ctx->m_worldfx_pipeline->setUniform1f("u_Strength", App.water.strength.value);
+							ctx->m_worldfx_pipeline->setUniform1f("u_Time", (float)(GetTickCount() % 600000u) * 0.001f);
+							ctx->drawQuad(1);
+						}
+					}
 					if (App.dynamic_light.active && ctx->m_light_tex_size.x > 0 && ctx->m_light_tex_size.y > 0) {
 						ctx->m_prefx_texture->fillFromBuffer(ctx->m_game_framebuffer);
 						ctx->bindPipeline(ctx->m_light_pipeline);
@@ -442,6 +468,7 @@ void Context::renderThread(void* context)
 						FrameBuffer::setDrawBuffers(1);
 						ctx->drawQuad(3);
 					}
+					if (App.bloom.active || App.lut.selected) {
 					ctx->m_prefx_texture->fillFromBuffer(ctx->m_game_framebuffer);
 					ctx->bindPipeline(ctx->m_prefx_pipeline);
 
@@ -476,6 +503,7 @@ void Context::renderThread(void* context)
 						FrameBuffer::setDrawBuffers(1);
 					}
 					ctx->drawQuad(3 + App.bloom.active, 0, App.lut.selected);
+					}
 
 					ctx->bindPipeline(ctx->m_game_pipeline, command->index);
 					FrameBuffer::setDrawBuffers(ctx->m_game_framebuffer->getAttachmentCount());
@@ -752,7 +780,7 @@ void Context::onStageChange()
 		case DrawStage::UI:
 			addPanelOccluders();
 			modules::HDText::drawFpsCounter();
-			if (ISGLIDE3X() && (App.bloom.active || App.lut.selected || App.dynamic_light.active) && *d2::screen_shift != SCREENPANEL_BOTH) {
+			if (ISGLIDE3X() && (App.bloom.active || App.lut.selected || App.dynamic_light.active || App.deband.active || App.water.active) && *d2::screen_shift != SCREENPANEL_BOTH) {
 				flushVertices();
 				m_command_buffer[m_frame_index].pushCommand(CommandType::PreFx, m_current_blend_index);
 			}

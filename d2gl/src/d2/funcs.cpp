@@ -291,6 +291,24 @@ void __stdcall drawLineHooked(int x_start, int y_start, int x_end, int y_end, ui
 	drawLine(x_start - offset.x, y_start - offset.y, x_end - offset.x, y_end - offset.y, color, alpha);
 }
 
+// Water reflections: guess water floors from the DT1 file name, or from the
+// animated flag (D2 animates water floors; lava is excluded by name).
+static bool isWaterTile(TileContext* tile)
+{
+	if (!tile || !tile->szTileName)
+		return false;
+	char name[128];
+	size_t i = 0;
+	for (; tile->szTileName[i] && i < sizeof(name) - 1; i++)
+		name[i] = (char)tolower((unsigned char)tile->szTileName[i]);
+	name[i] = 0;
+	if (strstr(name, "lava") || strstr(name, "fire") || strstr(name, "blood"))
+		return false;
+	if (strstr(name, "river") || strstr(name, "water") || strstr(name, "swamp") || strstr(name, "lake") || strstr(name, "pond") || strstr(name, "\\ice\\"))
+		return true;
+	return tile->bAnimated != 0;
+}
+
 bool __stdcall drawGroundTileHooked(TileContext* tile, GFXLight* light, int x, int y, int world_x, int world_y, uint8_t alpha, int screen_panels, bool tile_data)
 {
 	// Drawing invisible tile crashes on glide mode.
@@ -304,6 +322,12 @@ bool __stdcall drawGroundTileHooked(TileContext* tile, GFXLight* light, int x, i
 	}
 
 	const auto offset = modules::MotionPrediction::Instance().getGlobalOffset();
+	if (ISGLIDE3X() && App.water.active && isWaterTile(tile)) {
+		App.context->setVertexFlagW(11);
+		const bool ret = drawGroundTile(tile, light, x - offset.x, y - offset.y, world_x, world_y, alpha, screen_panels, tile_data);
+		App.context->setVertexFlagW(0);
+		return ret;
+	}
 	return drawGroundTile(tile, light, x - offset.x, y - offset.y, world_x, world_y, alpha, screen_panels, tile_data);
 }
 

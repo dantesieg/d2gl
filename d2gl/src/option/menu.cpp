@@ -353,6 +353,22 @@ void Menu::draw()
 						saveFloat("Graphic", "dynamic_light_intensity", App.dynamic_light.intensity.value);
 					drawDescription("Dynamic lighting intensity.", m_colors[Color::Gray], 12);
 				ImGui::EndDisabled();
+				drawSeparator();
+				drawCheckbox_m("Water Reflections", App.water.active, "Water floors reflect the world above them.", water_reflections)
+					saveBool("Graphic", "water_reflections", App.water.active);
+				ImGui::BeginDisabled(!App.water.active);
+					drawSlider_m(float, "", App.water.strength, "%.3f", "", water_reflection_strength)
+						saveFloat("Graphic", "water_reflection_strength", App.water.strength.value);
+					drawDescription("Water reflection strength.", m_colors[Color::Gray], 12);
+				ImGui::EndDisabled();
+				drawSeparator();
+				drawCheckbox_m("Deband", App.deband.active, "Smooth 8-bit palette banding in world gradients.", deband)
+					saveBool("Graphic", "deband", App.deband.active);
+				ImGui::BeginDisabled(!App.deband.active);
+					drawSlider_m(float, "", App.deband.strength, "%.3f", "", deband_strength)
+						saveFloat("Graphic", "deband_strength", App.deband.strength.value);
+					drawDescription("Deband strength.", m_colors[Color::Gray], 12);
+				ImGui::EndDisabled();
 			ImGui::EndDisabled();
 			drawSeparator();
 			drawLabel("Stretched Viewport", m_colors[Color::Orange]);
