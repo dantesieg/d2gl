@@ -422,6 +422,11 @@ void Menu::draw()
 				}
 			ImGui::EndDisabled();
 			drawSeparator();
+			ImGui::BeginDisabled(!ISGLIDE3X());
+				drawCheckbox_m("Animation Smoothing", App.animation_smoothing, "Cross-fade character, monster and missile animation frames (glide only).", animation_smoothing)
+					saveBool("Feature", "animation_smoothing", App.animation_smoothing);
+			ImGui::EndDisabled();
+			drawSeparator();
 			drawCheckbox_m("Skip Intro", App.skip_intro, "Auto skip intro videos on launch.", skip_intro)
 				saveBool("Feature", "skip_intro", App.skip_intro);
 			drawSeparator();

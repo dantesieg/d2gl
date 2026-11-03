@@ -153,6 +153,8 @@ class Context {
 	std::map<uint32_t, std::pair<uint32_t, BlendType>> m_blend_types;
 	uint32_t m_current_blend_index = 0;
 	bool m_blend_locked = false;
+	uint8_t m_alpha_override = 255;
+	uint32_t effectiveBlendIndex() { return (m_alpha_override < 255 && m_current_blend_index == 0) ? 3 : m_current_blend_index; }
 
 	glm::vec2 m_bloom_data;
 	glm::uvec2 m_bloom_tex_size = { 0, 0 };
@@ -210,6 +212,7 @@ public:
 	inline void setVertexFlagY(uint8_t flag) { m_vertex_params.flags.y = flag; }
 	inline void setVertexFlagZ(uint8_t flag) { m_vertex_params.flags.z = flag; }
 	inline void setVertexFlagW(uint8_t flag) { m_vertex_params.flags.w = flag; }
+	void setAlphaOverride(uint8_t alpha);
 
 	inline const double getFrameTime() { return m_frame.frame_time; }
 	inline const double getAvgFrameTime() { return m_frame.average_frame_time; }
