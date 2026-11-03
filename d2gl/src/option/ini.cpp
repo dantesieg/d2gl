@@ -202,7 +202,13 @@ void saveIni()
 		"bloom_gamma=%.3f\n\n"
 		"; Dynamic lighting: light sources glow and light the world around them.\n"
 		"dynamic_light=%s\n"
-		"dynamic_light_intensity=%.3f\n\n"
+		"dynamic_light_intensity=%.3f\n"
+		"; Normal-mapped lighting: pseudo normals from the image, shaded toward lights (needs dynamic_light).\n"
+		"light_normals=%s\n"
+		"light_normals_strength=%.3f\n"
+		"; Light shafts (god rays) around light sources (needs dynamic_light).\n"
+		"light_shafts=%s\n"
+		"light_shafts_strength=%.3f\n\n"
 		"; Stretch viewport to window size.\n"
 		"stretched_horizontal=%s\n"
 		"stretched_vertical=%s\n\n\n";
@@ -223,6 +229,10 @@ void saveIni()
 		App.bloom.gamma.value,
 		boolString(App.dynamic_light.active),
 		App.dynamic_light.intensity.value,
+		boolString(App.dynamic_light.normals),
+		App.dynamic_light.normals_strength.value,
+		boolString(App.dynamic_light.shafts),
+		App.dynamic_light.shafts_strength.value,
 		boolString(App.viewport.stretched.x),
 		boolString(App.viewport.stretched.y));
 	out_file << buf;
@@ -357,6 +367,10 @@ void loadIni()
 		App.bloom.gamma.value = getFloat("Graphic", "bloom_gamma", App.bloom.gamma);
 		App.dynamic_light.active = getBool("Graphic", "dynamic_light", App.dynamic_light.active);
 		App.dynamic_light.intensity.value = getFloat("Graphic", "dynamic_light_intensity", App.dynamic_light.intensity);
+		App.dynamic_light.normals = getBool("Graphic", "light_normals", App.dynamic_light.normals);
+		App.dynamic_light.normals_strength.value = getFloat("Graphic", "light_normals_strength", App.dynamic_light.normals_strength);
+		App.dynamic_light.shafts = getBool("Graphic", "light_shafts", App.dynamic_light.shafts);
+		App.dynamic_light.shafts_strength.value = getFloat("Graphic", "light_shafts_strength", App.dynamic_light.shafts_strength);
 
 		App.viewport.stretched.x = getBool("Graphic", "stretched_horizontal", App.viewport.stretched.x);
 		App.viewport.stretched.y = getBool("Graphic", "stretched_vertical", App.viewport.stretched.y);

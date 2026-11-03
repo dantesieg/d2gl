@@ -143,6 +143,10 @@ struct D2GLApp {
 	struct {
 		bool active = false;
 		Range<float> intensity = { 1.0f, 0.1f, 3.0f };
+		bool normals = false;
+		Range<float> normals_strength = { 1.0f, 0.1f, 3.0f };
+		bool shafts = false;
+		Range<float> shafts_strength = { 1.0f, 0.1f, 3.0f };
 	} dynamic_light;
 
 	struct {

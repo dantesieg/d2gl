@@ -290,6 +290,11 @@ Context::Context()
 		m_light_pipeline = Context::createPipeline(light_pipeline_ci);
 		m_light_pipeline->setUniformMat4f("u_MVP", glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f));
 
+		light_pipeline_ci.name = "lightfx";
+		light_pipeline_ci.shader = g_shader_lightfx;
+		m_lightfx_pipeline = Context::createPipeline(light_pipeline_ci);
+		m_lightfx_pipeline->setUniformMat4f("u_MVP", glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f));
+
 		PipelineCreateInfo uilayer_pipeline_ci = { "uilayer" };
 		uilayer_pipeline_ci.shader = g_shader_uilayer;
 		uilayer_pipeline_ci.bindings = {
@@ -436,11 +441,23 @@ void Context::renderThread(void* context)
 							ctx->m_light_texture->fillFromBuffer(ctx->m_light_framebuffer);
 							ctx->drawQuad(2);
 						}
+						const bool lightfx = App.dynamic_light.normals || App.dynamic_light.shafts;
+						if (lightfx) {
+							// lightfx.glsl: blurred light -> LIGHT2, shafts -> LIGHT1, then combine.
+							ctx->m_light_texture->fillFromBuffer(ctx->m_light_framebuffer);
+							ctx->bindPipeline(ctx->m_lightfx_pipeline);
+							ctx->m_lightfx_pipeline->setUniformVec2f("u_RelSize", { 1.0f / ctx->m_light_tex_size.x, 1.0f / ctx->m_light_tex_size.y });
+							ctx->m_lightfx_pipeline->setUniform1f("u_Intensity", App.dynamic_light.intensity.value);
+							ctx->m_lightfx_pipeline->setUniform1f("u_Normals", App.dynamic_light.normals ? App.dynamic_light.normals_strength.value : 0.0f);
+							ctx->m_lightfx_pipeline->setUniform1f("u_Shafts", App.dynamic_light.shafts ? App.dynamic_light.shafts_strength.value : 0.0f);
+							if (App.dynamic_light.shafts)
+								ctx->drawQuad(0);
+						}
 						ctx->bindFrameBuffer(ctx->m_game_framebuffer, false);
 						ctx->setViewport(cmd->m_game_size);
-						ctx->bindPipeline(ctx->m_light_pipeline);
+						ctx->bindPipeline(lightfx ? ctx->m_lightfx_pipeline : ctx->m_light_pipeline);
 						FrameBuffer::setDrawBuffers(1);
-						ctx->drawQuad(3);
+						ctx->drawQuad(lightfx ? 1 : 3);
 					}
 					ctx->m_prefx_texture->fillFromBuffer(ctx->m_game_framebuffer);
 					ctx->bindPipeline(ctx->m_prefx_pipeline);

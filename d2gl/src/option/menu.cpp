@@ -352,6 +352,20 @@ void Menu::draw()
 					drawSlider_m(float, "", App.dynamic_light.intensity, "%.3f", "", dynamic_light_intensity)
 						saveFloat("Graphic", "dynamic_light_intensity", App.dynamic_light.intensity.value);
 					drawDescription("Dynamic lighting intensity.", m_colors[Color::Gray], 12);
+					drawCheckbox_m("Normal-Mapped Lighting", App.dynamic_light.normals, "Shade sprites and walls toward nearby lights for a 3D look.", light_normals)
+						saveBool("Graphic", "light_normals", App.dynamic_light.normals);
+					ImGui::BeginDisabled(!App.dynamic_light.normals);
+						drawSlider_m(float, "", App.dynamic_light.normals_strength, "%.3f", "", light_normals_strength)
+							saveFloat("Graphic", "light_normals_strength", App.dynamic_light.normals_strength.value);
+						drawDescription("Normal-mapped lighting strength.", m_colors[Color::Gray], 12);
+					ImGui::EndDisabled();
+					drawCheckbox_m("Light Shafts", App.dynamic_light.shafts, "Rays of light streaming from light sources.", light_shafts)
+						saveBool("Graphic", "light_shafts", App.dynamic_light.shafts);
+					ImGui::BeginDisabled(!App.dynamic_light.shafts);
+						drawSlider_m(float, "", App.dynamic_light.shafts_strength, "%.3f", "", light_shafts_strength)
+							saveFloat("Graphic", "light_shafts_strength", App.dynamic_light.shafts_strength.value);
+						drawDescription("Light shafts strength.", m_colors[Color::Gray], 12);
+					ImGui::EndDisabled();
 				ImGui::EndDisabled();
 			ImGui::EndDisabled();
 			drawSeparator();
