@@ -276,6 +276,10 @@ const char* g_shader_uilayer = {
 #include "shaders/uilayer.glsl.h"
 };
 
+const char* g_shader_light = {
+#include "shaders/light.glsl.h"
+};
+
 const char* g_shader_mod = {
 #include "shaders/mod.glsl.h"
 };

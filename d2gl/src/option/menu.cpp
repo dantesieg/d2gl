@@ -345,6 +345,14 @@ void Menu::draw()
 						saveFloat("Graphic", "bloom_gamma", App.bloom.gamma.value);
 					drawDescription("Bloom Gamma setting.", m_colors[Color::Gray], 12);
 				ImGui::EndDisabled();
+				drawSeparator();
+				drawCheckbox_m("Dynamic Lighting", App.dynamic_light.active, "Light sources glow and light the world around them.", dynamic_light)
+					saveBool("Graphic", "dynamic_light", App.dynamic_light.active);
+				ImGui::BeginDisabled(!App.dynamic_light.active);
+					drawSlider_m(float, "", App.dynamic_light.intensity, "%.3f", "", dynamic_light_intensity)
+						saveFloat("Graphic", "dynamic_light_intensity", App.dynamic_light.intensity.value);
+					drawDescription("Dynamic lighting intensity.", m_colors[Color::Gray], 12);
+				ImGui::EndDisabled();
 			ImGui::EndDisabled();
 			drawSeparator();
 			drawLabel("Stretched Viewport", m_colors[Color::Orange]);

@@ -280,6 +280,16 @@ Context::Context()
 		m_prefx_pipeline = Context::createPipeline(prefx_pipeline_ci);
 		m_prefx_pipeline->setUniformMat4f("u_MVP", glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f));
 
+		PipelineCreateInfo light_pipeline_ci = { "light" };
+		light_pipeline_ci.shader = g_shader_light;
+		light_pipeline_ci.bindings = {
+			{ BindingType::Texture, "u_Texture", TEXTURE_SLOT_PREFX, &m_prefx_texture },
+			{ BindingType::FBTexture, "u_LightTexture1", TEXTURE_SLOT_LIGHT1, &m_light_framebuffer },
+			{ BindingType::Texture, "u_LightTexture2", TEXTURE_SLOT_LIGHT2, &m_light_texture },
+		};
+		m_light_pipeline = Context::createPipeline(light_pipeline_ci);
+		m_light_pipeline->setUniformMat4f("u_MVP", glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f));
+
 		PipelineCreateInfo uilayer_pipeline_ci = { "uilayer" };
 		uilayer_pipeline_ci.shader = g_shader_uilayer;
 		uilayer_pipeline_ci.bindings = {
@@ -412,6 +422,26 @@ void Context::renderThread(void* context)
 						glDrawElementsBaseVertex(GL_TRIANGLES, command->draw.count, GL_UNSIGNED_INT, 0, command->draw.start);
 					break;
 				case CommandType::PreFx:
+					if (App.dynamic_light.active && ctx->m_light_tex_size.x > 0 && ctx->m_light_tex_size.y > 0) {
+						ctx->m_prefx_texture->fillFromBuffer(ctx->m_game_framebuffer);
+						ctx->bindPipeline(ctx->m_light_pipeline);
+						ctx->m_light_pipeline->setUniformVec2f("u_RelSize", { 1.0f / ctx->m_light_tex_size.x, 1.0f / ctx->m_light_tex_size.y });
+						ctx->m_light_pipeline->setUniform1f("u_Intensity", App.dynamic_light.intensity.value);
+						ctx->bindFrameBuffer(ctx->m_light_framebuffer, false);
+						ctx->setViewport(ctx->m_light_tex_size);
+						ctx->drawQuad(0);
+						for (int i = 0; i < 2; i++) {
+							ctx->m_light_texture->fillFromBuffer(ctx->m_light_framebuffer);
+							ctx->drawQuad(1);
+							ctx->m_light_texture->fillFromBuffer(ctx->m_light_framebuffer);
+							ctx->drawQuad(2);
+						}
+						ctx->bindFrameBuffer(ctx->m_game_framebuffer, false);
+						ctx->setViewport(cmd->m_game_size);
+						ctx->bindPipeline(ctx->m_light_pipeline);
+						FrameBuffer::setDrawBuffers(1);
+						ctx->drawQuad(3);
+					}
 					ctx->m_prefx_texture->fillFromBuffer(ctx->m_game_framebuffer);
 					ctx->bindPipeline(ctx->m_prefx_pipeline);
 
@@ -628,6 +658,18 @@ void Context::onResize(glm::uvec2 w_size, glm::uvec2 g_size, uint32_t bpp)
 			bloom_texture_ci.filter = { GL_LINEAR, GL_LINEAR };
 			m_bloom_texture = Context::createTexture(bloom_texture_ci);
 
+			m_light_tex_size = { game_size.x / 8, game_size.y / 8 };
+			FrameBufferCreateInfo light_frambuffer_ci;
+			light_frambuffer_ci.size = m_light_tex_size;
+			light_frambuffer_ci.attachments = { { TEXTURE_SLOT_LIGHT1, {}, { GL_LINEAR, GL_LINEAR } } };
+			m_light_framebuffer = Context::createFrameBuffer(light_frambuffer_ci);
+
+			TextureCreateInfo light_texture_ci;
+			light_texture_ci.size = m_light_tex_size;
+			light_texture_ci.slot = TEXTURE_SLOT_LIGHT2;
+			light_texture_ci.filter = { GL_LINEAR, GL_LINEAR };
+			m_light_texture = Context::createTexture(light_texture_ci);
+
 			TextureCreateInfo prefx_texture_ci;
 			prefx_texture_ci.size = game_size;
 			prefx_texture_ci.slot = TEXTURE_SLOT_PREFX;
@@ -710,7 +752,7 @@ void Context::onStageChange()
 		case DrawStage::UI:
 			addPanelOccluders();
 			modules::HDText::drawFpsCounter();
-			if (ISGLIDE3X() && (App.bloom.active || App.lut.selected) && *d2::screen_shift != SCREENPANEL_BOTH) {
+			if (ISGLIDE3X() && (App.bloom.active || App.lut.selected || App.dynamic_light.active) && *d2::screen_shift != SCREENPANEL_BOTH) {
 				flushVertices();
 				m_command_buffer[m_frame_index].pushCommand(CommandType::PreFx, m_current_blend_index);
 			}

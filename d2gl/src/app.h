@@ -142,6 +142,11 @@ struct D2GLApp {
 
 	struct {
 		bool active = false;
+		Range<float> intensity = { 1.0f, 0.1f, 3.0f };
+	} dynamic_light;
+
+	struct {
+		bool active = false;
 		Range<float> scale = { 1.0f, 0.8f, 1.2f };
 	} hd_text;
 

@@ -200,6 +200,9 @@ void saveIni()
 		"bloom=%s\n"
 		"bloom_exposure=%.3f\n"
 		"bloom_gamma=%.3f\n\n"
+		"; Dynamic lighting: light sources glow and light the world around them.\n"
+		"dynamic_light=%s\n"
+		"dynamic_light_intensity=%.3f\n\n"
 		"; Stretch viewport to window size.\n"
 		"stretched_horizontal=%s\n"
 		"stretched_vertical=%s\n\n\n";
@@ -218,6 +221,8 @@ void saveIni()
 		boolString(App.bloom.active),
 		App.bloom.exposure.value,
 		App.bloom.gamma.value,
+		boolString(App.dynamic_light.active),
+		App.dynamic_light.intensity.value,
 		boolString(App.viewport.stretched.x),
 		boolString(App.viewport.stretched.y));
 	out_file << buf;
@@ -347,6 +352,8 @@ void loadIni()
 		App.bloom.active = getBool("Graphic", "bloom", App.bloom.active);
 		App.bloom.exposure.value = getFloat("Graphic", "bloom_exposure", App.bloom.exposure);
 		App.bloom.gamma.value = getFloat("Graphic", "bloom_gamma", App.bloom.gamma);
+		App.dynamic_light.active = getBool("Graphic", "dynamic_light", App.dynamic_light.active);
+		App.dynamic_light.intensity.value = getFloat("Graphic", "dynamic_light_intensity", App.dynamic_light.intensity);
 
 		App.viewport.stretched.x = getBool("Graphic", "stretched_horizontal", App.viewport.stretched.x);
 		App.viewport.stretched.y = getBool("Graphic", "stretched_vertical", App.viewport.stretched.y);

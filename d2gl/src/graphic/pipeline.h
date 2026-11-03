@@ -128,6 +128,7 @@ extern const char* g_shader_prefx;
 extern const char* g_shader_postfx;
 extern const char* g_shader_mod;
 extern const char* g_shader_uilayer;
+extern const char* g_shader_light;
 extern const std::vector<UpscaleShader> g_shader_upscale;
 
 extern const std::map<uint32_t, std::pair<uint32_t, BlendType>> g_blend_types;
