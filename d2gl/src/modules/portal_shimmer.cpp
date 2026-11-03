@@ -47,7 +47,7 @@ static int readSource(d2::UnitAny* unit)
 
 void PortalShimmer::drawImage(int x, int y)
 {
-	if (!App.portal_shimmer || !ISGLIDE3X() || !isVerMin(V_110))
+	if (!App.portal_shimmer || !ISGLIDE3X() || !(isVerMin(V_110)))
 		return;
 	if (App.game.screen != GameScreen::InGame || App.game.draw_stage != DrawStage::World)
 		return;
