@@ -203,6 +203,12 @@ void saveIni()
 		"; Dynamic lighting: light sources glow and light the world around them.\n"
 		"dynamic_light=%s\n"
 		"dynamic_light_intensity=%.3f\n\n"
+		"; Soft unit shadows: blurred shadows multiplied into the world (softness: 0.5-4.0).\n"
+		"soft_shadows=%s\n"
+		"soft_shadows_softness=%.3f\n\n"
+		"; Ambient occlusion: darken the ground under players and monsters (strength: 0.1-1.0).\n"
+		"ambient_occlusion=%s\n"
+		"ambient_occlusion_strength=%.3f\n\n"
 		"; Stretch viewport to window size.\n"
 		"stretched_horizontal=%s\n"
 		"stretched_vertical=%s\n\n\n";
@@ -223,6 +229,10 @@ void saveIni()
 		App.bloom.gamma.value,
 		boolString(App.dynamic_light.active),
 		App.dynamic_light.intensity.value,
+		boolString(App.soft_shadows.active),
+		App.soft_shadows.softness.value,
+		boolString(App.ambient_occlusion.active),
+		App.ambient_occlusion.strength.value,
 		boolString(App.viewport.stretched.x),
 		boolString(App.viewport.stretched.y));
 	out_file << buf;
@@ -357,6 +367,10 @@ void loadIni()
 		App.bloom.gamma.value = getFloat("Graphic", "bloom_gamma", App.bloom.gamma);
 		App.dynamic_light.active = getBool("Graphic", "dynamic_light", App.dynamic_light.active);
 		App.dynamic_light.intensity.value = getFloat("Graphic", "dynamic_light_intensity", App.dynamic_light.intensity);
+		App.soft_shadows.active = getBool("Graphic", "soft_shadows", App.soft_shadows.active);
+		App.soft_shadows.softness.value = getFloat("Graphic", "soft_shadows_softness", App.soft_shadows.softness);
+		App.ambient_occlusion.active = getBool("Graphic", "ambient_occlusion", App.ambient_occlusion.active);
+		App.ambient_occlusion.strength.value = getFloat("Graphic", "ambient_occlusion_strength", App.ambient_occlusion.strength);
 
 		App.viewport.stretched.x = getBool("Graphic", "stretched_horizontal", App.viewport.stretched.x);
 		App.viewport.stretched.y = getBool("Graphic", "stretched_vertical", App.viewport.stretched.y);

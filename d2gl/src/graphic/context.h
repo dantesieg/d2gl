@@ -47,12 +47,15 @@ namespace d2gl {
 #define TEXTURE_SLOT_WORLD 7
 #define TEXTURE_SLOT_LIGHT1 8
 #define TEXTURE_SLOT_LIGHT2 9
+#define TEXTURE_SLOT_SHADOW 10
 
 #define TEXTURE_SLOT_LUT 11
 #define TEXTURE_SLOT_CURSOR 12
 #define TEXTURE_SLOT_FONTS 13
 #define TEXTURE_SLOT_MASK 14
 #define TEXTURE_SLOT_MAP 15
+#define TEXTURE_SLOT_SHADOW1 16
+#define TEXTURE_SLOT_SHADOW2 17
 
 #define IMAGE_UNIT_BLUR 0
 #define IMAGE_UNIT_FXAA 1
@@ -177,6 +180,16 @@ class Context {
 	std::unique_ptr<FrameBuffer> m_world_framebuffer;
 	bool m_world_ready = false;
 
+	// Soft shadows / ambient occlusion (game framebuffer attachment 3: r = darkness, g = occluder)
+	bool m_shadow_supported = false;
+	bool m_shadow_fx = false;
+	bool m_shadow_seen = false;
+	uint8_t m_shadow_draw = 0; // 0: normal, 1: unit shadow, 2: ground/tile
+	std::unique_ptr<Pipeline> m_shadow_pipeline;
+	std::unique_ptr<FrameBuffer> m_shadow_framebuffer;
+	std::unique_ptr<Texture> m_shadow_texture;
+	glm::uvec2 m_shadow_tex_size = { 0, 0 };
+
 public:
 	Context();
 	~Context();
@@ -219,6 +232,9 @@ public:
 	inline void setVertexFlagZ(uint8_t flag) { m_vertex_params.flags.z = flag; }
 	inline void setVertexFlagW(uint8_t flag) { m_vertex_params.flags.w = flag; }
 	void setAlphaOverride(uint8_t alpha);
+	inline void setShadowDraw(uint8_t mode) { m_shadow_draw = mode; }
+	inline bool isShadowFxActive() { return m_shadow_fx; }
+	void pushAOEllipse(glm::vec2 center, glm::vec2 radius, float strength);
 
 	inline const double getFrameTime() { return m_frame.frame_time; }
 	inline const double getAvgFrameTime() { return m_frame.average_frame_time; }

@@ -353,6 +353,22 @@ void Menu::draw()
 						saveFloat("Graphic", "dynamic_light_intensity", App.dynamic_light.intensity.value);
 					drawDescription("Dynamic lighting intensity.", m_colors[Color::Gray], 12);
 				ImGui::EndDisabled();
+				drawSeparator();
+				drawCheckbox_m("Soft Shadows", App.soft_shadows.active, "Unit shadows are blurred with a soft falloff.", soft_shadows)
+					saveBool("Graphic", "soft_shadows", App.soft_shadows.active);
+				ImGui::BeginDisabled(!App.soft_shadows.active);
+					drawSlider_m(float, "", App.soft_shadows.softness, "%.3f", "", soft_shadows_softness)
+						saveFloat("Graphic", "soft_shadows_softness", App.soft_shadows.softness.value);
+					drawDescription("Shadow softness (blur radius).", m_colors[Color::Gray], 12);
+				ImGui::EndDisabled();
+				drawSeparator();
+				drawCheckbox_m("Ambient Occlusion", App.ambient_occlusion.active, "Darken the ground under players and monsters.", ambient_occlusion)
+					saveBool("Graphic", "ambient_occlusion", App.ambient_occlusion.active);
+				ImGui::BeginDisabled(!App.ambient_occlusion.active);
+					drawSlider_m(float, "", App.ambient_occlusion.strength, "%.3f", "", ambient_occlusion_strength)
+						saveFloat("Graphic", "ambient_occlusion_strength", App.ambient_occlusion.strength.value);
+					drawDescription("Ambient occlusion strength.", m_colors[Color::Gray], 12);
+				ImGui::EndDisabled();
 			ImGui::EndDisabled();
 			drawSeparator();
 			drawLabel("Stretched Viewport", m_colors[Color::Orange]);

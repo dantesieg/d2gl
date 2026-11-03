@@ -9,6 +9,7 @@ enum class CommandType {
 	SetBlendState,
 	DrawIndexed,
 	PreFx,
+	SoftShadow,
 	WorldSnapshot,
 	Submit,
 	TakeScreenShot,
