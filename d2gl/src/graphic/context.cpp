@@ -24,8 +24,6 @@
 #include "modules/hd_text.h"
 #include "modules/mini_map.h"
 #include "modules/motion_prediction.h"
-#include "modules/adaptive_sharpen.h"
-#include "modules/portal_shimmer.h"
 #include "option/menu.h"
 #include "upscaler.h"
 #include "win32.h"
@@ -320,21 +318,6 @@ Context::Context()
 		m_shadow_pipeline = Context::createPipeline(shadow_pipeline_ci);
 		m_shadow_pipeline->setUniformMat4f("u_MVP", glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f));
 
-		PipelineCreateInfo worldfx_pipeline_ci = { "worldfx" };
-		worldfx_pipeline_ci.shader = g_shader_worldfx;
-		worldfx_pipeline_ci.bindings = {
-			{ BindingType::Texture, "u_Texture", TEXTURE_SLOT_PREFX, &m_prefx_texture },
-			{ BindingType::FBTexture, "u_MaskTexture", TEXTURE_SLOT_MASK, &m_game_framebuffer, 2 },
-		};
-		m_worldfx_pipeline = Context::createPipeline(worldfx_pipeline_ci);
-		m_worldfx_pipeline->setUniformMat4f("u_MVP", glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f));
-
-		PipelineCreateInfo shimmer_pipeline_ci = { "shimmer" };
-		shimmer_pipeline_ci.shader = g_shader_shimmer;
-		shimmer_pipeline_ci.bindings = { { BindingType::Texture, "u_Texture", TEXTURE_SLOT_PREFX, &m_prefx_texture } };
-		m_shimmer_pipeline = Context::createPipeline(shimmer_pipeline_ci);
-		m_shimmer_pipeline->setUniformMat4f("u_MVP", glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f));
-
 		PipelineCreateInfo uilayer_pipeline_ci = { "uilayer" };
 		uilayer_pipeline_ci.shader = g_shader_uilayer;
 		uilayer_pipeline_ci.bindings = {
@@ -469,23 +452,6 @@ void Context::renderThread(void* context)
 						glDrawElementsBaseVertex(GL_TRIANGLES, command->draw.count, GL_UNSIGNED_INT, 0, command->draw.start);
 					break;
 				case CommandType::PreFx:
-					if (App.deband.active || App.water.active) {
-						ctx->setViewport(cmd->m_game_size);
-						FrameBuffer::setDrawBuffers(1);
-						if (App.deband.active) {
-							ctx->m_prefx_texture->fillFromBuffer(ctx->m_game_framebuffer);
-							ctx->bindPipeline(ctx->m_worldfx_pipeline);
-							ctx->m_worldfx_pipeline->setUniform1f("u_Strength", App.deband.strength.value);
-							ctx->drawQuad(0);
-						}
-						if (App.water.active) {
-							ctx->m_prefx_texture->fillFromBuffer(ctx->m_game_framebuffer);
-							ctx->bindPipeline(ctx->m_worldfx_pipeline);
-							ctx->m_worldfx_pipeline->setUniform1f("u_Strength", App.water.strength.value);
-							ctx->m_worldfx_pipeline->setUniform1f("u_Time", (float)(GetTickCount() % 600000u) * 0.001f);
-							ctx->drawQuad(1);
-						}
-					}
 					if (App.dynamic_light.active && App.dynamic_light.debug && ctx->gameDrawBufferCount() == 5) {
 						// Debug: raw game light buffer in place of the world (ambient swatch top-left).
 						FrameBuffer::setDrawBuffers(1);
@@ -508,7 +474,7 @@ void Context::renderThread(void* context)
 							ctx->m_light_texture->fillFromBuffer(ctx->m_light_framebuffer);
 							ctx->drawQuad(2);
 						}
-						const bool lightfx = App.dynamic_light.normals || App.dynamic_light.shafts;
+						const bool lightfx = App.dynamic_light.normals;
 						if (lightfx) {
 							// lightfx.glsl: blurred light -> LIGHT2, shafts -> LIGHT1, then combine.
 							ctx->m_light_texture->fillFromBuffer(ctx->m_light_framebuffer);
@@ -517,31 +483,13 @@ void Context::renderThread(void* context)
 							ctx->m_lightfx_pipeline->setUniform1f("u_Intensity", App.dynamic_light.intensity.value);
 							ctx->m_lightfx_pipeline->setUniform1i("u_Source", vsource);
 							ctx->m_lightfx_pipeline->setUniform1f("u_Normals", App.dynamic_light.normals ? App.dynamic_light.normals_strength.value : 0.0f);
-							ctx->m_lightfx_pipeline->setUniform1f("u_Shafts", App.dynamic_light.shafts ? App.dynamic_light.shafts_strength.value : 0.0f);
-							if (App.dynamic_light.shafts)
-								ctx->drawQuad(0);
+							ctx->m_lightfx_pipeline->setUniform1f("u_Shafts", 0.0f);
 						}
 						ctx->bindFrameBuffer(ctx->m_game_framebuffer, false);
 						ctx->setViewport(cmd->m_game_size);
 						ctx->bindPipeline(lightfx ? ctx->m_lightfx_pipeline : ctx->m_light_pipeline);
 						FrameBuffer::setDrawBuffers(1);
 						ctx->drawQuad(lightfx ? 1 : 3);
-					}
-					if (App.portal_shimmer) {
-						const auto& shimmer = modules::PortalShimmer::Instance().get(frame_index);
-						if (shimmer.count) {
-							const double t = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
-							ctx->m_prefx_texture->fillFromBuffer(ctx->m_game_framebuffer);
-							ctx->bindPipeline(ctx->m_shimmer_pipeline);
-							ctx->m_shimmer_pipeline->setUniformVec4fArray("u_Sources", shimmer.data, shimmer.count);
-							ctx->m_shimmer_pipeline->setUniform1i("u_Count", (int)shimmer.count);
-							ctx->m_shimmer_pipeline->setUniformVec2f("u_Size", glm::vec2(cmd->m_game_size));
-							ctx->m_shimmer_pipeline->setUniform1f("u_Time", (float)fmod(t, 3600.0));
-							ctx->bindFrameBuffer(ctx->m_game_framebuffer, false);
-							ctx->setViewport(cmd->m_game_size);
-							FrameBuffer::setDrawBuffers(1);
-							ctx->drawQuad();
-						}
 					}
 					if (App.bloom.active || App.lut.selected) {
 					ctx->m_prefx_texture->fillFromBuffer(ctx->m_game_framebuffer);
@@ -580,28 +528,13 @@ void Context::renderThread(void* context)
 					ctx->drawQuad(3 + App.bloom.active, 0, App.lut.selected);
 					}
 
-					if (App.atmos.heat_haze || App.atmos.fog || App.tonemap.active) {
+					if (App.tonemap.active) {
 						FrameBuffer::setDrawBuffers(1);
 						ctx->bindPipeline(ctx->m_atmos_pipeline);
 						ctx->m_atmos_pipeline->setUniformVec2f("u_RelSize", { 1.0f / cmd->m_game_size.x, 1.0f / cmd->m_game_size.y });
-						if (App.atmos.heat_haze || App.atmos.fog) {
-							static const auto t0 = std::chrono::steady_clock::now();
-							const float t = std::fmod(std::chrono::duration<float>(std::chrono::steady_clock::now() - t0).count(), 3600.0f);
-							const int level = App.game.screen == GameScreen::InGame ? *d2::level_no : 0;
-							static const glm::vec3 tints[5] = { { 0.70f, 0.74f, 0.80f }, { 0.86f, 0.76f, 0.58f }, { 0.58f, 0.72f, 0.56f }, { 0.78f, 0.34f, 0.26f }, { 0.82f, 0.88f, 0.96f } };
-							const int act = level >= 109 ? 4 : level >= 103 ? 3 : level >= 75 ? 2 : level >= 40 ? 1 : 0;
-							ctx->m_prefx_texture->fillFromBuffer(ctx->m_game_framebuffer);
-							ctx->m_atmos_pipeline->setUniform1f("u_Time", t);
-							ctx->m_atmos_pipeline->setUniform1f("u_Haze", App.atmos.heat_haze ? 1.0f : 0.0f);
-							ctx->m_atmos_pipeline->setUniform1f("u_Fog", App.atmos.fog ? App.atmos.fog_density.value : 0.0f);
-							ctx->m_atmos_pipeline->setUniformVec4f("u_FogTint", glm::vec4(tints[act], 1.0f));
-							ctx->drawQuad(0);
-						}
-						if (App.tonemap.active) {
-							ctx->m_prefx_texture->fillFromBuffer(ctx->m_game_framebuffer);
-							ctx->m_atmos_pipeline->setUniform1f("u_Exposure", App.tonemap.exposure.value);
-							ctx->drawQuad(1);
-						}
+						ctx->m_prefx_texture->fillFromBuffer(ctx->m_game_framebuffer);
+						ctx->m_atmos_pipeline->setUniform1f("u_Exposure", App.tonemap.exposure.value);
+						ctx->drawQuad(1);
 					}
 
 					ctx->bindPipeline(ctx->m_game_pipeline, command->index);
@@ -657,8 +590,7 @@ void Context::renderThread(void* context)
 						ctx->drawQuad();
 					} else {
 						if (App.sharpen.active) {
-							const float sharpen_factor = App.sharpen.adaptive ? modules::AdaptiveSharpen::Instance().getFactor() : 1.0f;
-							const auto sharpen_data = glm::vec3(App.sharpen.strength.value * sharpen_factor, App.sharpen.clamp.value, App.sharpen.radius.value);
+														const auto sharpen_data = glm::vec3(App.sharpen.strength.value, App.sharpen.clamp.value, App.sharpen.radius.value);
 							if (ctx->m_sharpen_data != sharpen_data) {
 								ctx->m_postfx_ubo->updateDataVec4f("sharpen", glm::vec4(sharpen_data, 1.0f));
 								ctx->m_sharpen_data = sharpen_data;
@@ -938,10 +870,9 @@ void Context::onStageChange()
 			modules::HDText::drawFpsCounter();
 			if (m_shadow_fx && m_shadow_seen && *d2::screen_shift != SCREENPANEL_BOTH) {
 				flushVertices();
-				m_command_buffer[m_frame_index].pushCommand(CommandType::SoftShadow, effectiveBlendIndex());
+				m_command_buffer[m_frame_index].pushCommand(CommandType::SoftShadow, m_current_blend_index);
 			}
-			modules::PortalShimmer::Instance().commit(m_frame_index);
-			if (ISGLIDE3X() && (App.bloom.active || App.lut.selected || App.dynamic_light.active || App.deband.active || App.water.active || App.atmos.heat_haze || App.atmos.fog || App.tonemap.active || App.portal_shimmer) && *d2::screen_shift != SCREENPANEL_BOTH) {
+			if (ISGLIDE3X() && (App.bloom.active || App.lut.selected || App.dynamic_light.active || App.tonemap.active) && *d2::screen_shift != SCREENPANEL_BOTH) {
 				flushVertices();
 				m_command_buffer[m_frame_index].pushCommand(CommandType::PreFx, m_current_blend_index);
 			}
@@ -990,20 +921,7 @@ void Context::setBlendState(uint32_t index)
 	flushVertices();
 	m_current_blend_index = g_blend_types.at(index).first;
 	if (!m_blend_locked)
-		m_command_buffer[m_frame_index].pushCommand(CommandType::SetBlendState, effectiveBlendIndex());
-}
-
-// Animation smoothing: draw opaque (One_Zero) quads alpha-blended at a fixed alpha.
-void Context::setAlphaOverride(uint8_t alpha)
-{
-	if (alpha == m_alpha_override)
-		return;
-	const uint32_t old_blend = effectiveBlendIndex();
-	flushVertices();
-	m_alpha_override = alpha;
-	const uint32_t new_blend = effectiveBlendIndex();
-	if (!m_blend_locked && new_blend != old_blend)
-		m_command_buffer[m_frame_index].pushCommand(CommandType::SetBlendState, new_blend);
+		m_command_buffer[m_frame_index].pushCommand(CommandType::SetBlendState, m_current_blend_index);
 }
 
 void Context::beginFrame()
@@ -1028,12 +946,11 @@ void Context::beginFrame()
 	m_frame.drawcall_count = 0;
 
 	App.game.draw_stage = DrawStage::World;
-	m_shadow_fx = ISGLIDE3X() && m_shadow_supported && App.game.screen == GameScreen::InGame && (App.soft_shadows.active || App.ambient_occlusion.active);
+	m_shadow_fx = ISGLIDE3X() && m_shadow_supported && App.game.screen == GameScreen::InGame && App.soft_shadows.active;
 	m_shadow_seen = false;
 	m_shadow_draw = 0;
 	modules::HDText::Instance().reset();
 	modules::MotionPrediction::Instance().update();
-	modules::AdaptiveSharpen::Instance().update();
 
 	m_command_buffer[m_frame_index].pushCommand(CommandType::Begin);
 }
@@ -1108,13 +1025,9 @@ void Context::pushVertex(const GlideVertex* vertex, glm::vec2 fix, glm::ivec2 of
 	m_vertices.ptr->color2 = m_vertex_params.color;
 	m_vertices.ptr->tex_ids = m_vertex_params.tex_ids;
 	m_vertices.ptr->flags = m_vertex_params.flags;
-	if (m_alpha_override < 255 && m_current_blend_index == 0) {
-		m_vertices.ptr->color1 = (vertex->pargb & 0x00FFFFFF) | ((uint32_t)m_alpha_override << 24);
-		m_vertices.ptr->flags.z = 2;
-	}
 	if (m_shadow_fx && App.game.draw_stage == DrawStage::World && m_shadow_draw != 2) {
 		// High nibble of flag x tags shadow-buffer writes (see glide.glsl).
-		const uint32_t blend = effectiveBlendIndex();
+		const uint32_t blend = m_current_blend_index;
 		uint8_t kind = 0;
 		if (m_shadow_draw == 1) {
 			if (App.soft_shadows.active)
@@ -1169,74 +1082,6 @@ bool Context::pushFlatQuad(glm::vec2 pos, glm::vec2 size, uint32_t color)
 	}
 
 	return true;
-}
-
-// Untextured per-vertex coloured quads (0xAARRGGBB, rgb premultiplied), One_One blend (pipeline 2).
-void Context::pushAdditiveQuads(const glm::vec2* pos, const uint32_t* colors, uint32_t quad_count)
-{
-	if (!ISGLIDE3X() || !pos || !colors || quad_count == 0 || m_blend_locked)
-		return;
-
-	flushVertices();
-	m_command_buffer[m_frame_index].pushCommand(CommandType::SetBlendState, 2);
-
-	for (uint32_t q = 0; q < quad_count; q++) {
-		if (m_vertices.count >= MAX_VERTICES - 4)
-			flushVertices();
-		for (uint32_t i = q * 4; i < q * 4 + 4; i++) {
-			m_vertices.ptr->position = { glm::detail::toFloat16(pos[i].x), glm::detail::toFloat16(pos[i].y) };
-			m_vertices.ptr->tex_coord = { 0.0f, 0.0f };
-			m_vertices.ptr->color1 = colors[i];
-			m_vertices.ptr->color2 = 0xFFFFFFFF;
-			m_vertices.ptr->tex_ids = { 0, 0 };
-			m_vertices.ptr->flags = { 0, 2, 0, 0 }; // iterated colour, alpha 1
-			m_vertices.ptr++;
-			m_vertices.count++;
-			m_frame.vertex_count++;
-		}
-	}
-
-	flushVertices();
-	m_command_buffer[m_frame_index].pushCommand(CommandType::SetBlendState, effectiveBlendIndex());
-}
-
-void Context::pushAOEllipse(glm::vec2 center, glm::vec2 radius, float strength)
-{
-	if (!m_shadow_fx || App.game.draw_stage != DrawStage::World)
-		return;
-
-	if (m_vertices.count >= MAX_VERTICES - 4)
-		flushVertices();
-
-	// AO quads keep the frame untouched (alpha 0) and only add darkness to attachment 3.
-	const bool switch_blend = !m_blend_locked && effectiveBlendIndex() != 3;
-	if (switch_blend) {
-		flushVertices();
-		m_command_buffer[m_frame_index].pushCommand(CommandType::SetBlendState, 3);
-	}
-
-	const glm::vec2 corners[4] = { center - radius, { center.x + radius.x, center.y - radius.y }, center + radius, { center.x - radius.x, center.y + radius.y } };
-	const glm::vec2 uvs[4] = { { 0.0f, 0.0f }, { 1.0f, 0.0f }, { 1.0f, 1.0f }, { 0.0f, 1.0f } };
-	const uint32_t color = (uint32_t)(glm::clamp(strength, 0.0f, 1.0f) * 255.0f) | 0xFFFFFF00;
-
-	for (int i = 0; i < 4; i++) {
-		m_vertices.ptr->position = { glm::detail::toFloat16(corners[i].x), glm::detail::toFloat16(corners[i].y) };
-		m_vertices.ptr->tex_coord = uvs[i];
-		m_vertices.ptr->color1 = 0xFFFFFFFF;
-		m_vertices.ptr->color2 = color;
-		m_vertices.ptr->tex_ids = { 0, 0 };
-		m_vertices.ptr->flags = { (uint8_t)(3 << 4), 1, 1, 0 };
-
-		m_vertices.ptr++;
-		m_vertices.count++;
-		m_frame.vertex_count++;
-	}
-	m_shadow_seen = true;
-
-	if (switch_blend) {
-		flushVertices();
-		m_command_buffer[m_frame_index].pushCommand(CommandType::SetBlendState, effectiveBlendIndex());
-	}
 }
 
 void Context::flushVertices()

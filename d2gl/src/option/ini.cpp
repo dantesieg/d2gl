@@ -193,9 +193,6 @@ void saveIni()
 		"sharpen_strength=%.3f\n"
 		"sharpen_clamp=%.3f\n"
 		"sharpen_radius=%.3f\n"
-		"; Ease sharpening down while moving; sharpen_adaptive_min = fraction kept while moving (0.0-1.0).\n"
-		"sharpen_adaptive=%s\n"
-		"sharpen_adaptive_min=%.3f\n\n"
 		"; Fast approximate anti-aliasing (preset: 0-2).\n"
 		"fxaa=%s\n"
 		"fxaa_preset=%d\n\n"
@@ -209,35 +206,16 @@ void saveIni()
 		"; Normal-mapped lighting: pseudo normals from the image, shaded toward lights (needs dynamic_light).\n"
 		"light_normals=%s\n"
 		"light_normals_strength=%.3f\n"
-		"; Light shafts (god rays) around light sources (needs dynamic_light).\n"
-		"light_shafts=%s\n"
-		"light_shafts_strength=%.3f\n"
 		"; Light source for dynamic_light: 0 = screen-space (bright pixels), 1 = game vertex lighting.\n"
 		"dynamic_light_source=%d\n"
 		"; Debug: show the captured game light buffer in place of the world (needs dynamic_light).\n"
 		"dynamic_light_debug=%s\n\n"
-		"; Heat haze: slight shimmer around hot, bright pixels (world only).\n"
-		"heat_haze=%s\n\n"
-		"; Drifting fog tinted per act (world only, density: 0.1-1.0).\n"
-		"fog=%s\n"
-		"fog_density=%.3f\n\n"
-		"; HDR-style tonemapping (world only, exposure: 0.5-2.0).\n"
+		"; HDR-style tonemapping (world only, exposure: 0.2-1.0).\n"
 		"tonemap=%s\n"
 		"tonemap_exposure=%.3f\n\n"
-		"; Soft unit shadows: blurred shadows multiplied into the world (softness: 0.5-4.0).\n"
+		"; Soft unit shadows: blurred shadows multiplied into the world (softness: 0.3-1.5).\n"
 		"soft_shadows=%s\n"
 		"soft_shadows_softness=%.3f\n\n"
-		"; Ambient occlusion: darken the ground under players and monsters (strength: 0.1-1.0).\n"
-		"ambient_occlusion=%s\n"
-		"ambient_occlusion_strength=%.3f\n\n"
-		"; Water reflections: water floors reflect the world above them (strength: 0.1-1.0).\n"
-		"water_reflections=%s\n"
-		"water_reflection_strength=%.3f\n\n"
-		"; Palette debanding: smooth 8-bit gradient steps in the world (strength: 0.1-1.0).\n"
-		"deband=%s\n"
-		"deband_strength=%.3f\n\n"
-		"; Refraction ripple and glow around portals and active waypoints (glide mode).\n"
-		"portal_shimmer=%s\n\n"
 		"; Stretch viewport to window size.\n"
 		"stretched_horizontal=%s\n"
 		"stretched_vertical=%s\n\n\n";
@@ -251,8 +229,6 @@ void saveIni()
 		App.sharpen.strength.value,
 		App.sharpen.clamp.value,
 		App.sharpen.radius.value,
-		boolString(App.sharpen.adaptive),
-		App.sharpen.adaptive_min.value,
 		boolString(App.fxaa.active),
 		App.fxaa.presets.selected,
 		boolString(App.bloom.active),
@@ -262,24 +238,12 @@ void saveIni()
 		App.dynamic_light.intensity.value,
 		boolString(App.dynamic_light.normals),
 		App.dynamic_light.normals_strength.value,
-		boolString(App.dynamic_light.shafts),
-		App.dynamic_light.shafts_strength.value,
 		App.dynamic_light.source.selected,
 		boolString(App.dynamic_light.debug),
-		boolString(App.atmos.heat_haze),
-		boolString(App.atmos.fog),
-		App.atmos.fog_density.value,
 		boolString(App.tonemap.active),
 		App.tonemap.exposure.value,
 		boolString(App.soft_shadows.active),
 		App.soft_shadows.softness.value,
-		boolString(App.ambient_occlusion.active),
-		App.ambient_occlusion.strength.value,
-		boolString(App.water.active),
-		App.water.strength.value,
-		boolString(App.deband.active),
-		App.deband.strength.value,
-		boolString(App.portal_shimmer),
 		boolString(App.viewport.stretched.x),
 		boolString(App.viewport.stretched.y));
 	out_file << buf;
@@ -301,12 +265,6 @@ void saveIni()
 		"mini_map_height=%d\n\n"
 		"; D2DX's Motion Prediction.\n"
 		"motion_prediction=%s\n\n"
-		"; Cross-fade unit animation frames between 25 Hz game ticks (glide only).\n"
-		"animation_smoothing=%s\n\n"
-		"; Coloured light beams over ground items (glide only).\n"
-		"; item_beams_min_quality: 0 magic, 1 rare/rune, 2 set, 3 unique.\n"
-		"item_beams=%s\n"
-		"item_beams_min_quality=%d\n\n"
 		"; Skip the Intro videos.\n"
 		"skip_intro=%s\n\n"
 		"; Auto /nopickup option on launch (exclude 1.09d).\n"
@@ -329,9 +287,6 @@ void saveIni()
 		App.mini_map.width.value,
 		App.mini_map.height.value,
 		boolString(App.motion_prediction),
-		boolString(App.animation_smoothing),
-		boolString(App.item_beams.active),
-		App.item_beams.min_quality.selected,
 		boolString(App.skip_intro),
 		boolString(App.no_pickup),
 		boolString(App.show_item_quantity),
@@ -414,8 +369,6 @@ void loadIni()
 		App.sharpen.strength.value = getFloat("Graphic", "sharpen_strength", App.sharpen.strength);
 		App.sharpen.clamp.value = getFloat("Graphic", "sharpen_clamp", App.sharpen.clamp);
 		App.sharpen.radius.value = getFloat("Graphic", "sharpen_radius", App.sharpen.radius);
-		App.sharpen.adaptive = getBool("Graphic", "sharpen_adaptive", App.sharpen.adaptive);
-		App.sharpen.adaptive_min.value = getFloat("Graphic", "sharpen_adaptive_min", App.sharpen.adaptive_min);
 
 		App.bloom.active = getBool("Graphic", "bloom", App.bloom.active);
 		App.bloom.exposure.value = getFloat("Graphic", "bloom_exposure", App.bloom.exposure);
@@ -424,24 +377,12 @@ void loadIni()
 		App.dynamic_light.intensity.value = getFloat("Graphic", "dynamic_light_intensity", App.dynamic_light.intensity);
 		App.dynamic_light.normals = getBool("Graphic", "light_normals", App.dynamic_light.normals);
 		App.dynamic_light.normals_strength.value = getFloat("Graphic", "light_normals_strength", App.dynamic_light.normals_strength);
-		App.dynamic_light.shafts = getBool("Graphic", "light_shafts", App.dynamic_light.shafts);
-		App.dynamic_light.shafts_strength.value = getFloat("Graphic", "light_shafts_strength", App.dynamic_light.shafts_strength);
 		App.dynamic_light.source.selected = getInt("Graphic", "dynamic_light_source", App.dynamic_light.source.selected, 0, 1);
 		App.dynamic_light.debug = getBool("Graphic", "dynamic_light_debug", App.dynamic_light.debug);
-		App.atmos.heat_haze = getBool("Graphic", "heat_haze", App.atmos.heat_haze);
-		App.atmos.fog = getBool("Graphic", "fog", App.atmos.fog);
-		App.atmos.fog_density.value = getFloat("Graphic", "fog_density", App.atmos.fog_density);
 		App.tonemap.active = getBool("Graphic", "tonemap", App.tonemap.active);
 		App.tonemap.exposure.value = getFloat("Graphic", "tonemap_exposure", App.tonemap.exposure);
 		App.soft_shadows.active = getBool("Graphic", "soft_shadows", App.soft_shadows.active);
 		App.soft_shadows.softness.value = getFloat("Graphic", "soft_shadows_softness", App.soft_shadows.softness);
-		App.ambient_occlusion.active = getBool("Graphic", "ambient_occlusion", App.ambient_occlusion.active);
-		App.ambient_occlusion.strength.value = getFloat("Graphic", "ambient_occlusion_strength", App.ambient_occlusion.strength);
-		App.water.active = getBool("Graphic", "water_reflections", App.water.active);
-		App.water.strength.value = getFloat("Graphic", "water_reflection_strength", App.water.strength);
-		App.deband.active = getBool("Graphic", "deband", App.deband.active);
-		App.deband.strength.value = getFloat("Graphic", "deband_strength", App.deband.strength);
-		App.portal_shimmer = getBool("Graphic", "portal_shimmer", App.portal_shimmer);
 
 		App.viewport.stretched.x = getBool("Graphic", "stretched_horizontal", App.viewport.stretched.x);
 		App.viewport.stretched.y = getBool("Graphic", "stretched_vertical", App.viewport.stretched.y);
@@ -459,9 +400,6 @@ void loadIni()
 		App.mini_map.height.value = getInt("Feature", "mini_map_height", App.mini_map.height.value, App.mini_map.height.min, App.mini_map.height.max);
 
 		App.motion_prediction = getBool("Feature", "motion_prediction", App.motion_prediction);
-		App.animation_smoothing = getBool("Feature", "animation_smoothing", App.animation_smoothing);
-		App.item_beams.active = getBool("Feature", "item_beams", App.item_beams.active);
-		App.item_beams.min_quality.selected = getInt("Feature", "item_beams_min_quality", App.item_beams.min_quality.selected, 0, 3);
 		App.skip_intro = getBool("Feature", "skip_intro", App.skip_intro);
 		App.no_pickup = getBool("Feature", "no_pickup", App.no_pickup);
 		App.show_item_quantity = getBool("Feature", "show_item_quantity", App.show_item_quantity);

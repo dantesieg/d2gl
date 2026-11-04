@@ -159,8 +159,6 @@ class Context {
 	std::map<uint32_t, std::pair<uint32_t, BlendType>> m_blend_types;
 	uint32_t m_current_blend_index = 0;
 	bool m_blend_locked = false;
-	uint8_t m_alpha_override = 255;
-	uint32_t effectiveBlendIndex() { return (m_alpha_override < 255 && m_current_blend_index == 0) ? 3 : m_current_blend_index; }
 
 	glm::vec2 m_bloom_data;
 	glm::uvec2 m_bloom_tex_size = { 0, 0 };
@@ -176,8 +174,6 @@ class Context {
 	std::unique_ptr<Pipeline> m_uilayer_pipeline;
 	std::unique_ptr<Pipeline> m_light_pipeline;
 	std::unique_ptr<Pipeline> m_atmos_pipeline;
-	std::unique_ptr<Pipeline> m_worldfx_pipeline;
-	std::unique_ptr<Pipeline> m_shimmer_pipeline;
 	std::unique_ptr<Pipeline> m_lightfx_pipeline;
 	std::unique_ptr<FrameBuffer> m_light_framebuffer;
 	std::unique_ptr<Texture> m_light_texture;
@@ -221,7 +217,6 @@ public:
 
 	void pushVertex(const GlideVertex* vertex, glm::vec2 fix = { 0.0f, 0.0f }, glm::ivec2 offset = { 0, 0 });
 	bool pushFlatQuad(glm::vec2 pos, glm::vec2 size, uint32_t color);
-	void pushAdditiveQuads(const glm::vec2* pos, const uint32_t* colors, uint32_t quad_count);
 	void flushVertices();
 	void drawQuad(int8_t flag_x = 0, int8_t flag_y = 0, int16_t tex_id = 0);
 
@@ -239,10 +234,8 @@ public:
 	inline void setVertexFlagY(uint8_t flag) { m_vertex_params.flags.y = flag; }
 	inline void setVertexFlagZ(uint8_t flag) { m_vertex_params.flags.z = flag; }
 	inline void setVertexFlagW(uint8_t flag) { m_vertex_params.flags.w = flag; }
-	void setAlphaOverride(uint8_t alpha);
 	inline void setShadowDraw(uint8_t mode) { m_shadow_draw = mode; }
 	inline bool isShadowFxActive() { return m_shadow_fx; }
-	void pushAOEllipse(glm::vec2 center, glm::vec2 radius, float strength);
 
 	inline const double getFrameTime() { return m_frame.frame_time; }
 	inline const double getAvgFrameTime() { return m_frame.average_frame_time; }

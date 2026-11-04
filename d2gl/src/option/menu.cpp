@@ -24,7 +24,6 @@
 #include "modules/hd_text.h"
 #include "modules/mini_map.h"
 #include "modules/motion_prediction.h"
-#include "modules/item_beams.h"
 #include "win32.h"
 
 namespace d2gl::option {
@@ -322,13 +321,6 @@ void Menu::draw()
 				drawSlider_m(float, "", App.sharpen.radius, "%.3f", "", sharpen_radius)
 					saveFloat("Graphic", "sharpen_radius", App.sharpen.radius.value);
 				drawDescription("Radius of the sampling pattern.", m_colors[Color::Gray], 12);
-				drawCheckbox_m("Motion Adaptive", App.sharpen.adaptive, "Ease sharpening down while moving to cut shimmer.", sharpen_adaptive)
-					saveBool("Graphic", "sharpen_adaptive", App.sharpen.adaptive);
-				ImGui::BeginDisabled(!App.sharpen.adaptive);
-					drawSlider_m(float, "", App.sharpen.adaptive_min, "%.3f", "", sharpen_adaptive_min)
-						saveFloat("Graphic", "sharpen_adaptive_min", App.sharpen.adaptive_min.value);
-					drawDescription("Fraction of strength kept while moving.", m_colors[Color::Gray], 12);
-				ImGui::EndDisabled();
 			ImGui::EndDisabled();
 			drawSeparator();
 			drawCheckbox_m("FXAA", App.fxaa.active, "Fast approximate anti-aliasing.", fxaa)
@@ -371,24 +363,8 @@ void Menu::draw()
 							saveFloat("Graphic", "light_normals_strength", App.dynamic_light.normals_strength.value);
 						drawDescription("Normal-mapped lighting strength.", m_colors[Color::Gray], 12);
 					ImGui::EndDisabled();
-					drawCheckbox_m("Light Shafts", App.dynamic_light.shafts, "Rays of light streaming from light sources.", light_shafts)
-						saveBool("Graphic", "light_shafts", App.dynamic_light.shafts);
-					ImGui::BeginDisabled(!App.dynamic_light.shafts);
-						drawSlider_m(float, "", App.dynamic_light.shafts_strength, "%.3f", "", light_shafts_strength)
-							saveFloat("Graphic", "light_shafts_strength", App.dynamic_light.shafts_strength.value);
-						drawDescription("Light shafts strength.", m_colors[Color::Gray], 12);
-					ImGui::EndDisabled();
 				ImGui::EndDisabled();
 				drawSeparator();
-				drawCheckbox_m("Heat Haze", App.atmos.heat_haze, "Slight shimmer around hot, bright pixels.", heat_haze)
-					saveBool("Graphic", "heat_haze", App.atmos.heat_haze);
-				drawCheckbox_m("Drifting Fog", App.atmos.fog, "Low animated fog, tinted per act.", fog)
-					saveBool("Graphic", "fog", App.atmos.fog);
-				ImGui::BeginDisabled(!App.atmos.fog);
-					drawSlider_m(float, "", App.atmos.fog_density, "%.3f", "", fog_density)
-						saveFloat("Graphic", "fog_density", App.atmos.fog_density.value);
-					drawDescription("Fog density.", m_colors[Color::Gray], 12);
-				ImGui::EndDisabled();
 				drawSeparator();
 				drawCheckbox_m("HDR Tonemapping", App.tonemap.active, "Expands highlights so brights pop without crushing darks.", tonemap)
 					saveBool("Graphic", "tonemap", App.tonemap.active);
@@ -405,33 +381,6 @@ void Menu::draw()
 						saveFloat("Graphic", "soft_shadows_softness", App.soft_shadows.softness.value);
 					drawDescription("Shadow softness (blur radius).", m_colors[Color::Gray], 12);
 				ImGui::EndDisabled();
-				drawSeparator();
-				drawCheckbox_m("Ambient Occlusion", App.ambient_occlusion.active, "Darken the ground under players and monsters.", ambient_occlusion)
-					saveBool("Graphic", "ambient_occlusion", App.ambient_occlusion.active);
-				ImGui::BeginDisabled(!App.ambient_occlusion.active);
-					drawSlider_m(float, "", App.ambient_occlusion.strength, "%.3f", "", ambient_occlusion_strength)
-						saveFloat("Graphic", "ambient_occlusion_strength", App.ambient_occlusion.strength.value);
-					drawDescription("Ambient occlusion strength.", m_colors[Color::Gray], 12);
-				ImGui::EndDisabled();
-				drawSeparator();
-				drawCheckbox_m("Water Reflections", App.water.active, "Water floors reflect the world above them.", water_reflections)
-					saveBool("Graphic", "water_reflections", App.water.active);
-				ImGui::BeginDisabled(!App.water.active);
-					drawSlider_m(float, "", App.water.strength, "%.3f", "", water_reflection_strength)
-						saveFloat("Graphic", "water_reflection_strength", App.water.strength.value);
-					drawDescription("Water reflection strength.", m_colors[Color::Gray], 12);
-				ImGui::EndDisabled();
-				drawSeparator();
-				drawCheckbox_m("Deband", App.deband.active, "Smooth 8-bit palette banding in world gradients.", deband)
-					saveBool("Graphic", "deband", App.deband.active);
-				ImGui::BeginDisabled(!App.deband.active);
-					drawSlider_m(float, "", App.deband.strength, "%.3f", "", deband_strength)
-						saveFloat("Graphic", "deband_strength", App.deband.strength.value);
-					drawDescription("Deband strength.", m_colors[Color::Gray], 12);
-				ImGui::EndDisabled();
-				drawSeparator();
-				drawCheckbox_m("Portal Shimmer", App.portal_shimmer, "Refraction ripple and glow around portals and active waypoints.", portal_shimmer)
-					saveBool("Graphic", "portal_shimmer", App.portal_shimmer);
 			ImGui::EndDisabled();
 			drawSeparator();
 			drawLabel("Stretched Viewport", m_colors[Color::Orange]);
@@ -507,23 +456,6 @@ void Menu::draw()
 					modules::MotionPrediction::Instance().toggle(App.motion_prediction);
 					saveBool("Feature", "motion_prediction", App.motion_prediction);
 				}
-			ImGui::EndDisabled();
-			drawSeparator();
-			ImGui::BeginDisabled(!ISGLIDE3X());
-				drawCheckbox_m("Animation Smoothing", App.animation_smoothing, "Cross-fade character, monster and missile animation frames (glide only).", animation_smoothing)
-					saveBool("Feature", "animation_smoothing", App.animation_smoothing);
-			ImGui::EndDisabled();
-			drawSeparator();
-			ImGui::BeginDisabled(!ISGLIDE3X());
-				drawCheckbox_m("Item Beams", App.item_beams.active, "Coloured light beams over ground items by quality (glide only).", item_beams)
-				{
-					modules::ItemBeams::Instance().toggle(App.item_beams.active);
-					saveBool("Feature", "item_beams", App.item_beams.active);
-				}
-				ImGui::BeginDisabled(!App.item_beams.active);
-					drawCombo_m("", App.item_beams.min_quality, "Minimum item quality that gets a beam.", false, 17, item_beams_min_quality)
-						saveInt("Feature", "item_beams_min_quality", App.item_beams.min_quality.selected);
-				ImGui::EndDisabled();
 			ImGui::EndDisabled();
 			drawSeparator();
 			drawCheckbox_m("Skip Intro", App.skip_intro, "Auto skip intro videos on launch.", skip_intro)

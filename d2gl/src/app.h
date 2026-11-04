@@ -132,8 +132,6 @@ struct D2GLApp {
 		Range<float> strength = { 1.16f, 0.1f, 3.0f };
 		Range<float> clamp = { 0.15f, 0.0f, 1.0f };
 		Range<float> radius = { 0.4f, 0.0f, 6.0f };
-		bool adaptive = false;
-		Range<float> adaptive_min = { 0.3f, 0.0f, 1.0f };
 	} sharpen;
 
 	struct {
@@ -144,47 +142,23 @@ struct D2GLApp {
 
 	struct {
 		bool active = false;
-		Range<float> intensity = { 1.0f, 0.1f, 3.0f };
+		Range<float> intensity = { 0.1f, 0.0f, 0.3f };
 		bool normals = false;
 		Range<float> normals_strength = { 1.0f, 0.1f, 3.0f };
-		bool shafts = false;
-		Range<float> shafts_strength = { 1.0f, 0.1f, 3.0f };
 		Select<int> source = { 1, { { "Screen-Space", 0 }, { "Game Vertex Lighting", 1 } } };
 		bool debug = false;
 	} dynamic_light;
 
-	bool portal_shimmer = false;
-
-	struct {
-		bool heat_haze = false;
-		bool fog = false;
-		Range<float> fog_density = { 0.5f, 0.1f, 1.0f };
-	} atmos;
 
 	struct {
 		bool active = false;
-		Range<float> exposure = { 1.0f, 0.5f, 2.0f };
+		Range<float> exposure = { 0.5f, 0.2f, 1.0f };
 	} tonemap;
 
 	struct {
 		bool active = false;
-		Range<float> softness = { 1.5f, 0.5f, 4.0f };
+		Range<float> softness = { 0.8f, 0.3f, 1.5f };
 	} soft_shadows;
-
-	struct {
-		bool active = false;
-		Range<float> strength = { 0.45f, 0.1f, 1.0f };
-	} ambient_occlusion;
-
-	struct {
-		bool active = false;
-		Range<float> strength = { 0.5f, 0.1f, 1.0f };
-	} water;
-
-	struct {
-		bool active = false;
-		Range<float> strength = { 0.5f, 0.1f, 1.0f };
-	} deband;
 
 	struct {
 		bool active = false;
@@ -193,12 +167,6 @@ struct D2GLApp {
 
 	bool hd_cursor = false;
 	bool motion_prediction = false;
-	bool animation_smoothing = false;
-
-	struct {
-		bool active = false;
-		Select<int> min_quality = { 1, { { "Magic", 0 }, { "Rare / Rune", 1 }, { "Set", 2 }, { "Unique", 3 } } };
-	} item_beams;
 	bool skip_intro = false;
 	bool no_pickup = false;
 	bool show_item_quantity = false;

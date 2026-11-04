@@ -22,9 +22,6 @@
 #include "helpers.h"
 #include "modules/hd_text.h"
 #include "modules/motion_prediction.h"
-#include "modules/anim_smoothing.h"
-#include "modules/item_beams.h"
-#include "modules/portal_shimmer.h"
 #include "stubs.h"
 
 namespace d2gl::d2 {
@@ -205,7 +202,6 @@ void automapDrawEnd()
 
 void uiDrawBegin()
 {
-	modules::ItemBeams::Instance().draw();
 	App.game.draw_stage = DrawStage::UI;
 	App.context->onStageChange();
 }
@@ -229,10 +225,7 @@ void __stdcall drawImageHooked(CellContext* cell, int x, int y, uint32_t gamma, 
 
 	if (modules::HDText::Instance().drawImage(cell, x, y, draw_mode)) {
 		const auto pos = modules::MotionPrediction::Instance().drawImage(x, y, D2DrawFn::Image, gamma, draw_mode);
-		modules::PortalShimmer::Instance().drawImage(pos.x, pos.y);
 		drawImage(cell, pos.x, pos.y, gamma, draw_mode, palette);
-		modules::AnimSmoothing::Instance().drawPrevious(cell, pos.x, pos.y, gamma, draw_mode, palette);
-		modules::ItemBeams::Instance().record(cell, pos.x, pos.y);
 	}
 
 	modules::HDText::drawItemQuantity(true);
@@ -283,15 +276,6 @@ void __stdcall drawShadowHooked(CellContext* cell, int x, int y)
 		return;
 	}
 
-	// Ambient occlusion: soft dark ellipse at the feet of players and monsters.
-	const auto unit = d2::currently_drawing_unit;
-	if (App.ambient_occlusion.active && (!unit || unit->dwType == d2::UnitType::Player || unit->dwType == d2::UnitType::Monster)) {
-		float rx = 22.0f;
-		if (cell && isVerMin(V_113c) && cell->v113.pCurGfxCell)
-			rx = glm::clamp((float)cell->v113.pCurGfxCell->width * 0.35f, 14.0f, 64.0f);
-		App.context->pushAOEllipse({ (float)pos.x, (float)pos.y }, { rx, rx * 0.5f }, App.ambient_occlusion.strength.value);
-	}
-
 	App.context->setShadowDraw(1);
 	drawShadow(cell, pos.x, pos.y);
 	App.context->setShadowDraw(0);
@@ -312,24 +296,6 @@ void __stdcall drawLineHooked(int x_start, int y_start, int x_end, int y_end, ui
 	drawLine(x_start - offset.x, y_start - offset.y, x_end - offset.x, y_end - offset.y, color, alpha);
 }
 
-// Water reflections: guess water floors from the DT1 file name, or from the
-// animated flag (D2 animates water floors; lava is excluded by name).
-static bool isWaterTile(TileContext* tile)
-{
-	if (!tile || !tile->szTileName)
-		return false;
-	char name[128];
-	size_t i = 0;
-	for (; tile->szTileName[i] && i < sizeof(name) - 1; i++)
-		name[i] = (char)tolower((unsigned char)tile->szTileName[i]);
-	name[i] = 0;
-	if (strstr(name, "lava") || strstr(name, "fire") || strstr(name, "blood"))
-		return false;
-	if (strstr(name, "river") || strstr(name, "water") || strstr(name, "swamp") || strstr(name, "lake") || strstr(name, "pond") || strstr(name, "\\ice\\"))
-		return true;
-	return tile->bAnimated != 0;
-}
-
 bool __stdcall drawGroundTileHooked(TileContext* tile, GFXLight* light, int x, int y, int world_x, int world_y, uint8_t alpha, int screen_panels, bool tile_data)
 {
 	// Drawing invisible tile crashes on glide mode.
@@ -344,13 +310,7 @@ bool __stdcall drawGroundTileHooked(TileContext* tile, GFXLight* light, int x, i
 
 	const auto offset = modules::MotionPrediction::Instance().getGlobalOffset();
 	App.context->setShadowDraw(2);
-	bool ret;
-	if (ISGLIDE3X() && App.water.active && isWaterTile(tile)) {
-		App.context->setVertexFlagW(11);
-		ret = drawGroundTile(tile, light, x - offset.x, y - offset.y, world_x, world_y, alpha, screen_panels, tile_data);
-		App.context->setVertexFlagW(0);
-	} else
-		ret = drawGroundTile(tile, light, x - offset.x, y - offset.y, world_x, world_y, alpha, screen_panels, tile_data);
+	const bool ret = drawGroundTile(tile, light, x - offset.x, y - offset.y, world_x, world_y, alpha, screen_panels, tile_data);
 	App.context->setShadowDraw(0);
 	return ret;
 }
