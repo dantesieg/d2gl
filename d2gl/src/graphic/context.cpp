@@ -460,8 +460,9 @@ void Context::renderThread(void* context)
 					ctx->m_game_color_ubo->updateData(data->type == UBOType::Gamma ? "gamma" : "palette", data->value);
 				} break;
 				case CommandType::SetBlendState:
-					ctx->bindPipeline(ctx->m_game_pipeline, command->index);
+					// Uniform first: Pipeline::bind() inside setUniform resets the blend state to 0.
 					ctx->m_game_pipeline->setUniform1i("u_BlendIndex", command->index);
+					ctx->bindPipeline(ctx->m_game_pipeline, command->index);
 					break;
 				case CommandType::DrawIndexed:
 					if (command->draw.count > 0)
