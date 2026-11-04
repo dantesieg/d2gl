@@ -154,7 +154,9 @@ void saveIni()
 		"; Max Foreground FPS (if vsync is on this will be ignored).\n"
 		"; Limit maximum fps when game window is focused(active) (vsync must be disabled).\n"
 		"foreground_fps=%s\n"
-		"foreground_fps_value=%d\n\n"
+		"foreground_fps_value=%d\n"
+		"; Frame pacing: precise frame timing for the fps limit (even frame times, resyncs when late).\n"
+		"foreground_fps_pacing=%s\n\n"
 		"; Max Background FPS.\n"
 		"; Limit maximum fps when game window is in background(inactive).\n"
 		"background_fps=%s\n"
@@ -174,6 +176,7 @@ void saveIni()
 		boolString(App.vsync),
 		boolString(App.foreground_fps.active),
 		App.foreground_fps.range.value,
+		boolString(App.foreground_fps.pacing),
 		boolString(App.background_fps.active),
 		App.background_fps.range.value);
 	out_file << buf;
@@ -209,7 +212,12 @@ void saveIni()
 		"; Light source for dynamic_light: 0 = screen-space (bright pixels), 1 = game vertex lighting.\n"
 		"dynamic_light_source=%d\n"
 		"; Debug: show the captured game light buffer in place of the world (needs dynamic_light).\n"
-		"dynamic_light_debug=%s\n\n"
+		"dynamic_light_debug=%s\n"
+		"; Light depth haze: dark areas fade into a cool haze (needs game vertex lighting, strength: 0.0-1.0).\n"
+		"light_depth_haze=%s\n"
+		"light_depth_haze_strength=%.3f\n"
+		"; Spell glow: how much spells and fire light the world (game vertex lighting, 0.0-1.5).\n"
+		"spell_glow=%.3f\n\n"
 		"; HDR-style tonemapping (world only, exposure: 0.2-1.0).\n"
 		"tonemap=%s\n"
 		"tonemap_exposure=%.3f\n\n"
@@ -240,6 +248,9 @@ void saveIni()
 		App.dynamic_light.normals_strength.value,
 		App.dynamic_light.source.selected,
 		boolString(App.dynamic_light.debug),
+		boolString(App.dynamic_light.depth_haze),
+		App.dynamic_light.depth_haze_strength.value,
+		App.dynamic_light.spell_glow.value,
 		boolString(App.tonemap.active),
 		App.tonemap.exposure.value,
 		boolString(App.soft_shadows.active),
@@ -265,6 +276,10 @@ void saveIni()
 		"mini_map_height=%d\n\n"
 		"; D2DX's Motion Prediction.\n"
 		"motion_prediction=%s\n\n"
+		"; Loot sparkle: short sparkle when a valuable item drops (glide only).\n"
+		"; loot_sparkle_min_quality: 0 magic, 1 rare/rune, 2 set, 3 unique.\n"
+		"loot_sparkle=%s\n"
+		"loot_sparkle_min_quality=%d\n\n"
 		"; Skip the Intro videos.\n"
 		"skip_intro=%s\n\n"
 		"; Auto /nopickup option on launch (exclude 1.09d).\n"
@@ -287,6 +302,8 @@ void saveIni()
 		App.mini_map.width.value,
 		App.mini_map.height.value,
 		boolString(App.motion_prediction),
+		boolString(App.loot_sparkle.active),
+		App.loot_sparkle.min_quality.selected,
 		boolString(App.skip_intro),
 		boolString(App.no_pickup),
 		boolString(App.show_item_quantity),
@@ -356,6 +373,7 @@ void loadIni()
 
 		App.foreground_fps.active = getBool("Screen", "foreground_fps", App.foreground_fps.active);
 		App.foreground_fps.range.value = getInt("Screen", "foreground_fps_value", App.foreground_fps.range.value, App.foreground_fps.range.min, App.foreground_fps.range.max);
+		App.foreground_fps.pacing = getBool("Screen", "foreground_fps_pacing", App.foreground_fps.pacing);
 		App.background_fps.active = getBool("Screen", "background_fps", App.background_fps.active);
 		App.background_fps.range.value = getInt("Screen", "background_fps_value", App.background_fps.range.value, App.background_fps.range.min, App.background_fps.range.max);
 
@@ -379,6 +397,9 @@ void loadIni()
 		App.dynamic_light.normals_strength.value = getFloat("Graphic", "light_normals_strength", App.dynamic_light.normals_strength);
 		App.dynamic_light.source.selected = getInt("Graphic", "dynamic_light_source", App.dynamic_light.source.selected, 0, 1);
 		App.dynamic_light.debug = getBool("Graphic", "dynamic_light_debug", App.dynamic_light.debug);
+		App.dynamic_light.depth_haze = getBool("Graphic", "light_depth_haze", App.dynamic_light.depth_haze);
+		App.dynamic_light.depth_haze_strength.value = getFloat("Graphic", "light_depth_haze_strength", App.dynamic_light.depth_haze_strength);
+		App.dynamic_light.spell_glow.value = getFloat("Graphic", "spell_glow", App.dynamic_light.spell_glow);
 		App.tonemap.active = getBool("Graphic", "tonemap", App.tonemap.active);
 		App.tonemap.exposure.value = getFloat("Graphic", "tonemap_exposure", App.tonemap.exposure);
 		App.soft_shadows.active = getBool("Graphic", "soft_shadows", App.soft_shadows.active);
@@ -400,6 +421,10 @@ void loadIni()
 		App.mini_map.height.value = getInt("Feature", "mini_map_height", App.mini_map.height.value, App.mini_map.height.min, App.mini_map.height.max);
 
 		App.motion_prediction = getBool("Feature", "motion_prediction", App.motion_prediction);
+
+		App.loot_sparkle.active = getBool("Feature", "loot_sparkle", App.loot_sparkle.active);
+
+		App.loot_sparkle.min_quality.selected = getInt("Feature", "loot_sparkle_min_quality", App.loot_sparkle.min_quality.selected, 0, 3);
 		App.skip_intro = getBool("Feature", "skip_intro", App.skip_intro);
 		App.no_pickup = getBool("Feature", "no_pickup", App.no_pickup);
 		App.show_item_quantity = getBool("Feature", "show_item_quantity", App.show_item_quantity);

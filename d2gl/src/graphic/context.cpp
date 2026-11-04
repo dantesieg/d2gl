@@ -445,6 +445,7 @@ void Context::renderThread(void* context)
 				case CommandType::SetBlendState:
 					// Uniform first: Pipeline::bind() inside setUniform resets the blend state to 0.
 					ctx->m_game_pipeline->setUniform1i("u_BlendIndex", command->index);
+					ctx->m_game_pipeline->setUniform1f("u_SpellGlow", App.dynamic_light.spell_glow.value);
 					ctx->bindPipeline(ctx->m_game_pipeline, command->index);
 					break;
 				case CommandType::DrawIndexed:
@@ -465,6 +466,7 @@ void Context::renderThread(void* context)
 						ctx->m_light_pipeline->setUniformVec2f("u_RelSize", { 1.0f / ctx->m_light_tex_size.x, 1.0f / ctx->m_light_tex_size.y });
 						ctx->m_light_pipeline->setUniform1f("u_Intensity", App.dynamic_light.intensity.value);
 						ctx->m_light_pipeline->setUniform1i("u_Source", vsource);
+						ctx->m_light_pipeline->setUniform1f("u_Haze", App.dynamic_light.depth_haze ? App.dynamic_light.depth_haze_strength.value : 0.0f);
 						ctx->bindFrameBuffer(ctx->m_light_framebuffer, false);
 						ctx->setViewport(ctx->m_light_tex_size);
 						ctx->drawQuad(0);
@@ -482,6 +484,7 @@ void Context::renderThread(void* context)
 							ctx->m_lightfx_pipeline->setUniformVec2f("u_RelSize", { 1.0f / ctx->m_light_tex_size.x, 1.0f / ctx->m_light_tex_size.y });
 							ctx->m_lightfx_pipeline->setUniform1f("u_Intensity", App.dynamic_light.intensity.value);
 							ctx->m_lightfx_pipeline->setUniform1i("u_Source", vsource);
+							ctx->m_lightfx_pipeline->setUniform1f("u_Haze", App.dynamic_light.depth_haze ? App.dynamic_light.depth_haze_strength.value : 0.0f);
 							ctx->m_lightfx_pipeline->setUniform1f("u_Normals", App.dynamic_light.normals ? App.dynamic_light.normals_strength.value : 0.0f);
 							ctx->m_lightfx_pipeline->setUniform1f("u_Shafts", 0.0f);
 						}
@@ -683,7 +686,29 @@ void Context::renderThread(void* context)
 		option::Menu::instance().draw();
 		SwapBuffers(App.hdc);
 
-		if (ctx->m_limiter.active) {
+		if (ctx->m_limiter.active && App.foreground_fps.pacing) {
+			// Frame pacing: sleep to ~1.5 ms before the deadline, then spin on QPC. A frame
+			// that is already more than one period late resyncs instead of bursting.
+			LARGE_INTEGER now;
+			QueryPerformanceCounter(&now);
+			auto& lim = ctx->m_limiter;
+			if (lim.pace_next == 0 || now.QuadPart - lim.pace_next > lim.pace_period)
+				lim.pace_next = now.QuadPart + lim.pace_period;
+			else {
+				const double counts_per_ms = ctx->m_frame.frequency;
+				for (;;) {
+					QueryPerformanceCounter(&now);
+					const double left_ms = (double)(lim.pace_next - now.QuadPart) / counts_per_ms;
+					if (left_ms <= 0.0)
+						break;
+					if (left_ms > 2.0)
+						Sleep((DWORD)(left_ms - 1.5));
+					else
+						YieldProcessor();
+				}
+				lim.pace_next += lim.pace_period;
+			}
+		} else if (ctx->m_limiter.active) {
 			WaitForSingleObject(ctx->m_limiter.timer, (DWORD)ctx->m_limiter.frame_len_ms + 1);
 			ctx->m_limiter.due_time.QuadPart += ctx->m_limiter.frame_len_ns;
 			SetWaitableTimer(ctx->m_limiter.timer, &ctx->m_limiter.due_time, 0, NULL, NULL, FALSE);
@@ -1084,6 +1109,35 @@ bool Context::pushFlatQuad(glm::vec2 pos, glm::vec2 size, uint32_t color)
 	return true;
 }
 
+// Untextured per-vertex coloured quads (0xAARRGGBB, rgb premultiplied), One_One blend (pipeline 2).
+void Context::pushAdditiveQuads(const glm::vec2* pos, const uint32_t* colors, uint32_t quad_count)
+{
+	if (!ISGLIDE3X() || !pos || !colors || quad_count == 0 || m_blend_locked)
+		return;
+
+	flushVertices();
+	m_command_buffer[m_frame_index].pushCommand(CommandType::SetBlendState, 2);
+
+	for (uint32_t q = 0; q < quad_count; q++) {
+		if (m_vertices.count >= MAX_VERTICES - 4)
+			flushVertices();
+		for (uint32_t i = q * 4; i < q * 4 + 4; i++) {
+			m_vertices.ptr->position = { glm::detail::toFloat16(pos[i].x), glm::detail::toFloat16(pos[i].y) };
+			m_vertices.ptr->tex_coord = { 0.0f, 0.0f };
+			m_vertices.ptr->color1 = colors[i];
+			m_vertices.ptr->color2 = 0xFFFFFFFF;
+			m_vertices.ptr->tex_ids = { 0, 0 };
+			m_vertices.ptr->flags = { 0, 2, 0, 0 }; // iterated colour, alpha 1
+			m_vertices.ptr++;
+			m_vertices.count++;
+			m_frame.vertex_count++;
+		}
+	}
+
+	flushVertices();
+	m_command_buffer[m_frame_index].pushCommand(CommandType::SetBlendState, m_current_blend_index);
+}
+
 void Context::flushVertices()
 {
 	if (m_vertices.count == 0)
@@ -1240,6 +1294,8 @@ void Context::setFpsLimit(bool active, int max_fps)
 	m_limiter.active = active;
 	m_limiter.frame_len_ms = 1000.0f / max_fps;
 	m_limiter.frame_len_ns = (uint64_t)(m_limiter.frame_len_ms * 10000);
+	m_limiter.pace_period = (int64_t)(m_frame.frequency * m_limiter.frame_len_ms);
+	m_limiter.pace_next = 0;
 	m_frame.frame_sample_count = 1;
 
 	resetFileTime();

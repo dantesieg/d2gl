@@ -24,6 +24,7 @@
 #include "modules/hd_text.h"
 #include "modules/mini_map.h"
 #include "modules/motion_prediction.h"
+#include "modules/loot_sparkle.h"
 #include "win32.h"
 
 namespace d2gl::option {
@@ -231,6 +232,10 @@ void Menu::draw()
 						checkChanged(!m_options.vsync && m_options.foreground_fps.active && m_options.foreground_fps.range.value != App.foreground_fps.range.value);
 					ImGui::EndDisabled();
 				ImGui::EndDisabled();
+				ImGui::BeginDisabled(m_options.vsync || !App.foreground_fps.active);
+					drawCheckbox_m("Frame Pacing", App.foreground_fps.pacing, "Even frame times for the fps limit; resyncs instead of bursting when late.", foreground_fps_pacing)
+						saveBool("Screen", "foreground_fps_pacing", App.foreground_fps.pacing);
+				ImGui::EndDisabled();
 				drawSeparator();
 				drawCheckbox_m("Max Background FPS", m_options.background_fps.active, "", background_fps);
 				checkChanged(m_options.background_fps.active != App.background_fps.active);
@@ -356,6 +361,15 @@ void Menu::draw()
 						saveInt("Graphic", "dynamic_light_source", App.dynamic_light.source.selected);
 					drawCheckbox_m("Light Buffer Debug View", App.dynamic_light.debug, "Show the captured game light buffer in place of the world.", dynamic_light_debug)
 						saveBool("Graphic", "dynamic_light_debug", App.dynamic_light.debug);
+					drawCheckbox_m("Light Depth Haze", App.dynamic_light.depth_haze, "Dark areas fade into a cool haze (game vertex lighting).", light_depth_haze)
+						saveBool("Graphic", "light_depth_haze", App.dynamic_light.depth_haze);
+					ImGui::BeginDisabled(!App.dynamic_light.depth_haze);
+						drawSlider_m(float, "", App.dynamic_light.depth_haze_strength, "%.3f", "", light_depth_haze_strength)
+							saveFloat("Graphic", "light_depth_haze_strength", App.dynamic_light.depth_haze_strength.value);
+						drawDescription("Depth haze strength.", m_colors[Color::Gray], 12);
+					ImGui::EndDisabled();
+					drawSlider_m(float, "Spell Glow", App.dynamic_light.spell_glow, "%.3f", "How much spells and fire light the world (game vertex lighting).", spell_glow)
+						saveFloat("Graphic", "spell_glow", App.dynamic_light.spell_glow.value);
 					drawCheckbox_m("Normal-Mapped Lighting", App.dynamic_light.normals, "Shade sprites and walls toward nearby lights for a 3D look.", light_normals)
 						saveBool("Graphic", "light_normals", App.dynamic_light.normals);
 					ImGui::BeginDisabled(!App.dynamic_light.normals);
@@ -456,6 +470,18 @@ void Menu::draw()
 					modules::MotionPrediction::Instance().toggle(App.motion_prediction);
 					saveBool("Feature", "motion_prediction", App.motion_prediction);
 				}
+			ImGui::EndDisabled();
+			drawSeparator();
+			ImGui::BeginDisabled(!ISGLIDE3X());
+				drawCheckbox_m("Loot Sparkle", App.loot_sparkle.active, "Short sparkle when a valuable item drops (glide only).", loot_sparkle)
+				{
+					modules::LootSparkle::Instance().toggle(App.loot_sparkle.active);
+					saveBool("Feature", "loot_sparkle", App.loot_sparkle.active);
+				}
+				ImGui::BeginDisabled(!App.loot_sparkle.active);
+					drawCombo_m("", App.loot_sparkle.min_quality, "Minimum item quality that sparkles.", false, 17, loot_sparkle_min_quality)
+						saveInt("Feature", "loot_sparkle_min_quality", App.loot_sparkle.min_quality.selected);
+				ImGui::EndDisabled();
 			ImGui::EndDisabled();
 			drawSeparator();
 			drawCheckbox_m("Skip Intro", App.skip_intro, "Auto skip intro videos on launch.", skip_intro)

@@ -56,6 +56,7 @@ uniform sampler2D u_VLightTexture; // full res: rgb = vertex light, a = opaque c
 uniform vec2 u_RelSize;
 uniform float u_Intensity;
 uniform int u_Source;
+uniform float u_Haze; // light depth haze, 0 = off
 
 in vec2 v_TexCoord;
 flat in uvec4 v_Flags;
@@ -124,6 +125,18 @@ vec3 Blur(vec2 dir)
 	return res;
 }
 
+
+// Light depth haze: where the game's own light is low, fade toward a cool, desaturated haze.
+vec3 DepthHaze(vec3 c)
+{
+	if (u_Haze <= 0.0 || u_Source != 1)
+		return c;
+	vec4 v = texture(u_VLightTexture, v_TexCoord);
+	float h = (1.0 - smoothstep(0.12, 0.55, dot(v.rgb, vec3(0.299, 0.587, 0.114)))) * v.a * u_Haze;
+	vec3 haze = vec3(dot(c, vec3(0.299, 0.587, 0.114))) * vec3(0.62, 0.68, 0.82) + vec3(0.012, 0.016, 0.026);
+	return mix(c, haze, h * 0.7);
+}
+
 void main()
 {
 	switch (v_Flags.x) {
@@ -136,7 +149,7 @@ void main()
 			if (u_Source == 0)
 				light = mix(light, light * vec3(1.0, 0.78, 0.5), 0.35);
 			vec3 lit = base + base * light * 2.5 + light * 0.18;
-			FragColor = vec4(clamp(lit, 0.0, 1.0), 1.0);
+			FragColor = vec4(DepthHaze(clamp(lit, 0.0, 1.0)), 1.0);
 		break;
 		case 4u: // debug: raw light buffer, ambient swatch in the top-left corner
 			FragColor = vec4(v_TexCoord.x < 0.06 && v_TexCoord.y < 0.06 ? Ambient() : texture(u_VLightTexture, v_TexCoord).rgb, 1.0);

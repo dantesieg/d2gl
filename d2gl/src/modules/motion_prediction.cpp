@@ -42,6 +42,7 @@
 #include "d2/funcs.h"
 #include "d2/stubs.h"
 #include "helpers.h"
+#include "loot_sparkle.h"
 
 #include <detours/detours.h>
 
@@ -57,22 +58,18 @@ void MotionPrediction::toggle(bool active)
 	if (!m_active && active) {
 		DetourTransactionBegin();
 		DetourUpdateThread(GetCurrentThread());
-		DetourAttach(&(PVOID&)d2::drawUnit, isVerMax(V_110) || isVer(V_114d) ? d2::drawUnitStubESI : d2::drawUnitStubStack);
-		if (isVerNot(V_109d) && isVerNot(V_110))
-			DetourAttach(&(PVOID&)d2::drawMissile, d2::drawMissileStub);
 		DetourAttach(&(PVOID&)d2::drawWeatherParticles, isVer(V_114d) ? d2::drawWeatherParticlesStub114d : d2::drawWeatherParticlesStub);
 		DetourTransactionCommit();
+		d2::toggleUnitDrawHooks(true);
 
 		m_active = true;
 		d2::patch_motion_prediction->toggle(m_active);
 	} else if (m_active && !active) {
 		DetourTransactionBegin();
 		DetourUpdateThread(GetCurrentThread());
-		DetourDetach(&(PVOID&)d2::drawUnit, isVerMax(V_110) || isVer(V_114d) ? d2::drawUnitStubESI : d2::drawUnitStubStack);
-		if (isVerNot(V_109d) && isVerNot(V_110))
-			DetourDetach(&(PVOID&)d2::drawMissile, d2::drawMissileStub);
 		DetourDetach(&(PVOID&)d2::drawWeatherParticles, isVer(V_114d) ? d2::drawWeatherParticlesStub114d : d2::drawWeatherParticlesStub);
 		DetourTransactionCommit();
+		d2::toggleUnitDrawHooks(false);
 
 		m_active = false;
 		d2::patch_motion_prediction->toggle(m_active);

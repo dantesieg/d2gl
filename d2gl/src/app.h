@@ -106,6 +106,7 @@ struct D2GLApp {
 	struct ForegroundFPS {
 		bool active = false;
 		Range<int> range = { 60, 25, 240 };
+		bool pacing = false;
 	} foreground_fps;
 
 	struct BackgroundFPS {
@@ -147,7 +148,15 @@ struct D2GLApp {
 		Range<float> normals_strength = { 1.0f, 0.1f, 3.0f };
 		Select<int> source = { 1, { { "Screen-Space", 0 }, { "Game Vertex Lighting", 1 } } };
 		bool debug = false;
+		bool depth_haze = false;
+		Range<float> depth_haze_strength = { 0.5f, 0.0f, 1.0f };
+		Range<float> spell_glow = { 0.5f, 0.0f, 1.5f };
 	} dynamic_light;
+
+	struct {
+		bool active = false;
+		Select<int> min_quality = { 1, { { "Magic", 0 }, { "Rare / Rune", 1 }, { "Set", 2 }, { "Unique", 3 } } };
+	} loot_sparkle;
 
 
 	struct {

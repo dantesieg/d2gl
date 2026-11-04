@@ -59,6 +59,7 @@ layout(std140) uniform ubo_Colors {
 
 uniform sampler2DArray u_Texture;
 uniform int u_BlendIndex; // pipeline blend index: 0 opaque, 1 multiply, 2 additive, 3 alpha
+uniform float u_SpellGlow; // additive draws feed the light buffer at this strength
 
 in vec2 v_TexCoord;
 in vec4 v_Color1;
@@ -124,7 +125,7 @@ void main()
 		if (u_BlendIndex == 0)
 			FragLight = vec4(v_Color1.rgb, 1.0);
 		else if (u_BlendIndex == 2)
-			FragLight = vec4(FragColor.rgb * 0.5, 0.0);
+			FragLight = vec4(FragColor.rgb * u_SpellGlow, 0.0);
 	}
 
 	if (sk == 1u) {

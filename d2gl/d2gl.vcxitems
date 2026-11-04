@@ -34,6 +34,7 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)src\modules\hd_text\glyph_set.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\modules\mini_map.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\modules\motion_prediction.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)src\modules\loot_sparkle.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\option\ini.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\option\menu.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\modules\hd_text\font.cpp" />
@@ -113,6 +114,7 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)src\modules\hd_text.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\modules\mini_map.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\modules\motion_prediction.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)src\modules\loot_sparkle.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\option\ini.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\option\menu.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\pch.h" />

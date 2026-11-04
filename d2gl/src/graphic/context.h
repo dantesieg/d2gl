@@ -106,6 +106,8 @@ struct LimiterMetrics {
 	LARGE_INTEGER due_time = { 0 };
 	float frame_len_ms = 0.0f;
 	uint64_t frame_len_ns = 0;
+	int64_t pace_period = 0; // QPC counts per frame
+	int64_t pace_next = 0;
 };
 
 struct GLCaps {
@@ -234,6 +236,7 @@ public:
 	inline void setVertexFlagY(uint8_t flag) { m_vertex_params.flags.y = flag; }
 	inline void setVertexFlagZ(uint8_t flag) { m_vertex_params.flags.z = flag; }
 	inline void setVertexFlagW(uint8_t flag) { m_vertex_params.flags.w = flag; }
+	void pushAdditiveQuads(const glm::vec2* pos, const uint32_t* colors, uint32_t quad_count);
 	inline void setShadowDraw(uint8_t mode) { m_shadow_draw = mode; }
 	inline bool isShadowFxActive() { return m_shadow_fx; }
 

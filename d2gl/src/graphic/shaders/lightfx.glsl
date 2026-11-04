@@ -58,6 +58,8 @@ uniform float u_Intensity;
 uniform float u_Normals;           // 0 = off
 uniform float u_Shafts;            // 0 = off
 uniform int u_Source;              // 1 = game vertex light (real colours, no warm tint)
+uniform sampler2D u_VLightTexture; // game vertex light (full res)
+uniform float u_Haze;              // light depth haze, 0 = off
 
 in vec2 v_TexCoord;
 flat in uvec4 v_Flags;
@@ -91,6 +93,18 @@ vec3 Shafts()
 
 float H(vec2 uv) { return dot(texture(u_Texture, uv).rgb, LUMA); }
 
+
+// Light depth haze: where the game's own light is low, fade toward a cool, desaturated haze.
+vec3 DepthHaze(vec3 c)
+{
+	if (u_Haze <= 0.0 || u_Source != 1)
+		return c;
+	vec4 v = texture(u_VLightTexture, v_TexCoord);
+	float h = (1.0 - smoothstep(0.12, 0.55, dot(v.rgb, vec3(0.299, 0.587, 0.114)))) * v.a * u_Haze;
+	vec3 haze = vec3(dot(c, vec3(0.299, 0.587, 0.114))) * vec3(0.62, 0.68, 0.82) + vec3(0.012, 0.016, 0.026);
+	return mix(c, haze, h * 0.7);
+}
+
 void main()
 {
 	if (v_Flags.x == 0u) {
@@ -114,7 +128,7 @@ void main()
 		vec3 lit = base + base * light * 2.5 * shade + light * 0.18;
 		if (u_Shafts > 0.0)
 			lit += texture(u_LightTexture1, v_TexCoord).rgb * u_Shafts * u_Intensity * (0.15 + base * 0.85);
-		FragColor = vec4(clamp(lit, 0.0, 1.0), 1.0);
+		FragColor = vec4(DepthHaze(clamp(lit, 0.0, 1.0)), 1.0);
 	}
 
 	FragColorMap = vec4(0.0);

@@ -21,6 +21,7 @@
 #include "funcs.h"
 #include "helpers.h"
 #include "modules/motion_prediction.h"
+#include "modules/loot_sparkle.h"
 #include "stubs.h"
 
 #include <detours/detours.h>
@@ -210,6 +211,8 @@ void initHooks()
 	else
 		patch_motion_prediction->add(PatchType::Auto, getOffset((DLL_D2CLIENT, 0xC7442450), (), (), (0xB754D), (0x5DB8D), (0x775BD), (0x5921D), (0x4E7AD), (0xC0A58, 0xC745BC01)), isVer(V_114d) ? 7 : 8, (uintptr_t)altItemsTextStub);
 	modules::MotionPrediction::Instance().toggle(App.motion_prediction);
+
+	modules::LootSparkle::Instance().toggle(App.loot_sparkle.active);
 
 	patch_hd_text = std::make_unique<Patch>();
 	patch_hd_text->add(PatchType::Auto, getOffset((DLL_D2CLIENT, 0x2D8C0000), (0x86952), (0x81EEF), (0x9EC05), (0x628E5), (0x8C015), (0xBF345), (0x19095), (0x556F2)), 5, (uintptr_t)levelEntryTextStub);
