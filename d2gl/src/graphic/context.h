@@ -57,6 +57,7 @@ namespace d2gl {
 #define TEXTURE_SLOT_SHADOW1 16
 #define TEXTURE_SLOT_SHADOW2 17
 #define TEXTURE_SLOT_VLIGHT 18 // game framebuffer attachment 4 (needs > 18 texture units)
+#define TEXTURE_SLOT_AMBIENT 19 // 1x1 time-smoothed ambient for game vertex lighting
 
 #define IMAGE_UNIT_BLUR 0
 #define IMAGE_UNIT_FXAA 1
@@ -175,6 +176,10 @@ class Context {
 	std::unique_ptr<Pipeline> m_prefx_pipeline;
 	std::unique_ptr<Pipeline> m_uilayer_pipeline;
 	std::unique_ptr<Pipeline> m_light_pipeline;
+	std::unique_ptr<Pipeline> m_ambient_pipeline;
+	std::unique_ptr<FrameBuffer> m_ambient_framebuffer;
+	bool m_ambient_reset = true;
+	void updateAmbient(glm::ivec2 game_size);
 	std::unique_ptr<Pipeline> m_atmos_pipeline;
 	std::unique_ptr<Pipeline> m_lightfx_pipeline;
 	std::unique_ptr<FrameBuffer> m_light_framebuffer;

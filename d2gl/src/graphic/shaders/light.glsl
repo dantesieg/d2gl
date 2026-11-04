@@ -57,6 +57,8 @@ uniform vec2 u_RelSize;
 uniform float u_Intensity;
 uniform int u_Source;
 uniform float u_Haze; // light depth haze, 0 = off
+uniform sampler2D u_AmbientTexture; // 1x1 time-smoothed ambient (see case 5)
+uniform float u_AmbientRate;        // blend weight of this frame's ambient
 
 in vec2 v_TexCoord;
 flat in uvec4 v_Flags;
@@ -110,7 +112,7 @@ vec3 VExtract()
 	s += texture(u_VLightTexture, v_TexCoord + vec2(-o.x, o.y));
 	s += texture(u_VLightTexture, v_TexCoord + vec2(o.x, o.y));
 	s *= 0.25;
-	vec3 e = max(s.rgb - Ambient() * s.a, 0.0);
+	vec3 e = max(s.rgb - texture(u_AmbientTexture, vec2(0.5)).rgb * s.a, 0.0);
 	float mx = max(e.r, max(e.g, e.b));
 	float sat = (mx - min(e.r, min(e.g, e.b))) / max(mx, 0.0001);
 	return e * (0.25 + 1.75 * sat);
@@ -152,7 +154,10 @@ void main()
 			FragColor = vec4(DepthHaze(clamp(lit, 0.0, 1.0)), 1.0);
 		break;
 		case 4u: // debug: raw light buffer, ambient swatch in the top-left corner
-			FragColor = vec4(v_TexCoord.x < 0.06 && v_TexCoord.y < 0.06 ? Ambient() : texture(u_VLightTexture, v_TexCoord).rgb, 1.0);
+			FragColor = vec4(v_TexCoord.x < 0.06 && v_TexCoord.y < 0.06 ? texture(u_AmbientTexture, vec2(0.5)).rgb : texture(u_VLightTexture, v_TexCoord).rgb, 1.0);
+		break;
+		case 5u: // 1x1 ambient pass, alpha-blended over last frame's value (temporal smoothing)
+			FragColor = vec4(Ambient(), u_AmbientRate);
 		break;
 	}
 

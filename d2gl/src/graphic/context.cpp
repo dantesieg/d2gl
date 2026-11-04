@@ -124,7 +124,7 @@ Context::Context()
 	}
 	m_shadow_supported = App.gl_caps.independent_blending && max_texture_unit > TEXTURE_SLOT_SHADOW2;
 	// Vertex-light capture: 5th game attachment at TEXTURE_SLOT_VLIGHT (implies m_shadow_supported).
-	m_vlight_supported = App.gl_caps.independent_blending && max_texture_unit > TEXTURE_SLOT_VLIGHT;
+	m_vlight_supported = App.gl_caps.independent_blending && max_texture_unit > TEXTURE_SLOT_AMBIENT;
 
 	glDisable(GL_CULL_FACE);
 	glDisable(GL_DEPTH_TEST);
@@ -290,10 +290,25 @@ Context::Context()
 			{ BindingType::FBTexture, "u_LightTexture1", TEXTURE_SLOT_LIGHT1, &m_light_framebuffer },
 			{ BindingType::Texture, "u_LightTexture2", TEXTURE_SLOT_LIGHT2, &m_light_texture },
 		};
-		if (m_vlight_supported)
+		if (m_vlight_supported) {
 			light_pipeline_ci.bindings.push_back({ BindingType::FBTexture, "u_VLightTexture", TEXTURE_SLOT_VLIGHT, &m_game_framebuffer, 4 });
+			light_pipeline_ci.bindings.push_back({ BindingType::FBTexture, "u_AmbientTexture", TEXTURE_SLOT_AMBIENT, &m_ambient_framebuffer });
+		}
 		m_light_pipeline = Context::createPipeline(light_pipeline_ci);
 		m_light_pipeline->setUniformMat4f("u_MVP", glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f));
+
+		if (m_vlight_supported) {
+			PipelineCreateInfo ambient_pipeline_ci = light_pipeline_ci;
+			ambient_pipeline_ci.name = "ambient";
+			ambient_pipeline_ci.attachment_blends = { { BlendType::NoBlend }, { BlendType::SAlpha_OneMinusSAlpha } };
+			m_ambient_pipeline = Context::createPipeline(ambient_pipeline_ci);
+			m_ambient_pipeline->setUniformMat4f("u_MVP", glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f));
+
+			FrameBufferCreateInfo ambient_frambuffer_ci;
+			ambient_frambuffer_ci.size = { 1, 1 };
+			ambient_frambuffer_ci.attachments = { { TEXTURE_SLOT_AMBIENT, {}, { GL_NEAREST, GL_NEAREST } } };
+			m_ambient_framebuffer = Context::createFrameBuffer(ambient_frambuffer_ci);
+		}
 
 		light_pipeline_ci.name = "lightfx";
 		light_pipeline_ci.shader = g_shader_lightfx;
@@ -453,6 +468,8 @@ void Context::renderThread(void* context)
 						glDrawElementsBaseVertex(GL_TRIANGLES, command->draw.count, GL_UNSIGNED_INT, 0, command->draw.start);
 					break;
 				case CommandType::PreFx:
+					if (App.dynamic_light.active && ctx->gameDrawBufferCount() == 5)
+						ctx->updateAmbient(cmd->m_game_size);
 					if (App.dynamic_light.active && App.dynamic_light.debug && ctx->gameDrawBufferCount() == 5) {
 						// Debug: raw game light buffer in place of the world (ambient swatch top-left).
 						FrameBuffer::setDrawBuffers(1);
@@ -861,6 +878,36 @@ void Context::onResize(glm::uvec2 w_size, glm::uvec2 g_size, uint32_t bpp)
 }
 
 // The light attachment (3) is only written while game vertex lighting is in use.
+// Game vertex lighting: the scene ambient is re-estimated every frame from a few
+// screen samples, which jumps as shadows move in and out of them. Keep it in a 1x1
+// target and blend each new estimate in with a ~0.8 s time constant (snap on reset).
+void Context::updateAmbient(glm::ivec2 game_size)
+{
+	static auto last = std::chrono::steady_clock::now();
+	static int last_level = -1;
+	const auto now = std::chrono::steady_clock::now();
+	const float dt = glm::clamp(std::chrono::duration<float>(now - last).count(), 0.0f, 0.5f);
+	last = now;
+
+	const int level = App.game.screen == GameScreen::InGame ? *d2::level_no : -1;
+	if (level != last_level) {
+		last_level = level;
+		m_ambient_reset = true;
+	}
+	const float rate = m_ambient_reset ? 1.0f : 1.0f - expf(-dt / 0.8f);
+	m_ambient_reset = false;
+
+	// Uniforms first: setUniform binds the pipeline with blend index 0.
+	m_ambient_pipeline->setUniform1f("u_AmbientRate", rate);
+	bindFrameBuffer(m_ambient_framebuffer, false);
+	setViewport({ 1, 1 });
+	FrameBuffer::setDrawBuffers(1);
+	bindPipeline(m_ambient_pipeline, 1);
+	drawQuad(5);
+	bindFrameBuffer(m_game_framebuffer, false);
+	setViewport(game_size);
+}
+
 uint32_t Context::gameDrawBufferCount() const
 {
 	const uint32_t count = m_game_framebuffer->getAttachmentCount();
