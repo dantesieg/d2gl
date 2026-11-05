@@ -280,6 +280,8 @@ void saveIni()
 		"; loot_sparkle_min_quality: 0 magic, 1 rare/rune, 2 set, 3 unique.\n"
 		"loot_sparkle=%s\n"
 		"loot_sparkle_min_quality=%d\n\n"
+		"; Minion ring: soft green ring under your summons (glide only, 1.14d).\n"
+		"minion_ring=%s\n\n"
 		"; Skip the Intro videos.\n"
 		"skip_intro=%s\n\n"
 		"; Auto /nopickup option on launch (exclude 1.09d).\n"
@@ -304,6 +306,7 @@ void saveIni()
 		boolString(App.motion_prediction),
 		boolString(App.loot_sparkle.active),
 		App.loot_sparkle.min_quality.selected,
+		boolString(App.minion_ring),
 		boolString(App.skip_intro),
 		boolString(App.no_pickup),
 		boolString(App.show_item_quantity),
@@ -425,6 +428,7 @@ void loadIni()
 		App.loot_sparkle.active = getBool("Feature", "loot_sparkle", App.loot_sparkle.active);
 
 		App.loot_sparkle.min_quality.selected = getInt("Feature", "loot_sparkle_min_quality", App.loot_sparkle.min_quality.selected, 0, 3);
+		App.minion_ring = getBool("Feature", "minion_ring", App.minion_ring);
 		App.skip_intro = getBool("Feature", "skip_intro", App.skip_intro);
 		App.no_pickup = getBool("Feature", "no_pickup", App.no_pickup);
 		App.show_item_quantity = getBool("Feature", "show_item_quantity", App.show_item_quantity);

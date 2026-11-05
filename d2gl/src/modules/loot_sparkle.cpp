@@ -113,11 +113,76 @@ void LootSparkle::toggle(bool active)
 	m_hooked = active;
 	m_sparkles.clear();
 	m_seen.clear();
+	m_minions.clear();
+	m_pet_cache.clear();
+}
+
+// 1.14d client pet list: Game.exe 0x479150 fastcall(unit id) -> owner unit id or -1
+// (party bar 0x452C83 uses it; same lookup as MedianRevived's totem list).
+static bool isMyPet(d2::UnitAny* unit)
+{
+	__try {
+		if (unit->dwType != d2::UnitType::Monster)
+			return false;
+		d2::UnitAny* me = d2::getPlayerUnit();
+		if (!me)
+			return false;
+		auto owner = reinterpret_cast<DWORD(__fastcall*)(DWORD)>(0x479150);
+		return owner(unit->v110.dwUnitId) == me->v110.dwUnitId;
+	} __except (EXCEPTION_EXECUTE_HANDLER) {
+		return false;
+	}
+}
+
+void LootSparkle::recordMinion(d2::UnitAny* unit, d2::CellContext* cell, int x, int y, uint32_t frame)
+{
+	if (frame - m_pet_cache_frame > 60) {
+		m_pet_cache.clear();
+		m_pet_cache_frame = frame;
+	}
+	auto pc = m_pet_cache.find(unit);
+	bool pet = pc != m_pet_cache.end() ? pc->second : (m_pet_cache[unit] = isMyPet(unit));
+	if (!pet)
+		return;
+	float cx = (float)x;
+	if (cell && !spriteCenter(cell, x, &cx))
+		cx = (float)x;
+	auto& m = m_minions[unit];
+	if (m.last_frame != frame) // first cell of this unit this frame: its centre
+		m = { cx, (float)y, frame };
+}
+
+void LootSparkle::drawMinions(uint32_t frame)
+{
+	std::vector<glm::vec2> pos;
+	std::vector<uint32_t> col;
+	const float rx = 20.0f, ry = 9.0f, w = 3.0f;
+	const uint32_t inner = 0xFF1E5A1E, outer = 0xFF000000; // additive: dim green fading out
+	for (auto it = m_minions.begin(); it != m_minions.end();) {
+		if (frame - it->second.last_frame > 2) {
+			it = m_minions.erase(it);
+			continue;
+		}
+		const glm::vec2 c = { it->second.x, it->second.y - 2.0f };
+		const int N = 24;
+		for (int i = 0; i < N; i++) {
+			const float a0 = glm::two_pi<float>() * i / N, a1 = glm::two_pi<float>() * (i + 1) / N;
+			const glm::vec2 d0 = { cosf(a0), sinf(a0) }, d1 = { cosf(a1), sinf(a1) };
+			auto P = [&](glm::vec2 d, float r) { return c + glm::vec2(d.x * (rx + r), d.y * (ry + r * 0.45f)); };
+			pos.insert(pos.end(), { P(d0, -w), P(d1, -w), P(d1, 0.0f), P(d0, 0.0f) });
+			col.insert(col.end(), { outer, outer, inner, inner });
+			pos.insert(pos.end(), { P(d0, 0.0f), P(d1, 0.0f), P(d1, w), P(d0, w) });
+			col.insert(col.end(), { inner, inner, outer, outer });
+		}
+		++it;
+	}
+	if (!pos.empty())
+		App.context->pushAdditiveQuads(pos.data(), col.data(), (uint32_t)(pos.size() / 4));
 }
 
 void LootSparkle::record(d2::CellContext* cell, int x, int y)
 {
-	if (!m_hooked || !App.loot_sparkle.active || App.game.screen != GameScreen::InGame || App.game.draw_stage != DrawStage::World)
+	if (!m_hooked || App.game.screen != GameScreen::InGame || App.game.draw_stage != DrawStage::World)
 		return;
 
 	d2::UnitAny* unit = d2::currently_drawing_unit;
@@ -125,6 +190,10 @@ void LootSparkle::record(d2::CellContext* cell, int x, int y)
 		return;
 
 	const uint32_t frame = App.context->getFrameCount();
+	if (App.minion_ring && isVer(V_114d))
+		recordMinion(unit, isVerMin(V_113c) ? cell : nullptr, x, y, frame);
+	if (!App.loot_sparkle.active)
+		return;
 	auto it = m_sparkles.find(unit);
 	if (it != m_sparkles.end()) {
 		it->second.x = (float)x;
@@ -160,10 +229,16 @@ void LootSparkle::record(d2::CellContext* cell, int x, int y)
 
 void LootSparkle::draw()
 {
-	if (!m_hooked || !App.loot_sparkle.active || App.game.screen != GameScreen::InGame)
+	if (!m_hooked || App.game.screen != GameScreen::InGame)
 		return;
 
 	const uint32_t frame = App.context->getFrameCount();
+	if (App.minion_ring)
+		drawMinions(frame);
+	else
+		m_minions.clear();
+	if (!App.loot_sparkle.active)
+		return;
 	for (auto it = m_seen.begin(); it != m_seen.end();)
 		it = frame - it->second > 50 ? m_seen.erase(it) : std::next(it);
 

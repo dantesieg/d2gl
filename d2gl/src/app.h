@@ -158,6 +158,8 @@ struct D2GLApp {
 		Select<int> min_quality = { 1, { { "Magic", 0 }, { "Rare / Rune", 1 }, { "Set", 2 }, { "Unique", 3 } } };
 	} loot_sparkle;
 
+	bool minion_ring = false;
+
 
 	struct {
 		bool active = false;

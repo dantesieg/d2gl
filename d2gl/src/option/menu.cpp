@@ -475,12 +475,19 @@ void Menu::draw()
 			ImGui::BeginDisabled(!ISGLIDE3X());
 				drawCheckbox_m("Loot Sparkle", App.loot_sparkle.active, "Short sparkle when a valuable item drops (glide only).", loot_sparkle)
 				{
-					modules::LootSparkle::Instance().toggle(App.loot_sparkle.active);
+					modules::LootSparkle::Instance().toggle(App.loot_sparkle.active || App.minion_ring);
 					saveBool("Feature", "loot_sparkle", App.loot_sparkle.active);
 				}
 				ImGui::BeginDisabled(!App.loot_sparkle.active);
 					drawCombo_m("", App.loot_sparkle.min_quality, "Minimum item quality that sparkles.", false, 17, loot_sparkle_min_quality)
 						saveInt("Feature", "loot_sparkle_min_quality", App.loot_sparkle.min_quality.selected);
+				ImGui::EndDisabled();
+				ImGui::BeginDisabled(!isVer(V_114d));
+					drawCheckbox_m("Minion Ring", App.minion_ring, "Soft green ring under your summons (glide only, 1.14d).", minion_ring)
+					{
+						modules::LootSparkle::Instance().toggle(App.loot_sparkle.active || App.minion_ring);
+						saveBool("Feature", "minion_ring", App.minion_ring);
+					}
 				ImGui::EndDisabled();
 			ImGui::EndDisabled();
 			drawSeparator();

@@ -24,7 +24,16 @@ class LootSparkle {
 
 	std::unordered_map<d2::UnitAny*, Sparkle> m_sparkles;
 	std::unordered_map<d2::UnitAny*, uint32_t> m_seen; // unit -> last frame seen (no sparkle)
+	struct Minion {
+		float x, y;
+		uint32_t last_frame;
+	};
+	std::unordered_map<d2::UnitAny*, Minion> m_minions;
+	std::unordered_map<d2::UnitAny*, bool> m_pet_cache; // unit -> is my pet (cleared every ~1 s)
+	uint32_t m_pet_cache_frame = 0;
 	bool m_hooked = false;
+	void recordMinion(d2::UnitAny* unit, d2::CellContext* cell, int x, int y, uint32_t frame);
+	void drawMinions(uint32_t frame);
 
 	LootSparkle() = default;
 
