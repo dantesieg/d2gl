@@ -482,7 +482,7 @@ void Menu::draw()
 					drawCombo_m("", App.loot_sparkle.min_quality, "Minimum item quality that sparkles.", false, 17, loot_sparkle_min_quality)
 						saveInt("Feature", "loot_sparkle_min_quality", App.loot_sparkle.min_quality.selected);
 				ImGui::EndDisabled();
-				ImGui::BeginDisabled(!isVer(V_114d));
+				ImGui::BeginDisabled(!(isVer(V_114d)));
 					drawCheckbox_m("Minion Ring", App.minion_ring, "Soft green ring under your summons (glide only, 1.14d).", minion_ring)
 					{
 						modules::LootSparkle::Instance().toggle(App.loot_sparkle.active || App.minion_ring);
