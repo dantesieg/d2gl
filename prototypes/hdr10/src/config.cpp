@@ -21,10 +21,15 @@ static void apply(Config& c, const char* k, const char* v) {
 	else if (!std::strcmp(k, "split")) c.split = b();
 	else if (!std::strcmp(k, "fullscreen")) c.fullscreen = b();
 	else if (!std::strcmp(k, "no_interop")) c.force_no_interop = b();
+	else if (!std::strcmp(k, "resize_test")) c.resize_test = b();
+	else if (!std::strcmp(k, "simulate_loss")) c.simulate_loss = b();
+	else if (!std::strcmp(k, "screenshot")) c.screenshot = b();
+	else if (!std::strcmp(k, "cpu_copy")) c.cpu_copy = b();
 	else if (!std::strcmp(k, "width")) c.width = std::atoi(v);
 	else if (!std::strcmp(k, "height")) c.height = std::atoi(v);
 	else if (!std::strcmp(k, "frames")) c.frames = std::atoi(v);
 	else if (!std::strcmp(k, "cycles")) c.cycles = std::atoi(v);
+	else if (!std::strcmp(k, "encode_selftest")) c.encode_selftest = b();
 	else if (!std::strcmp(k, "shader_selftest")) c.shader_selftest = b();
 	else logf("config: unknown key '%s'", k);
 }
@@ -47,7 +52,7 @@ void config_load(Config& c, int argc, char** argv) {
 		std::string p(path);
 		p = p.substr(0, p.find_last_of("\\/") + 1) + "hdr10.ini";
 		static const char* keys[] = {"sdr_white", "peak_nits", "src_peak_nits", "highlight", "knee", "tonemap", "transfer",
-		                             "alpha", "hdr", "split", "fullscreen", "no_interop", "width", "height"};
+		                             "alpha", "hdr", "split", "fullscreen", "no_interop", "cpu_copy", "width", "height"};
 		for (const char* k : keys) {
 			char v[64];
 			if (GetPrivateProfileStringA("hdr10", k, "", v, sizeof(v), p.c_str()) > 0) apply(c, k, v);

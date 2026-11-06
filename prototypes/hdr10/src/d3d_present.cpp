@@ -4,6 +4,10 @@
 #include <d3dcompiler.h>
 #include <cstdio>
 #include <cstring>
+#include <algorithm>
+#include <cmath>
+#include <cstdlib>
+#include <cstdint>
 
 template <class T> static void safe_release(T*& p) { if (p) { p->Release(); p = nullptr; } }
 
@@ -254,8 +258,8 @@ bool Presenter::apply_format(bool want_hdr) {
 	hdr_refusal[0] = 0;
 	bool try_hdr = want_hdr;
 	if (!want_hdr) std::snprintf(hdr_refusal, sizeof(hdr_refusal), "HDR disabled by user");
-	else if (!sc3) { try_hdr = false; std::snprintf(hdr_refusal, sizeof(hdr_refusal), "no IDXGISwapChain3"); }
 	else if (!display.os_hdr_enabled) { try_hdr = false; std::snprintf(hdr_refusal, sizeof(hdr_refusal), "OS HDR off / output not HDR10"); }
+	else if (!sc3) { try_hdr = false; std::snprintf(hdr_refusal, sizeof(hdr_refusal), "no IDXGISwapChain3"); }
 
 	DXGI_FORMAT fmt = try_hdr ? DXGI_FORMAT_R10G10B10A2_UNORM : DXGI_FORMAT_R8G8B8A8_UNORM;
 	if (fmt != format) {
@@ -372,28 +376,34 @@ bool Presenter::resize(int width, int height) {
 	return create_rtv();
 }
 
-bool Presenter::draw_and_present(const hdr::Params& p, float split_x, bool interval1) {
-	if (!sc || !rtv || !srv) return false;
+void Presenter::encode_pass(ID3D11RenderTargetView* target, ID3D11ShaderResourceView* input, const hdr::Params& p,
+                            int out_mode, float split_x, int width, int height) {
 	D3D11_MAPPED_SUBRESOURCE m;
 	HRESULT hr = ctx->Map(cb, 0, D3D11_MAP_WRITE_DISCARD, 0, &m);
 	if (FAILED(hr)) { log_hr(hr, "Map(cb)", __FILE__, __LINE__); }
 	else {
 		CB c = {p.sdr_white_nits, p.peak_nits, p.src_peak_nits, p.highlight_strength, p.highlight_knee, (int)p.transfer,
-		        (int)p.tonemap, (int)p.alpha, hdr_presenting ? 1 : 0, split_x, {0, 0}};
+		        (int)p.tonemap, (int)p.alpha, out_mode, split_x, {0, 0}};
 		std::memcpy(m.pData, &c, sizeof(c));
 		ctx->Unmap(cb, 0);
 	}
-	D3D11_VIEWPORT vp = {0, 0, (float)w, (float)h, 0, 1};
-	ctx->OMSetRenderTargets(1, &rtv, nullptr);
+	D3D11_VIEWPORT vp = {0, 0, (float)width, (float)height, 0, 1};
+	ctx->OMSetRenderTargets(1, &target, nullptr);
 	ctx->RSSetViewports(1, &vp);
 	ctx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	ctx->IASetInputLayout(nullptr);
 	ctx->VSSetShader(vs, nullptr, 0);
 	ctx->PSSetShader(ps, nullptr, 0);
 	ctx->PSSetConstantBuffers(0, 1, &cb);
-	ctx->PSSetShaderResources(0, 1, &srv);
+	ctx->PSSetShaderResources(0, 1, &input);
 	ctx->PSSetSamplers(0, 1, &smp);
 	ctx->Draw(3, 0);
+}
+
+bool Presenter::draw_and_present(const hdr::Params& p, float split_x, bool interval1) {
+	if (!sc || !rtv || !srv) return false;
+	encode_pass(rtv, srv, p, hdr_presenting ? 1 : 0, split_x, w, h);
+	HRESULT hr;
 	hr = sc->Present(interval1 ? 1 : 0, 0);
 	if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET) {
 		log_hr(hr, "Present", __FILE__, __LINE__);
@@ -423,4 +433,76 @@ void Presenter::destroy() {
 	safe_release(factory);
 	format = DXGI_FORMAT_UNKNOWN;
 	hdr_presenting = false;
+}
+
+int Presenter::encode_selftest() {
+	const int W = 64, H = 8; // 8 parameter sets x 64 input colours
+	struct Case { hdr::Params p; const char* name; };
+	Case cases[H];
+	for (Case& c : cases) c.p = hdr::Params{};
+	cases[0].name = "default (203/1000, BT.2390)";
+	cases[1].name = "clip"; cases[1].p.tonemap = hdr::Tonemap::CLIP;
+	cases[2].name = "gamma2.2"; cases[2].p.transfer = hdr::Transfer::GAMMA22;
+	cases[3].name = "highlight 1.0"; cases[3].p.highlight_strength = 1.0f;
+	cases[4].name = "highlight .5 peak 600"; cases[4].p.highlight_strength = 0.5f; cases[4].p.peak_nits = 600;
+	cases[5].name = "premultiplied"; cases[5].p.alpha = hdr::Alpha::PREMULTIPLIED;
+	cases[6].name = "sdr_white 100 peak 400"; cases[6].p.sdr_white_nits = 100; cases[6].p.peak_nits = 400;
+	cases[7].name = "sdr_white 300 peak 4000 clip"; cases[7].p.sdr_white_nits = 300; cases[7].p.peak_nits = 4000; cases[7].p.tonemap = hdr::Tonemap::CLIP;
+	// Inputs: grey ramp 0..1.5, primaries/secondaries, ColorChecker-ish, near black. Alpha varies for premult rows.
+	float in[H][W][4];
+	for (int y = 0; y < H; ++y)
+		for (int x = 0; x < W; ++x) {
+			float t = (float)x / (W - 1);
+			float* c = in[y][x];
+			if (x < 32) { c[0] = c[1] = c[2] = t * 3.0f; }                    // grey 0..1.5 (x<32 -> t<0.5)
+			else if (x < 40) { c[0] = (float)((x >> 0) & 1); c[1] = (float)((x >> 1) & 1); c[2] = (float)((x >> 2) & 1); }
+			else if (x < 48) { c[0] = 0.8f * t; c[1] = 0.45f; c[2] = 0.3f * t; }
+			else { c[0] = c[1] = c[2] = (float)(x - 48) / 255.0f; }           // 8-bit codes 0..15
+			c[3] = y == 5 ? 0.25f + 0.75f * (float)(x % 4) / 3.0f : 1.0f;
+			if (y == 5) { c[0] *= c[3]; c[1] *= c[3]; c[2] *= c[3]; }        // premultiply the input
+		}
+	D3D11_TEXTURE2D_DESC td = {};
+	td.Width = W; td.Height = H; td.MipLevels = 1; td.ArraySize = 1; td.SampleDesc.Count = 1;
+	td.Format = DXGI_FORMAT_R32G32B32A32_FLOAT; td.Usage = D3D11_USAGE_DEFAULT; td.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+	D3D11_SUBRESOURCE_DATA sd = {in, W * 16, 0};
+	ID3D11Texture2D *tin = nullptr, *tout = nullptr, *tst = nullptr;
+	ID3D11ShaderResourceView* sin = nullptr;
+	ID3D11RenderTargetView* rout = nullptr;
+	int bad = -1;
+	if (SUCCEEDED(HR(dev->CreateTexture2D(&td, &sd, &tin))) && SUCCEEDED(HR(dev->CreateShaderResourceView(tin, nullptr, &sin)))) {
+		td.Format = DXGI_FORMAT_R10G10B10A2_UNORM; td.BindFlags = D3D11_BIND_RENDER_TARGET;
+		if (SUCCEEDED(HR(dev->CreateTexture2D(&td, nullptr, &tout))) && SUCCEEDED(HR(dev->CreateRenderTargetView(tout, nullptr, &rout)))) {
+			td.Usage = D3D11_USAGE_STAGING; td.BindFlags = 0; td.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+			if (SUCCEEDED(HR(dev->CreateTexture2D(&td, nullptr, &tst)))) {
+				for (int y = 0; y < H; ++y) { // one row per parameter set: scissor-free, viewport offset per row
+					D3D11_MAPPED_SUBRESOURCE m;
+					encode_pass(rout, sin, cases[y].p, 1, -1.0f, W, H);
+					ctx->CopyResource(tst, tout);
+					if (FAILED(HR(ctx->Map(tst, 0, D3D11_MAP_READ, 0, &m)))) break;
+					if (bad < 0) bad = 0;
+					int row_bad = 0, maxd = 0;
+					const uint32_t* px = (const uint32_t*)((const char*)m.pData + (size_t)y * m.RowPitch);
+					for (int x = 0; x < W; ++x) {
+						const float* c = in[y][x];
+						hdr::float3 ref = hdr::encode_pixel({c[0], c[1], c[2]}, c[3], cases[y].p);
+						int rr = (int)std::lround(ref.r * 1023), rg = (int)std::lround(ref.g * 1023), rb = (int)std::lround(ref.b * 1023);
+						int gr = (int)(px[x] & 1023), gg = (int)((px[x] >> 10) & 1023), gb = (int)((px[x] >> 20) & 1023);
+						int d = std::max({std::abs(rr - gr), std::abs(rg - gg), std::abs(rb - gb)});
+						maxd = std::max(maxd, d);
+						if (d > 1) { if (row_bad < 3) logf("  mismatch %s x=%d in=(%.4f,%.4f,%.4f,a%.2f) gpu=(%d,%d,%d) ref=(%d,%d,%d)", cases[y].name, x, c[0], c[1], c[2], c[3], gr, gg, gb, rr, rg, rb); ++row_bad; }
+					}
+					ctx->Unmap(tst, 0);
+					logf("encode_selftest: %-30s %s  max |gpu-ref| = %d 10-bit codes (64 px)", cases[y].name, row_bad ? "FAIL" : "PASS", maxd);
+					bad += row_bad;
+				}
+			}
+		}
+	}
+	safe_release(tst);
+	safe_release(rout);
+	safe_release(tout);
+	safe_release(sin);
+	safe_release(tin);
+	logf("encode_selftest: %s (%d mismatching pixels > 1 code)", bad == 0 ? "PASS" : "FAIL", bad);
+	return bad;
 }

@@ -1,0 +1,5 @@
+config: hdr=1 sdr_white=203 peak=1000 src_peak=10000 highlight=0.00 knee=0.75 tonemap=BT.2390 EETF transfer=sRGB-piecewise alpha=straight split=1
+d3d: d3dcompiler_47.dll loaded, D3DCompile found
+[hr] hr=0x00000000 S_OK  <- vs_main (d3d_present.cpp:47)
+[hr] hr=0x00000000 S_OK  <- ps_main (d3d_present.cpp:47)
+selftest: HLSL vs_4_0=OK (1152 bytes) ps_4_0=OK (11608 bytes)

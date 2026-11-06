@@ -14,7 +14,7 @@
 
 const char* dxgi_cs_name(DXGI_COLOR_SPACE_TYPE c);
 
-enum class Path { NONE, INTEROP_D3D11, WGL_SDR };
+enum class Path { NONE, INTEROP_D3D11, CPU_COPY_D3D11, WGL_SDR };
 
 struct App {
 	Config cfg;
@@ -43,6 +43,7 @@ struct App {
 	RECT windowed_rect = {};
 	DWORD t0 = 0;
 	std::string last_panel;
+	std::vector<uint16_t> readback; // CPU_COPY_D3D11 only
 };
 static App g;
 
@@ -191,9 +192,15 @@ static void shutdown_present() {
 		g.iop.close();       // unregister + close GL side first, while the D3D device is alive
 		g.pres.destroy();
 		logf("present: interop/D3D11 path shut down");
+	} else if (g.path == Path::CPU_COPY_D3D11) {
+		wglMakeCurrent(g.hidden_dc, g.glrc);
+		release_sdr_target();
+		g.pres.destroy();
+		logf("present: CPU-copy/D3D11 path shut down");
 	} else if (g.path == Path::WGL_SDR) {
 		release_sdr_target();
 		wglMakeCurrent(g.hidden_dc, g.glrc);
+		g.pres.destroy(); // diagnostics-only DXGI factory
 		logf("present: WGL SDR path shut down");
 	}
 	g.path = Path::NONE;
@@ -213,6 +220,27 @@ static bool start_wgl_sdr(const char* reason) {
 	if (g_wgl.SwapIntervalEXT) g_wgl.SwapIntervalEXT(1);
 	if (!make_sdr_target()) { logf("wgl: RGBA16F FBO incomplete"); return false; }
 	g.path = Path::WGL_SDR;
+	// Diagnostics only: DXGI output query works without a D3D device, so the panel can still show OS HDR state.
+	g.pres.hwnd = g.hwnd;
+	if (SUCCEEDED(HR(CreateDXGIFactory1(__uuidof(IDXGIFactory2), (void**)&g.pres.factory)))) g.pres.detect_display();
+	return true;
+}
+
+// Explicit, opt-in (--cpu_copy) fallback: GL renders to its own RGBA16F FBO, glReadPixels -> UpdateSubresource.
+// This is a CPU READBACK COPY (GPU->CPU->GPU every frame), NOT zero-copy, and only exists for validation.
+static bool start_cpu_copy() {
+	wglMakeCurrent(g.hidden_dc, g.glrc);
+	if (!g.pres.create_device(nullptr, g.gl_vendor) || !g.pres.create_swapchain(g.hwnd, g.w, g.h, g.cfg.hdr_enabled) ||
+	    !g.pres.create_shared_texture(g.w, g.h) || !make_sdr_target()) {
+		logf("cpu-copy: init FAILED");
+		release_sdr_target();
+		g.pres.destroy();
+		return false;
+	}
+	g.window_had_dxgi = true;
+	std::snprintf(g.fallback, sizeof(g.fallback), "CPU READBACK COPY (NOT ZERO-COPY): %s", g.interop_status);
+	logf("present: FALLBACK -> %s", g.fallback);
+	g.path = Path::CPU_COPY_D3D11;
 	return true;
 }
 
@@ -242,6 +270,7 @@ static bool start_interop() {
 static bool start_present() {
 	g.fallback[0] = 0;
 	if (start_interop()) { std::snprintf(g.fallback, sizeof(g.fallback), "none"); return true; }
+	if (g.cfg.cpu_copy && start_cpu_copy()) return true;
 	return start_wgl_sdr(g.interop_status);
 }
 
@@ -255,6 +284,10 @@ static bool handle_resize() {
 	logf("resize: %dx%d", g.w, g.h);
 	if (g.path == Path::WGL_SDR) return make_sdr_target();
 	wglMakeCurrent(g.hidden_dc, g.glrc);
+	if (g.path == Path::CPU_COPY_D3D11) {
+		g.pres.release_shared_texture();
+		return g.pres.resize(g.w, g.h) && g.pres.create_shared_texture(g.w, g.h) && make_sdr_target();
+	}
 	g.iop.unregister_texture();
 	g.pres.release_shared_texture();
 	if (!g.pres.resize(g.w, g.h)) return false;
@@ -267,19 +300,20 @@ static void update_panel() {
 	char l[24][128];
 	int n = 0;
 	const DisplayInfo& d = g.pres.display;
-	bool dx = g.path == Path::INTEROP_D3D11;
+	bool dx = g.path == Path::INTEROP_D3D11 || g.path == Path::CPU_COPY_D3D11;
+	bool cpu = g.path == Path::CPU_COPY_D3D11;
 	std::snprintf(l[n++], 128, "D2GL HDR10 PROTOTYPE");
 	std::snprintf(l[n++], 128, "GL: %.60s", g.gl_renderer);
 	std::snprintf(l[n++], 128, "D3D ADAPTER: %.56s", dx ? g.pres.adapter_name : "(not created)");
 	std::snprintf(l[n++], 128, "ADAPTER MATCH: %.60s", g.luid_status);
 	std::snprintf(l[n++], 128, "INTEROP: %.70s", g.interop_status);
-	std::snprintf(l[n++], 128, "PATH: %s", dx ? "GL > NV_DX_INTEROP2 > D3D11 > DXGI FLIP" : "GL > WGL SWAPBUFFERS (SDR)");
+	std::snprintf(l[n++], 128, "PATH: %s", cpu ? "GL > CPU READBACK COPY > D3D11 > DXGI FLIP" : dx ? "GL > NV_DX_INTEROP2 > D3D11 > DXGI FLIP" : "GL > WGL SWAPBUFFERS (SDR)");
 	std::snprintf(l[n++], 128, "FALLBACK: %.70s", g.fallback);
 	std::snprintf(l[n++], 128, "SWAPCHAIN: %s", !dx ? "WGL DEFAULT FB (RGBA8)" : g.pres.format == DXGI_FORMAT_R10G10B10A2_UNORM ? "R10G10B10A2_UNORM FLIP" : "R8G8B8A8_UNORM FLIP");
 	std::snprintf(l[n++], 128, "COLOR SPACE: %s", dx ? dxgi_cs_name(g.pres.color_space) : "SRGB (IMPLICIT)");
 	std::snprintf(l[n++], 128, "DISPLAY: %s  OUTPUT6=%s", d.device, d.found ? "YES" : "NO");
-	std::snprintf(l[n++], 128, "OS HDR ENABLED: %s", !dx ? "UNKNOWN (NO DXGI)" : d.os_hdr_enabled ? "YES" : "NO");
-	std::snprintf(l[n++], 128, "HDR-CAPABLE HW: %s", !dx ? "UNKNOWN" : d.hw_hdr_capable < 0 ? "UNKNOWN" : d.hw_hdr_capable ? "YES" : "NO");
+	std::snprintf(l[n++], 128, "OS HDR ENABLED: %s", !d.found ? "UNKNOWN (NO OUTPUT6)" : d.os_hdr_enabled ? "YES" : "NO");
+	std::snprintf(l[n++], 128, "HDR-CAPABLE HW: %s", d.hw_hdr_capable < 0 ? "UNKNOWN" : d.hw_hdr_capable ? "YES" : "NO");
 	std::snprintf(l[n++], 128, "DISPLAY LUM: MIN %.3f MAX %.0f FULLFRAME %.0f NITS", d.min_lum, d.max_lum, d.max_full_frame_lum);
 	std::snprintf(l[n++], 128, "PRESENTING HDR10: %s %.50s", dx && g.pres.hdr_presenting ? "YES" : "NO",
 	              dx ? (g.pres.hdr_presenting ? (g.pres.hdr_metadata_ok ? "(METADATA SET)" : "(NO METADATA)") : g.pres.hdr_refusal) : "");
@@ -302,6 +336,23 @@ static void update_panel() {
 	logf("panel: %s | %s | %s | %s", l[5], l[7], l[10], l[13]);
 }
 
+// Reads the currently bound FBO (GL rendered scene, SDR signal) and writes a top-down PPM.
+static void write_screenshot(bool flipped) {
+	std::vector<uint8_t> px((size_t)g.w * g.h * 4);
+	glPixelStorei(GL_PACK_ALIGNMENT, 1);
+	glReadPixels(0, 0, g.w, g.h, GL_RGBA, GL_UNSIGNED_BYTE, px.data());
+	FILE* f = std::fopen("shot.ppm", "wb");
+	if (!f) return;
+	std::fprintf(f, "P6\n%d %d\n255\n", g.w, g.h);
+	for (int y = 0; y < g.h; ++y) {
+		int row = flipped ? y : g.h - 1 - y;
+		for (int x = 0; x < g.w; ++x) std::fwrite(&px[((size_t)row * g.w + x) * 4], 1, 3, f);
+	}
+	std::fclose(f);
+	logf("screenshot: shot.ppm %dx%d (GL SDR signal, clamped to 8 bit)", g.w, g.h);
+}
+static bool g_want_shot = false;
+
 // ------------------------------------------------------------------ frame
 static bool render_frame() {
 	float t = (float)(GetTickCount() - g.t0) / 1000.0f;
@@ -318,8 +369,21 @@ static bool render_frame() {
 		float split = g.cfg.split ? (float)g.w * 0.5f : -1.0f;
 		return g.pres.draw_and_present(p, split, true);
 	}
+	if (g.path == Path::CPU_COPY_D3D11) {
+		p_glBindFramebuffer(GL_FRAMEBUFFER, g.sdr_fbo);
+		g.scene.render(g.w, g.h, t, hmax, true);
+		g.readback.resize((size_t)g.w * g.h * 4);
+		glPixelStorei(GL_PACK_ALIGNMENT, 4);
+		glReadPixels(0, 0, g.w, g.h, GL_RGBA, GL_HALF_FLOAT, g.readback.data()); // synchronous GPU->CPU
+		if (g_want_shot) { write_screenshot(true); g_want_shot = false; }
+		p_glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		g.pres.ctx->UpdateSubresource(g.pres.shared_tex, 0, nullptr, g.readback.data(), (UINT)g.w * 8, 0);
+		float split = g.cfg.split ? (float)g.w * 0.5f : -1.0f;
+		return g.pres.draw_and_present(p, split, true);
+	}
 	p_glBindFramebuffer(GL_FRAMEBUFFER, g.sdr_fbo);
 	g.scene.render(g.w, g.h, t, hmax, false);
+	if (g_want_shot) { write_screenshot(false); g_want_shot = false; }
 	g.scene.blit_sdr(g.sdr_tex, g.w, g.h);
 	if (!SwapBuffers(g.main_dc)) { logf("wgl: SwapBuffers FAILED (%lu)", (unsigned long)GetLastError()); return false; }
 	GLenum e = glGetError();
@@ -386,6 +450,13 @@ int main(int argc, char** argv) {
 		log_close();
 		return ok ? 0 : 3;
 	}
+	if (g.cfg.encode_selftest) {
+		Presenter pr;
+		int bad = pr.create_device(nullptr, nullptr) ? pr.encode_selftest() : -1;
+		pr.destroy();
+		log_close();
+		return bad == 0 ? 0 : 5;
+	}
 	WNDCLASSA wc = {};
 	wc.style = CS_OWNDC;
 	wc.lpfnWndProc = wndproc;
@@ -403,6 +474,7 @@ int main(int argc, char** argv) {
 		int frames = 0, lost_retries = 0;
 		DWORD last_detect = 0;
 		while (!g.quit) {
+			g_want_shot = g.cfg.screenshot && frames == g.cfg.frames - 1;
 			pump();
 			if (g.quit) break;
 			if (g.resize_pending) {
@@ -413,7 +485,7 @@ int main(int argc, char** argv) {
 				g.display_changed = false;
 				g.hdr_toggle_pending = false;
 				last_detect = GetTickCount();
-				if (g.path == Path::INTEROP_D3D11) {
+				if (g.path == Path::INTEROP_D3D11 || g.path == Path::CPU_COPY_D3D11) {
 					// Always re-detect: the monitor may be the same but its HDR state/luminance may have changed.
 					bool was_hdr = g.pres.hdr_presenting;
 					if (!g.pres.reconfigure(g.cfg.hdr_enabled)) full_reinit("reconfigure failed");
@@ -428,10 +500,14 @@ int main(int argc, char** argv) {
 				continue;
 			}
 			lost_retries = 0;
+			if (g.cfg.resize_test && frames == 10) { logf("test: SetWindowPos 800x600"); SetWindowPos(g.hwnd, nullptr, 0, 0, 800, 600, SWP_NOMOVE | SWP_NOZORDER); }
+			if (g.cfg.resize_test && frames == 20) set_fullscreen(true);
+			if (g.cfg.resize_test && frames == 30) set_fullscreen(false);
+			if (g.cfg.simulate_loss && frames == 15) { g.pres.device_lost = true; full_reinit("SIMULATED device loss (--simulate_loss)"); }
 			if (++frames == g.cfg.frames || (g.cfg.cycles > 0 && frames >= 3)) break;
 			if (g.path == Path::WGL_SDR && !g_wgl.SwapIntervalEXT) Sleep(16);
 		}
-		logf("cycle %d: %d frames rendered, path=%s", c + 1, frames, g.path == Path::INTEROP_D3D11 ? "interop" : "wgl-sdr");
+		logf("cycle %d: %d frames rendered, path=%s", c + 1, frames, g.path == Path::INTEROP_D3D11 ? "interop" : g.path == Path::CPU_COPY_D3D11 ? "cpu-copy" : "wgl-sdr");
 		shutdown_present();
 	}
 	shutdown_gl();

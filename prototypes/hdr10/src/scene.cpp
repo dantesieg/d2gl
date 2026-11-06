@@ -60,7 +60,7 @@ void main() {
 		float l = uv.x * u_hmax;
 		vec3 tint = band == 0 ? vec3(1) : band == 1 ? vec3(1,0,0) : band == 2 ? vec3(0,1,0) : vec3(0,0,1);
 		// tick marks every 1.0 (SDR white multiples)
-		float tick = fract(l) < 0.012 * u_hmax ? 0.0 : 1.0;
+		float tick = fract(l) < 2.0 * u_hmax / u_res.x ? 0.0 : 1.0; // 2 px tick
 		c = oetf3(tint * l) * tick;
 	}
 	// Row E: emissive + analytic bloom on dark background
@@ -199,8 +199,9 @@ void Scene::render(int w, int h, float time, float hmax, bool flip_y) {
 		p_glUniform1i(p_tex, 0);
 		p_glUniform2f(p_res, (float)w, (float)h);
 		p_glUniform1i(p_flip, flip_y ? 1 : 0);
-		// panel at bottom-left, 12 px margin, drawn 2x
-		float pw = (float)panel_w * 2.0f, ph = (float)panel_h * 2.0f;
+		// panel at bottom-left, 12 px margin; 2x on large targets
+		float sc = w >= 1800 ? 2.0f : 1.0f;
+		float pw = (float)panel_w * sc, ph = (float)panel_h * sc;
 		p_glUniform4f(p_rect, 12.0f, (float)h - ph - 12.0f, pw, ph);
 		glDrawArrays(GL_TRIANGLES, 0, 3);
 		glDisable(GL_BLEND);

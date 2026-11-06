@@ -1,0 +1,39 @@
+[PASS] PQ(0 nits)                                       got=0.000001 want=0.000000 tol=1.0e-06
+[PASS] PQ(0.1 nits)                                     got=0.062337 want=0.062300 tol=5.0e-04
+[PASS] PQ(100 nits)                                     got=0.508078 want=0.508100 tol=1.0e-04
+[PASS] PQ(203 nits)                                     got=0.580690 want=0.580600 tol=1.0e-04
+[PASS] PQ(1000 nits)                                    got=0.751829 want=0.751800 tol=1.0e-04
+[PASS] PQ(4000 nits)                                    got=0.902573 want=0.902600 tol=1.0e-04
+[PASS] PQ(10000 nits)                                   got=1.000000 want=1.000000 tol=1.0e-06
+[PASS] PQ 10-bit code @100 nits                         got=520.000000 want=520.000000 tol=0.0e+00
+[PASS] PQ decode(encode(x)) worst rel err               got=0.000019 want=0.000000 tol=2.0e-03
+[PASS] sRGB oetf(eotf(v)) worst abs err                 got=0.000000 want=0.000000 tol=1.0e-05
+[PASS] sRGB eotf(0.5)                                   got=0.214041 want=0.214041 tol=1.0e-05
+[PASS] sRGB eotf(0.04045) (linear segment)              got=0.003131 want=0.003131 tol=1.0e-06
+[PASS] sRGB eotf continuity at knee                     got=0.000000 want=0.000000 tol=1.0e-06
+[PASS] sRGB eotf(1.0)                                   got=1.000000 want=1.000000 tol=1.0e-06
+[PASS] gamma2.2 eotf(0.5)                               got=0.217638 want=0.217638 tol=1.0e-05
+[PASS] sRGB piecewise != gamma2.2 near black            got=0.001548 want=0.000183 tol=0.0e+00
+[PASS] M709->2020 row sum                               got=1.000000 want=1.000000 tol=1.0e-06
+[PASS] M709->2020 row sum                               got=1.000000 want=1.000000 tol=1.0e-06
+[PASS] M709->2020 row sum                               got=1.000000 want=1.000000 tol=1.0e-06
+[PASS] 709 white -> 2020 luminance                      got=1.000000 want=1.000000 tol=1.0e-06
+[PASS] 709 red luminance preserved (Y709=0.2126)        got=0.212639 want=0.212600 tol=2.0e-03
+[PASS] neutral greys stay neutral (PQ dev <0.02 code)   got=0.000000 want=0.000000 tol=2.0e-05
+[PASS] neutral preserved with expansion+EETF            got=0.000000 want=0.000000 tol=2.0e-05
+[PASS] SDR white -> PQ(203 nits)                        got=202.997420 want=203.000000 tol=5.0e-01
+[PASS] SDR white -> PQ(80 nits) @sdr_white=80           got=80.000246 want=80.000000 tol=2.0e-01
+[PASS] mid grey 0.5 -> 0.214*203 nits                   got=43.450077 want=43.450323 tol=1.0e-01
+[PASS] expansion: below knee untouched                  got=0.427018 want=0.427018 tol=1.0e-07
+[PASS] expansion: white boosted when on                 got=0.715060 want=0.580688 tol=0.0e+00
+[PASS] EETF(src peak) -> dst peak                       got=1000.043762 want=1000.000000 tol=1.0e+00
+[PASS] EETF identity below knee (100 nits)              got=99.999725 want=100.000000 tol=1.0e-02
+[PASS] EETF identity when dst>=src                      got=5000.000000 want=5000.000000 tol=1.0e-03
+[PASS] EETF monotonic 0..10000 -> 600                   got=600.001737 want=600.000000 tol=0.0e+00
+[PASS] EETF max output <= dst peak                      got=600.001737 want=600.000000 tol=1.0e+00
+[PASS] CLIP: 5x SDR white clipped to peak               got=1000.043762 want=1000.000000 tol=1.0e+00
+[PASS] premultiplied (0.25,a=.5) == straight 0.5        got=0.427018 want=0.427018 tol=1.0e-06
+[PASS] premultiplied a=0 -> black                       got=0.000001 want=0.000000 tol=1.0e-06
+[PASS] expansion keeps R:G ratio (no sat boost)         got=1.500000 want=1.500000 tol=1.0e-05
+
+37 passed, 0 failed

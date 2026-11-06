@@ -1,0 +1,2 @@
+config: hdr=1 sdr_white=203 peak=1000 src_peak=10000 highlight=0.00 knee=0.75 tonemap=BT.2390 EETF transfer=sRGB-piecewise alpha=straight split=1
+[HR-FAIL] hr=0x887A0004 DXGI_ERROR_UNSUPPORTED  <- CreateDXGIFactory1(__uuidof(IDXGIFactory2), (void**)&factory) (d3d_present.cpp:95)

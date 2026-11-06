@@ -1,0 +1,104 @@
+config: hdr=1 sdr_white=203 peak=1000 src_peak=10000 highlight=0.00 knee=0.75 tonemap=BT.2390 EETF transfer=sRGB-piecewise alpha=straight split=1
+wgl: extension string present (467 bytes)
+wgl: WGL_NV_DX_interop=0 WGL_NV_DX_interop2=0 | wglDXOpenDeviceNV=00000000 RegisterObject=00000000 LockObjects=00000000
+gl: core 4.5 context created
+wgl: extension string present (467 bytes)
+wgl: WGL_NV_DX_interop=0 WGL_NV_DX_interop2=0 | wglDXOpenDeviceNV=00000000 RegisterObject=00000000 LockObjects=00000000
+gl: vendor='Mesa/X.org' renderer='llvmpipe (LLVM 15.0.6, 256 bits)' version='4.5 (Core Profile) Mesa 22.3.6'
+gl: adapter id: no GL_EXT_memory_object_win32 -> vendor heuristic (EXT_memory_object=1 win32=0)
+glsl: scene OK
+glsl: panel OK
+glsl: sdr_blit OK
+cycle 1/10: init
+present: FALLBACK -> SDR WGL SwapBuffers: UNAVAILABLE: WGL_NV_DX_interop2 not advertised (HDR refused; no CPU copy path used)
+[hr] hr=0x00000000 S_OK  <- CreateDXGIFactory1(__uuidof(IDXGIFactory2), (void**)&g.pres.factory) (main.cpp:225)
+[hr] hr=0x00000000 S_OK  <- o->QueryInterface(__uuidof(IDXGIOutput6), (void**)&o6) (d3d_present.cpp:206)
+[hr] hr=0x00000000 S_OK  <- o6->GetDesc1(&d1) (d3d_present.cpp:208)
+displayconfig: GET_ADVANCED_COLOR_INFO failed 87
+display: \\.\DISPLAY1 on 'NVIDIA GeForce GTX 470' found=1 colorspace=RGB_FULL_G22_NONE_P709 (sRGB) bpc=0 lum min=0.0000 max=0.0 maxFF=0.0 | OS HDR enabled=0 | HDR-capable=unknown
+panel: PATH: GL > WGL SWAPBUFFERS (SDR) | SWAPCHAIN: WGL DEFAULT FB (RGBA8) | OS HDR ENABLED: NO | PRESENTING HDR10: NO 
+cycle 1: 3 frames rendered, path=wgl-sdr
+present: WGL SDR path shut down
+cycle 2/10: init
+present: FALLBACK -> SDR WGL SwapBuffers: UNAVAILABLE: WGL_NV_DX_interop2 not advertised (HDR refused; no CPU copy path used)
+[hr] hr=0x00000000 S_OK  <- CreateDXGIFactory1(__uuidof(IDXGIFactory2), (void**)&g.pres.factory) (main.cpp:225)
+[hr] hr=0x00000000 S_OK  <- o->QueryInterface(__uuidof(IDXGIOutput6), (void**)&o6) (d3d_present.cpp:206)
+[hr] hr=0x00000000 S_OK  <- o6->GetDesc1(&d1) (d3d_present.cpp:208)
+displayconfig: GET_ADVANCED_COLOR_INFO failed 87
+display: \\.\DISPLAY1 on 'NVIDIA GeForce GTX 470' found=1 colorspace=RGB_FULL_G22_NONE_P709 (sRGB) bpc=0 lum min=0.0000 max=0.0 maxFF=0.0 | OS HDR enabled=0 | HDR-capable=unknown
+cycle 2: 3 frames rendered, path=wgl-sdr
+present: WGL SDR path shut down
+cycle 3/10: init
+present: FALLBACK -> SDR WGL SwapBuffers: UNAVAILABLE: WGL_NV_DX_interop2 not advertised (HDR refused; no CPU copy path used)
+[hr] hr=0x00000000 S_OK  <- CreateDXGIFactory1(__uuidof(IDXGIFactory2), (void**)&g.pres.factory) (main.cpp:225)
+[hr] hr=0x00000000 S_OK  <- o->QueryInterface(__uuidof(IDXGIOutput6), (void**)&o6) (d3d_present.cpp:206)
+[hr] hr=0x00000000 S_OK  <- o6->GetDesc1(&d1) (d3d_present.cpp:208)
+displayconfig: GET_ADVANCED_COLOR_INFO failed 87
+display: \\.\DISPLAY1 on 'NVIDIA GeForce GTX 470' found=1 colorspace=RGB_FULL_G22_NONE_P709 (sRGB) bpc=0 lum min=0.0000 max=0.0 maxFF=0.0 | OS HDR enabled=0 | HDR-capable=unknown
+cycle 3: 3 frames rendered, path=wgl-sdr
+present: WGL SDR path shut down
+cycle 4/10: init
+present: FALLBACK -> SDR WGL SwapBuffers: UNAVAILABLE: WGL_NV_DX_interop2 not advertised (HDR refused; no CPU copy path used)
+[hr] hr=0x00000000 S_OK  <- CreateDXGIFactory1(__uuidof(IDXGIFactory2), (void**)&g.pres.factory) (main.cpp:225)
+[hr] hr=0x00000000 S_OK  <- o->QueryInterface(__uuidof(IDXGIOutput6), (void**)&o6) (d3d_present.cpp:206)
+[hr] hr=0x00000000 S_OK  <- o6->GetDesc1(&d1) (d3d_present.cpp:208)
+displayconfig: GET_ADVANCED_COLOR_INFO failed 87
+display: \\.\DISPLAY1 on 'NVIDIA GeForce GTX 470' found=1 colorspace=RGB_FULL_G22_NONE_P709 (sRGB) bpc=0 lum min=0.0000 max=0.0 maxFF=0.0 | OS HDR enabled=0 | HDR-capable=unknown
+cycle 4: 3 frames rendered, path=wgl-sdr
+present: WGL SDR path shut down
+cycle 5/10: init
+present: FALLBACK -> SDR WGL SwapBuffers: UNAVAILABLE: WGL_NV_DX_interop2 not advertised (HDR refused; no CPU copy path used)
+[hr] hr=0x00000000 S_OK  <- CreateDXGIFactory1(__uuidof(IDXGIFactory2), (void**)&g.pres.factory) (main.cpp:225)
+[hr] hr=0x00000000 S_OK  <- o->QueryInterface(__uuidof(IDXGIOutput6), (void**)&o6) (d3d_present.cpp:206)
+[hr] hr=0x00000000 S_OK  <- o6->GetDesc1(&d1) (d3d_present.cpp:208)
+displayconfig: GET_ADVANCED_COLOR_INFO failed 87
+display: \\.\DISPLAY1 on 'NVIDIA GeForce GTX 470' found=1 colorspace=RGB_FULL_G22_NONE_P709 (sRGB) bpc=0 lum min=0.0000 max=0.0 maxFF=0.0 | OS HDR enabled=0 | HDR-capable=unknown
+cycle 5: 3 frames rendered, path=wgl-sdr
+present: WGL SDR path shut down
+cycle 6/10: init
+present: FALLBACK -> SDR WGL SwapBuffers: UNAVAILABLE: WGL_NV_DX_interop2 not advertised (HDR refused; no CPU copy path used)
+[hr] hr=0x00000000 S_OK  <- CreateDXGIFactory1(__uuidof(IDXGIFactory2), (void**)&g.pres.factory) (main.cpp:225)
+[hr] hr=0x00000000 S_OK  <- o->QueryInterface(__uuidof(IDXGIOutput6), (void**)&o6) (d3d_present.cpp:206)
+[hr] hr=0x00000000 S_OK  <- o6->GetDesc1(&d1) (d3d_present.cpp:208)
+displayconfig: GET_ADVANCED_COLOR_INFO failed 87
+display: \\.\DISPLAY1 on 'NVIDIA GeForce GTX 470' found=1 colorspace=RGB_FULL_G22_NONE_P709 (sRGB) bpc=0 lum min=0.0000 max=0.0 maxFF=0.0 | OS HDR enabled=0 | HDR-capable=unknown
+cycle 6: 3 frames rendered, path=wgl-sdr
+present: WGL SDR path shut down
+cycle 7/10: init
+present: FALLBACK -> SDR WGL SwapBuffers: UNAVAILABLE: WGL_NV_DX_interop2 not advertised (HDR refused; no CPU copy path used)
+[hr] hr=0x00000000 S_OK  <- CreateDXGIFactory1(__uuidof(IDXGIFactory2), (void**)&g.pres.factory) (main.cpp:225)
+[hr] hr=0x00000000 S_OK  <- o->QueryInterface(__uuidof(IDXGIOutput6), (void**)&o6) (d3d_present.cpp:206)
+[hr] hr=0x00000000 S_OK  <- o6->GetDesc1(&d1) (d3d_present.cpp:208)
+displayconfig: GET_ADVANCED_COLOR_INFO failed 87
+display: \\.\DISPLAY1 on 'NVIDIA GeForce GTX 470' found=1 colorspace=RGB_FULL_G22_NONE_P709 (sRGB) bpc=0 lum min=0.0000 max=0.0 maxFF=0.0 | OS HDR enabled=0 | HDR-capable=unknown
+cycle 7: 3 frames rendered, path=wgl-sdr
+present: WGL SDR path shut down
+cycle 8/10: init
+present: FALLBACK -> SDR WGL SwapBuffers: UNAVAILABLE: WGL_NV_DX_interop2 not advertised (HDR refused; no CPU copy path used)
+[hr] hr=0x00000000 S_OK  <- CreateDXGIFactory1(__uuidof(IDXGIFactory2), (void**)&g.pres.factory) (main.cpp:225)
+[hr] hr=0x00000000 S_OK  <- o->QueryInterface(__uuidof(IDXGIOutput6), (void**)&o6) (d3d_present.cpp:206)
+[hr] hr=0x00000000 S_OK  <- o6->GetDesc1(&d1) (d3d_present.cpp:208)
+displayconfig: GET_ADVANCED_COLOR_INFO failed 87
+display: \\.\DISPLAY1 on 'NVIDIA GeForce GTX 470' found=1 colorspace=RGB_FULL_G22_NONE_P709 (sRGB) bpc=0 lum min=0.0000 max=0.0 maxFF=0.0 | OS HDR enabled=0 | HDR-capable=unknown
+cycle 8: 3 frames rendered, path=wgl-sdr
+present: WGL SDR path shut down
+cycle 9/10: init
+present: FALLBACK -> SDR WGL SwapBuffers: UNAVAILABLE: WGL_NV_DX_interop2 not advertised (HDR refused; no CPU copy path used)
+[hr] hr=0x00000000 S_OK  <- CreateDXGIFactory1(__uuidof(IDXGIFactory2), (void**)&g.pres.factory) (main.cpp:225)
+[hr] hr=0x00000000 S_OK  <- o->QueryInterface(__uuidof(IDXGIOutput6), (void**)&o6) (d3d_present.cpp:206)
+[hr] hr=0x00000000 S_OK  <- o6->GetDesc1(&d1) (d3d_present.cpp:208)
+displayconfig: GET_ADVANCED_COLOR_INFO failed 87
+display: \\.\DISPLAY1 on 'NVIDIA GeForce GTX 470' found=1 colorspace=RGB_FULL_G22_NONE_P709 (sRGB) bpc=0 lum min=0.0000 max=0.0 maxFF=0.0 | OS HDR enabled=0 | HDR-capable=unknown
+cycle 9: 3 frames rendered, path=wgl-sdr
+present: WGL SDR path shut down
+cycle 10/10: init
+present: FALLBACK -> SDR WGL SwapBuffers: UNAVAILABLE: WGL_NV_DX_interop2 not advertised (HDR refused; no CPU copy path used)
+[hr] hr=0x00000000 S_OK  <- CreateDXGIFactory1(__uuidof(IDXGIFactory2), (void**)&g.pres.factory) (main.cpp:225)
+[hr] hr=0x00000000 S_OK  <- o->QueryInterface(__uuidof(IDXGIOutput6), (void**)&o6) (d3d_present.cpp:206)
+[hr] hr=0x00000000 S_OK  <- o6->GetDesc1(&d1) (d3d_present.cpp:208)
+displayconfig: GET_ADVANCED_COLOR_INFO failed 87
+display: \\.\DISPLAY1 on 'NVIDIA GeForce GTX 470' found=1 colorspace=RGB_FULL_G22_NONE_P709 (sRGB) bpc=0 lum min=0.0000 max=0.0 maxFF=0.0 | OS HDR enabled=0 | HDR-capable=unknown
+cycle 10: 3 frames rendered, path=wgl-sdr
+present: WGL SDR path shut down
+event: WM_ACTIVATEAPP 0
+exit rc=0

@@ -53,7 +53,12 @@ struct Presenter {
 	bool draw_and_present(const hdr::Params& p, float split_x, bool interval1);
 	void destroy();
 	static bool compile_shaders_selftest(); // D3DCompile only, no device needed
+	// Runs the real HLSL encode (HDR10 mode) on the D3D device into an offscreen R10G10B10A2 target and compares
+	// every pixel with color_math.h::encode_pixel. Needs a device but no swapchain/HDR display. Returns #mismatches.
+	int encode_selftest();
 private:
+	void encode_pass(ID3D11RenderTargetView* target, ID3D11ShaderResourceView* input, const hdr::Params& p, int out_mode,
+	                 float split_x, int width, int height);
 	bool create_shaders();
 	bool apply_format(bool want_hdr);
 	bool create_rtv();

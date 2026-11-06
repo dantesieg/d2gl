@@ -1,0 +1,13 @@
+=== test_color: rc=0 37 passed, 0 failed
+=== shader_selftest: rc=0
+=== encode_selftest_nox: rc=5
+=== encode_selftest: rc=0
+=== default: rc=0
+=== cpu_copy: rc=0
+=== cpu_copy_sdr: rc=0
+=== resize: rc=0
+=== resize_wgl: rc=0
+=== loss: rc=0
+=== cycles: rc=0
+=== cycles_wgl: rc=0
+=== no_interop_flag: rc=0

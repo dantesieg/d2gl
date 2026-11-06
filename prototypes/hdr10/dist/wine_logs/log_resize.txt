@@ -1,0 +1,74 @@
+config: hdr=1 sdr_white=203 peak=1000 src_peak=10000 highlight=0.00 knee=0.75 tonemap=BT.2390 EETF transfer=sRGB-piecewise alpha=straight split=1
+wgl: extension string present (467 bytes)
+wgl: WGL_NV_DX_interop=0 WGL_NV_DX_interop2=0 | wglDXOpenDeviceNV=00000000 RegisterObject=00000000 LockObjects=00000000
+gl: core 4.5 context created
+wgl: extension string present (467 bytes)
+wgl: WGL_NV_DX_interop=0 WGL_NV_DX_interop2=0 | wglDXOpenDeviceNV=00000000 RegisterObject=00000000 LockObjects=00000000
+gl: vendor='Mesa/X.org' renderer='llvmpipe (LLVM 15.0.6, 256 bits)' version='4.5 (Core Profile) Mesa 22.3.6'
+gl: adapter id: no GL_EXT_memory_object_win32 -> vendor heuristic (EXT_memory_object=1 win32=0)
+glsl: scene OK
+glsl: panel OK
+glsl: sdr_blit OK
+[hr] hr=0x00000000 S_OK  <- CreateDXGIFactory1(__uuidof(IDXGIFactory2), (void**)&factory) (d3d_present.cpp:95)
+dxgi: adapter 0 'NVIDIA GeForce GTX 470' vendor=0x10DE LUID=00000000:000003EE flags=0x0
+[hr] hr=0x00000000 S_OK  <- factory->EnumAdapters1(0, &pick) (d3d_present.cpp:128)
+dxgi: render adapter 'NVIDIA GeForce GTX 470' selected by default adapter (no LUID, no vendor match)
+[hr] hr=0x00000000 S_OK  <- D3D11CreateDevice(adapter, D3D_DRIVER_TYPE_UNKNOWN, nullptr, flags, fls, 4, D3D11_SDK_VERSION, &dev, &got, &ctx) (d3d_present.cpp:138)
+d3d11: device created, feature level 0xB100
+d3d: d3dcompiler_47.dll loaded, D3DCompile found
+[hr] hr=0x00000000 S_OK  <- vs_main (d3d_present.cpp:47)
+[hr] hr=0x00000000 S_OK  <- ps_main (d3d_present.cpp:47)
+[hr] hr=0x00000000 S_OK  <- dev->CreateVertexShader(v->GetBufferPointer(), v->GetBufferSize(), nullptr, &vs) (d3d_present.cpp:75)
+[hr] hr=0x00000000 S_OK  <- dev->CreatePixelShader(p->GetBufferPointer(), p->GetBufferSize(), nullptr, &ps) (d3d_present.cpp:76)
+[hr] hr=0x00000000 S_OK  <- dev->CreateBuffer(&bd, nullptr, &cb) (d3d_present.cpp:85)
+[hr] hr=0x00000000 S_OK  <- dev->CreateSamplerState(&sd, &smp) (d3d_present.cpp:90)
+[hr] hr=0x00000000 S_OK  <- o->QueryInterface(__uuidof(IDXGIOutput6), (void**)&o6) (d3d_present.cpp:206)
+[hr] hr=0x00000000 S_OK  <- o6->GetDesc1(&d1) (d3d_present.cpp:208)
+displayconfig: GET_ADVANCED_COLOR_INFO failed 87
+display: \\.\DISPLAY1 on 'NVIDIA GeForce GTX 470' found=1 colorspace=RGB_FULL_G22_NONE_P709 (sRGB) bpc=0 lum min=0.0000 max=0.0 maxFF=0.0 | OS HDR enabled=0 | HDR-capable=unknown
+[hr] hr=0x00000000 S_OK  <- factory->CreateSwapChainForHwnd(dev, hwnd, &d, nullptr, nullptr, &sc) (d3d_present.cpp:328)
+[hr] hr=0x00000000 S_OK  <- factory->MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER) (d3d_present.cpp:335)
+[HR-FAIL] hr=0x80004002 E_NOINTERFACE  <- sc->QueryInterface(__uuidof(IDXGISwapChain3), (void**)&sc3) (d3d_present.cpp:336)
+[HR-FAIL] hr=0x80004002 E_NOINTERFACE  <- sc->QueryInterface(__uuidof(IDXGISwapChain4), (void**)&sc4) (d3d_present.cpp:337)
+dxgi: swapchain format=R8G8B8A8_UNORM colorspace=RGB_FULL_G22_NONE_P709 (sRGB) HDR10 presenting=0 metadata=0 | refusal: OS HDR off / output not HDR10
+[hr] hr=0x00000000 S_OK  <- sc->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&bb) (d3d_present.cpp:248)
+[hr] hr=0x00000000 S_OK  <- dev->CreateRenderTargetView(bb, nullptr, &rtv) (d3d_present.cpp:249)
+[hr] hr=0x00000000 S_OK  <- dev->CreateTexture2D(&td, nullptr, &shared_tex) (d3d_present.cpp:357)
+[hr] hr=0x00000000 S_OK  <- dev->CreateShaderResourceView(shared_tex, nullptr, &srv) (d3d_present.cpp:358)
+present: FALLBACK -> CPU READBACK COPY (NOT ZERO-COPY): UNAVAILABLE: WGL_NV_DX_interop2 not advertised
+panel: PATH: GL > CPU READBACK COPY > D3D11 > DXGI FLIP | SWAPCHAIN: R8G8B8A8_UNORM FLIP | OS HDR ENABLED: NO | PRESENTING HDR10: NO OS HDR off / output not HDR10
+test: SetWindowPos 800x600
+resize: 792x573
+[hr] hr=0x00000000 S_OK  <- sc->ResizeBuffers(0, (UINT)w, (UINT)h, DXGI_FORMAT_UNKNOWN, 0) (d3d_present.cpp:375)
+[hr] hr=0x00000000 S_OK  <- sc->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&bb) (d3d_present.cpp:248)
+[hr] hr=0x00000000 S_OK  <- dev->CreateRenderTargetView(bb, nullptr, &rtv) (d3d_present.cpp:249)
+[hr] hr=0x00000000 S_OK  <- dev->CreateTexture2D(&td, nullptr, &shared_tex) (d3d_present.cpp:357)
+[hr] hr=0x00000000 S_OK  <- dev->CreateShaderResourceView(shared_tex, nullptr, &srv) (d3d_present.cpp:358)
+window: borderless fullscreen ON
+resize: 1280x800
+[hr] hr=0x00000000 S_OK  <- sc->ResizeBuffers(0, (UINT)w, (UINT)h, DXGI_FORMAT_UNKNOWN, 0) (d3d_present.cpp:375)
+[hr] hr=0x00000000 S_OK  <- sc->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&bb) (d3d_present.cpp:248)
+[hr] hr=0x00000000 S_OK  <- dev->CreateRenderTargetView(bb, nullptr, &rtv) (d3d_present.cpp:249)
+[hr] hr=0x00000000 S_OK  <- dev->CreateTexture2D(&td, nullptr, &shared_tex) (d3d_present.cpp:357)
+[hr] hr=0x00000000 S_OK  <- dev->CreateShaderResourceView(shared_tex, nullptr, &srv) (d3d_present.cpp:358)
+[hr] hr=0x00000000 S_OK  <- o->QueryInterface(__uuidof(IDXGIOutput6), (void**)&o6) (d3d_present.cpp:206)
+[hr] hr=0x00000000 S_OK  <- o6->GetDesc1(&d1) (d3d_present.cpp:208)
+displayconfig: GET_ADVANCED_COLOR_INFO failed 87
+display: \\.\DISPLAY1 on 'NVIDIA GeForce GTX 470' found=1 colorspace=RGB_FULL_G22_NONE_P709 (sRGB) bpc=0 lum min=0.0000 max=0.0 maxFF=0.0 | OS HDR enabled=0 | HDR-capable=unknown
+dxgi: swapchain format=R8G8B8A8_UNORM colorspace=RGB_FULL_G22_NONE_P709 (sRGB) HDR10 presenting=0 metadata=0 | refusal: OS HDR off / output not HDR10
+window: borderless fullscreen OFF
+resize: 792x573
+[hr] hr=0x00000000 S_OK  <- sc->ResizeBuffers(0, (UINT)w, (UINT)h, DXGI_FORMAT_UNKNOWN, 0) (d3d_present.cpp:375)
+[hr] hr=0x00000000 S_OK  <- sc->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&bb) (d3d_present.cpp:248)
+[hr] hr=0x00000000 S_OK  <- dev->CreateRenderTargetView(bb, nullptr, &rtv) (d3d_present.cpp:249)
+[hr] hr=0x00000000 S_OK  <- dev->CreateTexture2D(&td, nullptr, &shared_tex) (d3d_present.cpp:357)
+[hr] hr=0x00000000 S_OK  <- dev->CreateShaderResourceView(shared_tex, nullptr, &srv) (d3d_present.cpp:358)
+[hr] hr=0x00000000 S_OK  <- o->QueryInterface(__uuidof(IDXGIOutput6), (void**)&o6) (d3d_present.cpp:206)
+[hr] hr=0x00000000 S_OK  <- o6->GetDesc1(&d1) (d3d_present.cpp:208)
+displayconfig: GET_ADVANCED_COLOR_INFO failed 87
+display: \\.\DISPLAY1 on 'NVIDIA GeForce GTX 470' found=1 colorspace=RGB_FULL_G22_NONE_P709 (sRGB) bpc=0 lum min=0.0000 max=0.0 maxFF=0.0 | OS HDR enabled=0 | HDR-capable=unknown
+dxgi: swapchain format=R8G8B8A8_UNORM colorspace=RGB_FULL_G22_NONE_P709 (sRGB) HDR10 presenting=0 metadata=0 | refusal: OS HDR off / output not HDR10
+cycle 1: 45 frames rendered, path=cpu-copy
+present: CPU-copy/D3D11 path shut down
+event: WM_ACTIVATEAPP 0
+exit rc=0

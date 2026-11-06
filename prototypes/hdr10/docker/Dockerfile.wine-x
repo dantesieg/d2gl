@@ -1,0 +1,8 @@
+# d2m-wine-x: d2m-wine + Xvfb + Mesa (llvmpipe, i386 and amd64) so the GUI prototype can create a window/GL context.
+# Build: docker build --platform linux/amd64 -t d2m-wine-x -f docker/Dockerfile.wine-x docker
+# d2m-wine itself is NOT modified.
+FROM d2m-wine
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      xvfb xauth libgl1-mesa-dri libgl1-mesa-dri:i386 libgl1:i386 libglx-mesa0:i386 mesa-utils \
+    && rm -rf /var/lib/apt/lists/*
+ENV LIBGL_ALWAYS_SOFTWARE=1
