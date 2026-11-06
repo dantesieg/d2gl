@@ -32,6 +32,7 @@
 #include <imgui/imgui.h>
 #include <imgui/imgui_impl_opengl3.h>
 #include <imgui/imgui_impl_win32.h>
+#include <dwmapi.h>
 
 namespace d2gl {
 
@@ -438,6 +439,32 @@ Context::~Context()
 	wglDeleteContext(m_context);
 }
 
+// P3 pace_to_refresh: exact refresh rate. DwmGetCompositionTimingInfo gives the compositor's rational
+// rate (loaded dynamically, may be missing under Wine/gamescope); EnumDisplaySettings gives whole Hz.
+static double displayRefreshHz(HWND hwnd)
+{
+	if (HMODULE dwm = LoadLibraryA("dwmapi.dll")) {
+		typedef HRESULT(WINAPI * Fn)(HWND, DWM_TIMING_INFO*);
+		double hz = 0.0;
+		if (auto fn = (Fn)GetProcAddress(dwm, "DwmGetCompositionTimingInfo")) {
+			DWM_TIMING_INFO t = {};
+			t.cbSize = sizeof(t);
+			if (SUCCEEDED(fn(NULL, &t)) && t.rateRefresh.uiDenominator && t.rateRefresh.uiNumerator)
+				hz = (double)t.rateRefresh.uiNumerator / t.rateRefresh.uiDenominator;
+		}
+		FreeLibrary(dwm);
+		if (hz >= 23.0 && hz <= 500.0)
+			return hz;
+	}
+	MONITORINFOEXA mi = {};
+	mi.cbSize = sizeof(mi);
+	DEVMODEA dm = {};
+	dm.dmSize = sizeof(dm);
+	if (GetMonitorInfoA(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), &mi) && EnumDisplaySettingsA(mi.szDevice, ENUM_CURRENT_SETTINGS, &dm) && dm.dmDisplayFrequency > 1)
+		return (double)dm.dmDisplayFrequency;
+	return 0.0;
+}
+
 void Context::renderThread(void* context)
 {
 	Context* ctx = reinterpret_cast<Context*>(context);
@@ -451,6 +478,10 @@ void Context::renderThread(void* context)
 	uint32_t limiter_generation = 0;
 	GLsync pending_sync = nullptr; // gpu_sync = 1 only
 	const bool early_release = App.perf.early_release; // fixed for the thread's lifetime
+	const bool hdr_single_fence = App.perf.hdr_single_fence;
+	const double refresh_hz = App.perf.pace_to_refresh ? displayRefreshHz(App.hwnd) : 0.0;
+	if (App.perf.pace_to_refresh)
+		trace_log("pace_to_refresh: display refresh %.3f Hz", refresh_hz);
 
 	// R0: everything below is inert unless perf_log = 1 (one predictable branch per point).
 	const bool perf_on = ctx->m_perf;
@@ -470,6 +501,10 @@ void Context::renderThread(void* context)
 
 	while (ctx->m_rendering.load(std::memory_order_acquire)) {
 		const int64_t t_wait = perf_on ? ctx->qpcNow() : 0;
+		// P3 hdr_latency_waitable: wait for DXGI before taking a frame, so the frame rendered is the
+		// newest one and Present() does not block on the queue. Counted in render_wait_ms.
+		if (ctx->m_hdr)
+			ctx->m_hdr->waitForFrame();
 		WaitForSingleObject(ctx->m_semaphore_cpu[frame_index], INFINITE);
 		// Acquire: WaitForSingleObject is a full barrier, everything the game thread wrote into this
 		// slot (commands, vertices, m_settings, m_game_timing) before ReleaseSemaphore is visible now.
@@ -775,7 +810,12 @@ void Context::renderThread(void* context)
 		if (early_release)
 			ReleaseSemaphore(ctx->m_semaphore_gpu[frame_index], 1, NULL);
 
-		if (ctx->m_gpu_sync == 0) {
+		if (hdr_single_fence && ctx->m_gpu_sync == 0 && ctx->m_hdr && ctx->m_hdr->fencesGlInPresent()) {
+			// P3 hdr_single_fence: Presenter::present() fences all GL work (this frame + menu) before
+			// D3D11 samples it, and before this thread returns to upload the next frame, so the
+			// slot's GPU buffers stay protected. Just flush here so the GPU starts now.
+			glFlush();
+		} else if (ctx->m_gpu_sync == 0) {
 			// legacy: block until this frame's GPU work completes
 			GLsync sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 			glFlush();
@@ -821,7 +861,14 @@ void Context::renderThread(void* context)
 			LARGE_INTEGER now;
 			QueryPerformanceCounter(&now);
 			auto& lim = ctx->m_limiter;
-			const int64_t pace_period = st.limiter.pace_period;
+			int64_t pace_period = st.limiter.pace_period;
+			if (refresh_hz > 0.0) {
+				// P3 pace_to_refresh: a limit of e.g. 90 against a 90.03 Hz panel beats once every
+				// few seconds (one repeated or dropped frame); pace at the panel's period instead.
+				const double target_hz = ctx->m_frame.frequency * 1000.0 / (double)pace_period;
+				if (fabs(target_hz - refresh_hz) <= refresh_hz * 0.03)
+					pace_period = (int64_t)(ctx->m_frame.frequency * 1000.0 / refresh_hz);
+			}
 			if (lim.pace_next == 0 || now.QuadPart - lim.pace_next > pace_period)
 				lim.pace_next = now.QuadPart + pace_period;
 			else {

@@ -57,6 +57,9 @@ struct D2GLApp {
 		uint32_t summary_every = 600;   // perf_summary_every: frames per JSON summary line
 		uint32_t gpu_sync = 0;          // gpu_sync: 0 legacy (wait this frame's fence), 1 deferred (UNMEASURED)
 		bool early_release = false;     // early_slot_release: R1, free the slot before the GPU fence wait
+		bool hdr_single_fence = false;  // hdr_single_fence: P3, shared-texture HDR: present()'s fence replaces the render-thread fence
+		bool hdr_waitable = false;      // hdr_latency_waitable: P3, DXGI frame-latency waitable swapchain, max latency 1
+		bool pace_to_refresh = false;   // pace_to_refresh: P3, snap the fps limiter period to the display refresh when within 3%
 	} perf;
 	bool d2fps_mod = false;
 

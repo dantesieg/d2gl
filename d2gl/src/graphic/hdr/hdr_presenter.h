@@ -47,6 +47,10 @@ public:
 	bool beginFrame(int width, int height);
 	// After the final composite and the menu. false = unrecoverable, caller must fall back to WGL.
 	bool present(bool vsync);
+	// P3 hdr_latency_waitable: block (bounded) until DXGI can accept another frame. No-op without the flag.
+	void waitForFrame();
+	// P3 hdr_single_fence: present() itself waits for all GL work (shared-texture transport).
+	bool fencesGlInPresent() const { return m_transport == Transport::SharedTex; }
 
 	Transport transport() const { return m_transport; }
 	const char* transportName() const;
@@ -81,6 +85,8 @@ private:
 	IDXGISwapChain1* m_sc = nullptr;
 	IDXGISwapChain3* m_sc3 = nullptr;
 	IDXGISwapChain4* m_sc4 = nullptr;
+	UINT m_sc_flags = 0;               // creation flags; ResizeBuffers must repeat them
+	HANDLE m_latency_wait = nullptr;   // frame-latency waitable object (hdr_latency_waitable)
 	ID3D11RenderTargetView* m_rtv = nullptr;
 	ID3D11VertexShader* m_vs = nullptr;
 	ID3D11PixelShader* m_ps = nullptr;

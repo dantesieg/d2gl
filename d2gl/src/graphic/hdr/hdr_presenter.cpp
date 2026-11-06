@@ -192,6 +192,10 @@ void Presenter::destroyD3D()
 		m_ctx->Flush();
 	}
 	safeRelease(m_rtv);
+	if (m_latency_wait)
+		CloseHandle(m_latency_wait);
+	m_latency_wait = nullptr;
+	m_sc_flags = 0;
 	safeRelease(m_sc4);
 	safeRelease(m_sc3);
 	safeRelease(m_sc);
@@ -315,13 +319,28 @@ bool Presenter::createSwapchain()
 	d.BufferCount = 2;
 	d.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
 	d.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
+	d.Flags = App.perf.hdr_waitable ? DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT : 0;
 	HRESULT hr = HR(m_factory->CreateSwapChainForHwnd(m_dev, m_hwnd, &d, nullptr, nullptr, &m_sc));
+	if (FAILED(hr) && d.Flags) {
+		d.Flags = 0; // waitable object unsupported: plain swapchain, as before
+		hr = HR(m_factory->CreateSwapChainForHwnd(m_dev, m_hwnd, &d, nullptr, nullptr, &m_sc));
+	}
 	if (hr == DXGI_ERROR_INVALID_CALL) {
 		d.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
 		hr = HR(m_factory->CreateSwapChainForHwnd(m_dev, m_hwnd, &d, nullptr, nullptr, &m_sc));
 	}
 	if (FAILED(hr))
 		return false;
+	m_sc_flags = d.Flags;
+	if (m_sc_flags) {
+		IDXGISwapChain2* sc2 = nullptr;
+		if (SUCCEEDED(m_sc->QueryInterface(__uuidof(IDXGISwapChain2), (void**)&sc2))) {
+			HR(sc2->SetMaximumFrameLatency(1));
+			m_latency_wait = sc2->GetFrameLatencyWaitableObject();
+			sc2->Release();
+		}
+		trace_log("HDR: frame-latency waitable swapchain, max latency 1, handle %s", m_latency_wait ? "ok" : "MISSING");
+	}
 	m_format = d.Format;
 	HR(m_factory->MakeWindowAssociation(m_hwnd, DXGI_MWA_NO_ALT_ENTER | DXGI_MWA_NO_WINDOW_CHANGES));
 	if (FAILED(m_sc->QueryInterface(__uuidof(IDXGISwapChain3), (void**)&m_sc3)))
@@ -353,7 +372,7 @@ bool Presenter::applyFormat(bool want_hdr)
 		safeRelease(m_rtv);
 		m_ctx->OMSetRenderTargets(0, nullptr, nullptr);
 		m_ctx->Flush();
-		if (FAILED(HR(m_sc->ResizeBuffers(0, (UINT)m_w, (UINT)m_h, fmt, 0))))
+		if (FAILED(HR(m_sc->ResizeBuffers(0, (UINT)m_w, (UINT)m_h, fmt, m_sc_flags))))
 			return false;
 		m_format = fmt;
 	}
@@ -366,7 +385,7 @@ bool Presenter::applyFormat(bool want_hdr)
 		else {
 			strcpy_s(m_refusal, "swapchain rejects G2084 (KDE desktop / no HDR WSI?)");
 			safeRelease(m_rtv);
-			if (FAILED(HR(m_sc->ResizeBuffers(0, (UINT)m_w, (UINT)m_h, DXGI_FORMAT_R8G8B8A8_UNORM, 0))))
+			if (FAILED(HR(m_sc->ResizeBuffers(0, (UINT)m_w, (UINT)m_h, DXGI_FORMAT_R8G8B8A8_UNORM, m_sc_flags))))
 				return false;
 			m_format = DXGI_FORMAT_R8G8B8A8_UNORM;
 		}
@@ -648,7 +667,7 @@ bool Presenter::beginFrame(int width, int height)
 		safeRelease(m_rtv);
 		m_ctx->ClearState();
 		m_ctx->Flush();
-		if ((FAILED(HR(m_sc->ResizeBuffers(0, (UINT)m_w, (UINT)m_h, DXGI_FORMAT_UNKNOWN, 0))) || !createRtv() || !createTarget()) && !recover("resize"))
+		if ((FAILED(HR(m_sc->ResizeBuffers(0, (UINT)m_w, (UINT)m_h, DXGI_FORMAT_UNKNOWN, m_sc_flags))) || !createRtv() || !createTarget()) && !recover("resize"))
 			return false;
 	}
 	if ((m_frame++ % 120) == 0 && m_factory && !m_factory->IsCurrent())
@@ -679,6 +698,13 @@ bool Presenter::beginFrame(int width, int height)
 	}
 	FrameBuffer::setDefault(m_fbo);
 	return true;
+}
+
+void Presenter::waitForFrame()
+{
+	// Bounded: a compositor that never signals (or a lost swapchain) must not hang the render thread.
+	if (m_latency_wait)
+		WaitForSingleObjectEx(m_latency_wait, 100, TRUE);
 }
 
 bool Presenter::present(bool vsync)

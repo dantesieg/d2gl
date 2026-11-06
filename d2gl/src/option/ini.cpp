@@ -378,6 +378,15 @@ void saveIni()
 		"; (the slot is fully copied into GL by then). Lets the game thread record the next frame while\n"
 		"; the render thread waits on the GPU. Not measured yet.\n"
 		"early_slot_release=%s\n\n"
+		"; P3, HDR shared-texture path only: skip the render thread's GPU fence wait; the fence in the HDR\n"
+		"; present (which also covers the menu) is the only wait. Not measured yet.\n"
+		"hdr_single_fence=%s\n"
+		"; P3, HDR path only: DXGI frame-latency waitable swapchain with max frame latency 1; the render thread\n"
+		"; waits on it before taking the next frame instead of blocking inside Present. Not measured yet.\n"
+		"hdr_latency_waitable=%s\n"
+		"; P3, vsync off only: if the fps limit is within 3%% of the display refresh, pace at the exact refresh\n"
+		"; period (DwmGetCompositionTimingInfo, else EnumDisplaySettings). Not measured yet.\n"
+		"pace_to_refresh=%s\n\n"
 		"; Comma-delimited DLLs to load (early: right after attached).\n"
 		"load_dlls_early=%s\n\n"
 		"; Comma-delimited DLLs to load (late: right after window created).\n"
@@ -393,6 +402,9 @@ void saveIni()
 		App.perf.summary_every,
 		App.perf.gpu_sync,
 		boolString(App.perf.early_release),
+		boolString(App.perf.hdr_single_fence),
+		boolString(App.perf.hdr_waitable),
+		boolString(App.perf.pace_to_refresh),
 		App.dlls_early.c_str(),
 		App.dlls_late.c_str());
 	out_file << buf;
@@ -524,6 +536,9 @@ void loadIni()
 		App.perf.summary_every = getInt("Other", "perf_summary_every", App.perf.summary_every, 60, 100000);
 		App.perf.gpu_sync = getInt("Other", "gpu_sync", App.perf.gpu_sync, 0, 1);
 		App.perf.early_release = getBool("Other", "early_slot_release", App.perf.early_release);
+		App.perf.hdr_single_fence = getBool("Other", "hdr_single_fence", App.perf.hdr_single_fence);
+		App.perf.hdr_waitable = getBool("Other", "hdr_latency_waitable", App.perf.hdr_waitable);
+		App.perf.pace_to_refresh = getBool("Other", "pace_to_refresh", App.perf.pace_to_refresh);
 
 		App.dlls_early = getString("Other", "load_dlls_early", App.dlls_early);
 		App.dlls_late = getString("Other", "load_dlls_late", App.dlls_late);
