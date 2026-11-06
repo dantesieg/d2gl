@@ -314,6 +314,47 @@ void saveIni()
 		boolString(App.show_fps));
 	out_file << buf;
 
+	static const char* hdr_setting =
+		"[HDR]\n\n"
+		"; HDR10 output through D3D11/DXGI (Windows HDR on, or Steam Deck OLED / gamescope Game Mode with\n"
+		"; Proton; D2GL sets DXVK_HDR=1 itself). Enabling or disabling needs a game restart; when the\n"
+		"; display is not in HDR mode the same path presents SDR. The SDR look is the reference: SDR white\n"
+		"; maps to sdr_white nits.\n"
+		"hdr=%s\n"
+		"; Paper/UI white in nits (80-500).\n"
+		"sdr_white=%.1f\n"
+		"; Peak brightness in nits (400-2000); 0 = auto (display MaxLuminance).\n"
+		"peak_nits=%.1f\n"
+		"; Overall brightness in stops (-2.0 to 2.0).\n"
+		"brightness=%.3f\n"
+		"; Black level: + lifts, - crushes (-0.05 to 0.05).\n"
+		"black_level=%.3f\n"
+		"; Contrast around mid-grey (0.8-1.2).\n"
+		"contrast=%.3f\n"
+		"; Saturation, luminance preserving (0.5-1.5).\n"
+		"saturation=%.3f\n"
+		"; Highlight expansion above the knee (0 = off, up to 1) and knee (0.5-0.95, linear SDR).\n"
+		"highlight=%.3f\n"
+		"highlight_knee=%.3f\n"
+		"; Tonemap toward peak: 0 = clip, 1 = BT.2390 roll-off.\n"
+		"tonemap=%d\n"
+		"; SDR decoding curve: 0 = gamma 2.2, 1 = gamma 2.4, 2 = sRGB piecewise (lifts blacks).\n"
+		"eotf=%d\n\n\n";
+
+	sprintf_s(buf, hdr_setting,
+		boolString(App.hdr.enabled),
+		App.hdr.sdr_white.value,
+		App.hdr.peak_auto ? 0.0f : App.hdr.peak.value,
+		App.hdr.brightness.value,
+		App.hdr.black_level.value,
+		App.hdr.contrast.value,
+		App.hdr.saturation.value,
+		App.hdr.highlight.value,
+		App.hdr.knee.value,
+		App.hdr.tonemap.selected,
+		App.hdr.eotf.selected);
+	out_file << buf;
+
 	static const char* other_setting =
 		"[Other]\n\n"
 		"; Preferred OpenGL Version (must be 3.3 or between 4.0 to 4.6).\n"
@@ -447,6 +488,24 @@ void loadIni()
 		App.show_item_quantity = getBool("Feature", "show_item_quantity", App.show_item_quantity);
 		App.show_monster_res = getBool("Feature", "show_monster_res", App.show_monster_res);
 		App.show_fps = getBool("Feature", "show_fps", App.show_fps);
+
+		App.hdr.enabled = getBool("HDR", "hdr", App.hdr.enabled);
+		App.hdr.sdr_white.value = getFloat("HDR", "sdr_white", App.hdr.sdr_white);
+		{
+			char peak[32] = { 0 };
+			if (getValue("HDR", "peak_nits", peak, sizeof(peak)) && atof(peak) > 0.0) {
+				App.hdr.peak_auto = false;
+				App.hdr.peak.value = getFloat("HDR", "peak_nits", App.hdr.peak);
+			}
+		}
+		App.hdr.brightness.value = getFloat("HDR", "brightness", App.hdr.brightness);
+		App.hdr.black_level.value = getFloat("HDR", "black_level", App.hdr.black_level);
+		App.hdr.contrast.value = getFloat("HDR", "contrast", App.hdr.contrast);
+		App.hdr.saturation.value = getFloat("HDR", "saturation", App.hdr.saturation);
+		App.hdr.highlight.value = getFloat("HDR", "highlight", App.hdr.highlight);
+		App.hdr.knee.value = getFloat("HDR", "highlight_knee", App.hdr.knee);
+		App.hdr.tonemap.selected = getInt("HDR", "tonemap", App.hdr.tonemap.selected, 0, 1);
+		App.hdr.eotf.selected = getInt("HDR", "eotf", App.hdr.eotf.selected, 0, 2);
 
 		App.gl_ver.x = getInt("Other", "gl_ver_major", App.gl_ver.x, 3, 4);
 		App.gl_ver.y = getInt("Other", "gl_ver_minor", App.gl_ver.y, 0, 6);

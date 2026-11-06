@@ -19,6 +19,7 @@
 #include "pch.h"
 #include "win32.h"
 #include "d2/common.h"
+#include "graphic/hdr/hdr_presenter.h"
 #include "helpers.h"
 #include "modules/hd_cursor.h"
 #include "option/menu.h"
@@ -192,7 +193,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		case WM_NCLBUTTONUP:
 		case WM_NCPAINT:
 		case WM_CANCELMODE:
+			return DefWindowProc(hWnd, uMsg, wParam, lParam);
 		case WM_DISPLAYCHANGE: {
+			hdr::g_display_changed = true; // HDR presenter re-detects the output (render thread)
 			return DefWindowProc(hWnd, uMsg, wParam, lParam);
 		}
 

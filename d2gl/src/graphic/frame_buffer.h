@@ -47,6 +47,7 @@ public:
 
 	void bind(bool clear = true);
 	static void unBind();
+	static void setDefault(GLuint id); // HDR: redirect the default framebuffer (0 = window)
 	static void setDrawBuffers(uint32_t count);
 
 	inline const GLuint getId() const { return m_id; }

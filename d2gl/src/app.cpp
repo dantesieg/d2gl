@@ -18,6 +18,7 @@
 
 #include "pch.h"
 #include "d2/common.h"
+#include "graphic/hdr/hdr_presenter.h"
 #include "helpers.h"
 #include "option/ini.h"
 #include "win32.h"
@@ -98,6 +99,9 @@ void dllAttach(HMODULE hmodule)
 	App.hmodule = hmodule;
 
 	option::loadIni();
+	App.hdr.mode = App.hdr.enabled; // decided once: GL on a hidden window + DXGI presenter
+	if (App.hdr.mode)
+		hdr::Presenter::preInit(); // before anything can load dxgi/d3d11 (DXVK reads DXVK_HDR at factory creation)
 	helpers::loadDlls(App.dlls_early);
 
 	d2::initHooks();

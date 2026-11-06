@@ -23,6 +23,9 @@
 namespace d2gl {
 
 GLuint current_binded_fbo = 0;
+// 0 = the window's default framebuffer. HDR mode points this at the presenter's target FBO, so every
+// "unbind" in the renderer lands on the HDR target instead (hdr=0: unchanged, always 0).
+GLuint default_fbo = 0;
 
 FrameBuffer::FrameBuffer(const FrameBufferCreateInfo& info)
 	: m_width(info.size.x), m_height(info.size.y), m_attachment_count(info.attachments.size())
@@ -52,8 +55,8 @@ FrameBuffer::FrameBuffer(const FrameBufferCreateInfo& info)
 		m_complete = false;
 	}
 
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	current_binded_fbo = 0;
+	glBindFramebuffer(GL_FRAMEBUFFER, default_fbo);
+	current_binded_fbo = default_fbo;
 }
 
 FrameBuffer::~FrameBuffer()
@@ -80,11 +83,18 @@ void FrameBuffer::bind(bool clear)
 
 void FrameBuffer::unBind()
 {
-	if (current_binded_fbo == 0)
+	if (current_binded_fbo == default_fbo)
 		return;
 
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	current_binded_fbo = 0;
+	glBindFramebuffer(GL_FRAMEBUFFER, default_fbo);
+	current_binded_fbo = default_fbo;
+}
+
+void FrameBuffer::setDefault(GLuint id)
+{
+	default_fbo = id;
+	glBindFramebuffer(GL_FRAMEBUFFER, id);
+	current_binded_fbo = id;
 }
 
 void FrameBuffer::clearBuffer()

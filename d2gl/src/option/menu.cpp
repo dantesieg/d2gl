@@ -508,6 +508,66 @@ void Menu::draw()
 			childEnd();
 			tabEnd();
 		}
+		if (tabBegin("HDR", 4, &active_tab)) {
+			// Runs on the render thread, like the presenter, so it reads the presenter directly.
+			const auto hdr_p = App.context->hdrPresenter();
+			childBegin("##hdr0", true);
+			drawCheckbox_m("HDR10 Output", App.hdr.enabled, "", hdr_enabled)
+				saveBool("HDR", "hdr", App.hdr.enabled);
+			if (App.hdr.enabled != App.hdr.mode && !hdr_p)
+				drawDescription("Restart the game to apply.", m_colors[Color::Orange], 14);
+			else
+				drawDescription("Off presents SDR; on/off of the HDR path itself needs a restart.", m_colors[Color::Gray], 12);
+			{
+				char line[160] = { 0 };
+				if (hdr_p) {
+					const auto& d = hdr_p->display();
+					sprintf_s(line, "Transfer: %s", hdr_p->transportName());
+					drawDescription(line, m_colors[Color::Gray], 12);
+					sprintf_s(line, "Display HDR: %s, max %.0f nits", d.os_hdr ? "on" : "off", d.max_lum);
+					drawDescription(line, m_colors[Color::Gray], 12);
+					sprintf_s(line, "Presenting HDR10: %s %s", hdr_p->presentingHdr() ? "yes" : "no", hdr_p->refusal());
+					drawDescription(line, hdr_p->presentingHdr() ? m_colors[Color::Orange] : m_colors[Color::Gray], 12);
+				} else
+					drawDescription("HDR path inactive (SDR WGL presentation).", m_colors[Color::Gray], 12);
+			}
+			drawSeparator();
+			drawSlider_m(float, "Paper White (nits)", App.hdr.sdr_white, "%.0f", "Brightness of SDR white / UI.", hdr_sdr_white)
+				saveFloat("HDR", "sdr_white", App.hdr.sdr_white.value);
+			drawCheckbox_m("Auto Peak", App.hdr.peak_auto, "", hdr_peak_auto)
+				saveFloat("HDR", "peak_nits", App.hdr.peak_auto ? 0.0f : App.hdr.peak.value);
+			ImGui::BeginDisabled(App.hdr.peak_auto);
+				drawSlider_m(float, "Peak (nits)", App.hdr.peak, "%.0f", "", hdr_peak)
+					saveFloat("HDR", "peak_nits", App.hdr.peak.value);
+			ImGui::EndDisabled();
+			if (hdr_p && App.hdr.peak_auto) {
+				char line[64] = { 0 };
+				sprintf_s(line, "Using %.0f nits.", hdr_p->effectivePeak());
+				drawDescription(line, m_colors[Color::Gray], 12);
+			}
+			drawSlider_m(float, "Brightness (stops)", App.hdr.brightness, "%.2f", "", hdr_brightness)
+				saveFloat("HDR", "brightness", App.hdr.brightness.value);
+			childSeparator("##hdr1");
+			drawSlider_m(float, "Black Level", App.hdr.black_level, "%.3f", "+ lifts, - crushes shadows.", hdr_black_level)
+				saveFloat("HDR", "black_level", App.hdr.black_level.value);
+			drawSlider_m(float, "Contrast", App.hdr.contrast, "%.2f", "", hdr_contrast)
+				saveFloat("HDR", "contrast", App.hdr.contrast.value);
+			drawSlider_m(float, "Saturation", App.hdr.saturation, "%.2f", "", hdr_saturation)
+				saveFloat("HDR", "saturation", App.hdr.saturation.value);
+			drawSlider_m(float, "Highlight Expansion", App.hdr.highlight, "%.2f", "", hdr_highlight)
+				saveFloat("HDR", "highlight", App.hdr.highlight.value);
+			ImGui::BeginDisabled(App.hdr.highlight.value <= 0.0f);
+				drawSlider_m(float, "Highlight Knee", App.hdr.knee, "%.2f", "", hdr_knee)
+					saveFloat("HDR", "highlight_knee", App.hdr.knee.value);
+			ImGui::EndDisabled();
+			drawCombo_m("Tonemap", App.hdr.tonemap, "", false, 17, hdr_tonemap)
+				saveInt("HDR", "tonemap", App.hdr.tonemap.selected);
+			drawCombo_m("SDR Curve", App.hdr.eotf, "Gamma 2.2 matches D2 on SDR screens.", false, 17, hdr_eotf)
+				saveInt("HDR", "eotf", App.hdr.eotf.selected);
+			drawCheckbox_m("Calibration Overlay", App.hdr.calibration, "Paper white, peak and near-black patches.", hdr_calibration) {}
+			childEnd();
+			tabEnd();
+		}
 #ifdef _HDTEXT
 		if (tabBegin("HD Text", 3, &active_tab)) {
 			ImGuiIO& io = ImGui::GetIO();

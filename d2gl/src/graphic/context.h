@@ -29,6 +29,7 @@
 #include "pipeline.h"
 #include "texture.h"
 #include "uniform_buffer.h"
+#include "hdr/hdr_presenter.h"
 
 namespace d2gl {
 
@@ -117,6 +118,13 @@ struct GLCaps {
 
 class Context {
 	HGLRC m_context = nullptr;
+	// HDR (App.hdr.mode): GL lives on a hidden window's DC so App.hwnd can host the DXGI swapchain.
+	// m_gl_hdc == App.hdc otherwise (unchanged behaviour).
+	HDC m_gl_hdc = nullptr;
+	HWND m_hdr_hidden = nullptr;
+	int m_pixel_format = 0;
+	PIXELFORMATDESCRIPTOR m_pfd = {};
+	std::unique_ptr<hdr::Presenter> m_hdr; // render thread only
 	HANDLE m_semaphore_cpu[MAX_FRAME_LATENCY];
 	HANDLE m_semaphore_gpu[MAX_FRAME_LATENCY];
 	CommandBuffer m_command_buffer[MAX_FRAME_LATENCY];
@@ -216,6 +224,7 @@ public:
 	~Context();
 
 	static void renderThread(void* context);
+	void hdrFallbackToWgl(const char* why); // render thread
 
 	void onResize(glm::uvec2 w_size, glm::uvec2 g_size, uint32_t bpp = 8);
 	void onShaderChange();
@@ -288,6 +297,7 @@ private:
 	void imguiDestroy();
 
 public:
+	inline hdr::Presenter* hdrPresenter() { return m_hdr.get(); } // render thread (menu draws there)
 	static void APIENTRY debugMessageCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* data);
 
 	inline static std::unique_ptr<Context> createContext() { return std::make_unique<Context>(); }

@@ -179,6 +179,25 @@ struct D2GLApp {
 		Range<float> softness = { 0.8f, 0.3f, 1.5f };
 	} soft_shadows;
 
+	// HDR10 output ([HDR] in the ini). `mode` is decided once at startup from `enabled` (GL context on a
+	// hidden window + DXGI presenter); `enabled` is then live (HDR10 vs SDR swapchain) while mode is on.
+	struct {
+		bool enabled = false;
+		bool mode = false;
+		Range<float> sdr_white = { 200.0f, 80.0f, 500.0f };
+		bool peak_auto = true; // from IDXGIOutput6::GetDesc1 MaxLuminance, clamped to peak.min/max
+		Range<float> peak = { 1000.0f, 400.0f, 2000.0f };
+		Range<float> brightness = { 0.0f, -2.0f, 2.0f };   // stops
+		Range<float> black_level = { 0.0f, -0.05f, 0.05f }; // signal lift (+) / crush (-)
+		Range<float> contrast = { 1.0f, 0.8f, 1.2f };
+		Range<float> saturation = { 1.0f, 0.5f, 1.5f };
+		Range<float> highlight = { 0.0f, 0.0f, 1.0f };
+		Range<float> knee = { 0.75f, 0.5f, 0.95f };
+		Select<int> tonemap = { 1, { { "Clip", 0 }, { "BT.2390 roll-off", 1 } } };
+		Select<int> eotf = { 0, { { "Gamma 2.2", 0 }, { "Gamma 2.4", 1 }, { "sRGB piecewise", 2 } } };
+		bool calibration = false;
+	} hdr;
+
 	struct {
 		bool active = false;
 		Range<float> scale = { 1.0f, 0.8f, 1.2f };

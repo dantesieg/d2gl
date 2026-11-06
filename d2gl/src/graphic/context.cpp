@@ -48,10 +48,31 @@ Context::Context()
 	pfd.cStencilBits = 8;
 	pfd.iLayerType = PFD_MAIN_PLANE;
 
-	SetPixelFormat(App.hdc, ChoosePixelFormat(App.hdc, &pfd), &pfd);
+	m_gl_hdc = App.hdc;
+	if (App.hdr.mode) {
+		// HDR: keep App.hwnd free of a GL pixel format so DXGI/DXVK can own it with a flip swapchain.
+		WNDCLASSA wc = {};
+		wc.style = CS_OWNDC;
+		wc.lpfnWndProc = DefWindowProcA;
+		wc.hInstance = GetModuleHandleA(NULL);
+		wc.lpszClassName = "d2gl_hdr_gl";
+		RegisterClassA(&wc);
+		m_hdr_hidden = CreateWindowExA(0, "d2gl_hdr_gl", "d2gl_hdr_gl", WS_POPUP, 0, 0, 1, 1, NULL, NULL, wc.hInstance, NULL);
+		if (m_hdr_hidden) {
+			m_gl_hdc = GetDC(m_hdr_hidden);
+			trace_log("HDR: GL context on a hidden window");
+		} else {
+			error_log("HDR: hidden GL window failed (%lu), HDR disabled", GetLastError());
+			App.hdr.mode = false;
+		}
+	}
 
-	HGLRC context = wglCreateContext(App.hdc);
-	wglMakeCurrent(App.hdc, context);
+	m_pixel_format = ChoosePixelFormat(m_gl_hdc, &pfd);
+	m_pfd = pfd;
+	SetPixelFormat(m_gl_hdc, m_pixel_format, &pfd);
+
+	HGLRC context = wglCreateContext(m_gl_hdc);
+	wglMakeCurrent(m_gl_hdc, context);
 
 	if (glewInit() != GLEW_OK) {
 		MessageBoxA(NULL, "OpenGL loader failed!", "OpenGL failed!", MB_OK);
@@ -77,7 +98,7 @@ Context::Context()
 		if (App.debug)
 			attribs[5] |= WGL_CONTEXT_DEBUG_BIT_ARB;
 
-		if (m_context = wglCreateContextAttribsARB(App.hdc, 0, attribs)) {
+		if (m_context = wglCreateContextAttribsARB(m_gl_hdc, 0, attribs)) {
 			App.gl_ver = version;
 			break;
 		}
@@ -89,7 +110,7 @@ Context::Context()
 		exit(1);
 	}
 
-	wglMakeCurrent(App.hdc, m_context);
+	wglMakeCurrent(m_gl_hdc, m_context);
 	glewInit();
 
 	GLint major_version, minor_version;
@@ -405,7 +426,7 @@ Context::~Context()
 	for (uint32_t i = 0; i < MAX_FRAME_LATENCY; i++)
 		WaitForSingleObject(m_semaphore_gpu[i], INFINITE);
 
-	wglMakeCurrent(App.hdc, m_context);
+	wglMakeCurrent(m_gl_hdc, m_context);
 	imguiDestroy();
 
 	glDeleteBuffers(1, &m_pixel_buffer);
@@ -420,7 +441,12 @@ Context::~Context()
 void Context::renderThread(void* context)
 {
 	Context* ctx = reinterpret_cast<Context*>(context);
-	wglMakeCurrent(App.hdc, ctx->m_context);
+	wglMakeCurrent(ctx->m_gl_hdc, ctx->m_context);
+	if (App.hdr.mode) {
+		ctx->m_hdr = std::make_unique<hdr::Presenter>();
+		if (!ctx->m_hdr->init(App.hwnd, (int)App.window.size.x, (int)App.window.size.y))
+			ctx->hdrFallbackToWgl("presenter init failed");
+	}
 	uint32_t frame_index = 0;
 	uint32_t limiter_generation = 0;
 	GLsync pending_sync = nullptr; // gpu_sync = 1 only
@@ -459,6 +485,9 @@ void Context::renderThread(void* context)
 
 		if (cmd->m_resized)
 			ctx->onResize(cmd->m_window_size, cmd->m_game_size, cmd->m_game_tex_bpp);
+
+		if (ctx->m_hdr && !ctx->m_hdr->beginFrame(st.window_w, st.window_h))
+			ctx->hdrFallbackToWgl("frame setup failed");
 
 		if (ctx->m_current_shader != App.shader.selected)
 			ctx->onShaderChange();
@@ -759,8 +788,15 @@ void Context::renderThread(void* context)
 			t_fenced = ctx->qpcNow();
 
 		ReleaseSemaphore(ctx->m_semaphore_gpu[frame_index], 1, NULL);
-		option::Menu::instance().draw();
-		SwapBuffers(App.hdc);
+		if (ctx->m_hdr) {
+			FrameBuffer::unBind(); // the menu goes into the HDR target like everything else
+			option::Menu::instance().draw();
+			if (!ctx->m_hdr->present(App.vsync))
+				ctx->hdrFallbackToWgl("present failed");
+		} else {
+			option::Menu::instance().draw();
+			SwapBuffers(ctx->m_gl_hdc);
+		}
 		const int64_t t_swapped = perf_on ? ctx->qpcNow() : 0;
 
 		if (st.limiter.generation != limiter_generation) {
@@ -842,12 +878,36 @@ void Context::renderThread(void* context)
 		gpu_timer.destroy();
 		perf_logger.reset(); // joins the writer, flushes the files
 	}
+	if (ctx->m_hdr) {
+		ctx->m_hdr->shutdown();
+		ctx->m_hdr.reset();
+	}
 
 	wglMakeCurrent(NULL, NULL);
 	// Release every slot (the old loop released only 0 and 1, which could leave ~Context waiting
 	// forever on a slot >= 2 with frame_latency >= 2). Releasing a full semaphore is a no-op.
 	for (uint32_t i = 0; i < MAX_FRAME_LATENCY; i++)
 		ReleaseSemaphore(ctx->m_semaphore_gpu[i], 1, NULL);
+}
+
+// Render thread. HDR presentation failed beyond recovery: drop the DXGI path and present with WGL on the
+// game window, i.e. the hdr=0 path. SetPixelFormat on a window that hosted a flip swapchain is a last resort.
+void Context::hdrFallbackToWgl(const char* why)
+{
+	error_log("HDR: falling back to SDR WGL presentation (%s)", why);
+	if (m_hdr) {
+		m_hdr->shutdown();
+		m_hdr.reset();
+	}
+	FrameBuffer::setDefault(0);
+	if (!GetPixelFormat(App.hdc) && !SetPixelFormat(App.hdc, m_pixel_format, &m_pfd))
+		error_log("HDR: SetPixelFormat on the game window failed (%lu)", GetLastError());
+	if (wglMakeCurrent(App.hdc, m_context))
+		m_gl_hdc = App.hdc;
+	else
+		error_log("HDR: wglMakeCurrent on the game window failed (%lu)", GetLastError());
+	wglSwapIntervalEXT(App.vsync);
+	App.hdr.mode = false;
 }
 
 void Context::onResize(glm::uvec2 w_size, glm::uvec2 g_size, uint32_t bpp)
