@@ -450,9 +450,12 @@ void Context::renderThread(void* context)
 		const auto cmd = &ctx->m_command_buffer[frame_index];
 		if (!cmd->m_settings.valid) // only a shutdown wake-up of a never-presented slot
 			ctx->captureSettings(cmd->m_settings);
-		const perf::FrameSettings& st = cmd->m_settings;
+		// Copies, not references: the limiter and perf code below run after ReleaseSemaphore(gpu),
+		// when the game thread may already be re-recording this slot.
+		const perf::FrameSettings st = cmd->m_settings;
+		const perf::GameTiming game_timing = cmd->m_game_timing;
 		if (perf_on)
-			gpu_timer.begin(cmd->m_game_timing.frame);
+			gpu_timer.begin(game_timing.frame);
 
 		if (cmd->m_resized)
 			ctx->onResize(cmd->m_window_size, cmd->m_game_size, cmd->m_game_tex_bpp);
@@ -806,9 +809,9 @@ void Context::renderThread(void* context)
 				perf_gpu_ms = gpu_ms;
 				perf_gpu_frame = gpu_frame;
 			}
-			if (cmd->m_game_timing.frame % App.perf.sample_every == 0) {
+			if (game_timing.frame % App.perf.sample_every == 0) {
 				perf::PerfSample s;
-				s.game = cmd->m_game_timing;
+				s.game = game_timing;
 				s.slot = frame_index;
 				s.t_ms = ctx->qpcMs(t_end);
 				s.render_wait_ms = ctx->qpcMs(t_start - t_wait);
