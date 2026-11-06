@@ -299,7 +299,7 @@ bool HDText::drawFramedText(const wchar_t* str, int x, int y, uint32_t color, ui
 			m_hovered_unit.id = d2::getUnitID(unit) | ((uint8_t)unit->dwType << 24);
 			m_hovered_unit.color = color;
 			if (!is_monster) {
-				wcscpy_s(m_hovered_unit.name, str);
+				wcsncpy_s(m_hovered_unit.name, str, _TRUNCATE); // long Median merc/player hover text overflowed wchar[50] -> CRT abort
 				m_hovered_unit.pos = { x, y };
 			}
 			return false;
@@ -861,7 +861,7 @@ void HDText::drawMonsterHealthBar(d2::UnitAny* unit)
 	auto name = d2::getMonsterName(unit);
 	if (!name || wcslen(name) <= 0) {
 		static wchar_t name_str[50] = { 0 };
-		wcscpy_s(name_str, d2::hovered_monster_name);
+		wcsncpy_s(name_str, d2::hovered_monster_name, _TRUNCATE);
 		const auto len = wcslen(name_str);
 		if (len <= 0)
 			return;
