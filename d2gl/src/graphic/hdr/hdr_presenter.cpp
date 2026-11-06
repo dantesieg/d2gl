@@ -485,12 +485,28 @@ bool Presenter::createShared()
 			break;
 		}
 		safeRelease(res);
-		glCreateMemoryObjectsEXT(1, &m_sh_mem[i]);
-		const GLint dedicated = GL_TRUE;
-		glMemoryObjectParameterivEXT(m_sh_mem[i], GL_DEDICATED_MEMORY_OBJECT_EXT, &dedicated);
-		glImportMemoryWin32HandleEXT(m_sh_mem[i], (GLuint64)m_w * m_h * 4, GL_HANDLE_TYPE_D3D11_IMAGE_EXT, h);
+		// Wine may accept only some handle types: D3D11 image (spec), then opaque win32 (Vulkan-style).
+		static const GLenum types[] = { GL_HANDLE_TYPE_D3D11_IMAGE_EXT, GL_HANDLE_TYPE_OPAQUE_WIN32_EXT };
+		GLenum e = GL_NO_ERROR;
+		for (GLenum type : types) {
+			for (int ded = 1; ded >= 0; ded--) {
+				if (m_sh_mem[i])
+					glDeleteMemoryObjectsEXT(1, &m_sh_mem[i]);
+				m_sh_mem[i] = 0;
+				while (glGetError() != GL_NO_ERROR) {}
+				glCreateMemoryObjectsEXT(1, &m_sh_mem[i]);
+				const GLint dedicated = ded;
+				glMemoryObjectParameterivEXT(m_sh_mem[i], GL_DEDICATED_MEMORY_OBJECT_EXT, &dedicated);
+				glImportMemoryWin32HandleEXT(m_sh_mem[i], (GLuint64)m_w * m_h * 4, type, h);
+				e = glGetError();
+				trace_log("HDR: import type=0x%X dedicated=%d -> 0x%X", type, ded, e);
+				if (e == GL_NO_ERROR)
+					break;
+			}
+			if (e == GL_NO_ERROR)
+				break;
+		}
 		CloseHandle(h); // win32 handle import does not transfer ownership
-		GLenum e = glGetError();
 		if (e != GL_NO_ERROR || !glIsMemoryObjectEXT(m_sh_mem[i])) {
 			error_log("HDR: glImportMemoryWin32HandleEXT failed (0x%X)", e);
 			break;
