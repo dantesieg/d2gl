@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "d2gl_perf_summary.jsonl line",
+  "type": "object",
+  "required": ["first_frame", "last_frame", "dropped_samples", "game_frame_ms", "render_interval_ms", "gpu_ms"],
+  "properties": {
+    "first_frame": { "type": "integer", "minimum": 0 },
+    "last_frame": { "type": "integer", "minimum": 0 },
+    "dropped_samples": { "type": "integer", "minimum": 0, "description": "cumulative ring overflows" },
+    "game_frame_ms": { "$ref": "#/$defs/stats" },
+    "render_interval_ms": { "$ref": "#/$defs/stats" },
+    "gpu_ms": { "$ref": "#/$defs/stats" }
+  },
+  "$defs": {
+    "stats": {
+      "type": "object",
+      "required": ["count", "fps", "mean", "median", "p95", "p99", "max", "variance", "stalls_2x_median"],
+      "properties": {
+        "count": { "type": "integer", "minimum": 0 },
+        "fps": { "type": "number" },
+        "mean": { "type": "number" },
+        "median": { "type": "number" },
+        "p95": { "type": "number" },
+        "p99": { "type": "number" },
+        "max": { "type": "number" },
+        "variance": { "type": "number" },
+        "stalls_2x_median": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}
