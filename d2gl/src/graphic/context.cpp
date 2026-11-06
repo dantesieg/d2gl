@@ -450,6 +450,7 @@ void Context::renderThread(void* context)
 	uint32_t frame_index = 0;
 	uint32_t limiter_generation = 0;
 	GLsync pending_sync = nullptr; // gpu_sync = 1 only
+	const bool early_release = App.perf.early_release; // fixed for the thread's lifetime
 
 	// R0: everything below is inert unless perf_log = 1 (one predictable branch per point).
 	const bool perf_on = ctx->m_perf;
@@ -767,6 +768,13 @@ void Context::renderThread(void* context)
 			t_fence = ctx->qpcNow();
 		}
 
+		// R1 (early_slot_release=true): every read of this slot (commands, m_vertices, m_tex_buffer)
+		// is done; glBufferSubData copied client memory before returning. Hand the slot back now so
+		// the game thread records the next frame while we wait on the GPU. GPU-side buffers are still
+		// protected by the fence below, which runs before the next frame's uploads.
+		if (early_release)
+			ReleaseSemaphore(ctx->m_semaphore_gpu[frame_index], 1, NULL);
+
 		if (ctx->m_gpu_sync == 0) {
 			// legacy: block until this frame's GPU work completes
 			GLsync sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
@@ -787,7 +795,8 @@ void Context::renderThread(void* context)
 		if (perf_on)
 			t_fenced = ctx->qpcNow();
 
-		ReleaseSemaphore(ctx->m_semaphore_gpu[frame_index], 1, NULL);
+		if (!early_release)
+			ReleaseSemaphore(ctx->m_semaphore_gpu[frame_index], 1, NULL);
 		if (ctx->m_hdr) {
 			FrameBuffer::unBind(); // the menu goes into the HDR target like everything else
 			option::Menu::instance().draw();
