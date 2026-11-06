@@ -190,7 +190,7 @@ class Context {
 	std::unique_ptr<Pipeline> m_ambient_pipeline;
 	std::unique_ptr<FrameBuffer> m_ambient_framebuffer;
 	bool m_ambient_reset = true;
-	void updateAmbient(glm::ivec2 game_size);
+	void updateAmbient(glm::ivec2 game_size, int level);
 	std::unique_ptr<Pipeline> m_atmos_pipeline;
 	std::unique_ptr<Pipeline> m_lightfx_pipeline;
 	std::unique_ptr<FrameBuffer> m_light_framebuffer;

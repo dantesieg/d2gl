@@ -504,7 +504,7 @@ void Context::renderThread(void* context)
 					break;
 				case CommandType::PreFx:
 					if (st.light && ctx->gameDrawBufferCount(st) == 5)
-						ctx->updateAmbient(cmd->m_game_size);
+						ctx->updateAmbient(cmd->m_game_size, st.level_no);
 					if (st.light && st.light_debug && ctx->gameDrawBufferCount(st) == 5) {
 						// Debug: raw game light buffer in place of the world (ambient swatch top-left).
 						FrameBuffer::setDrawBuffers(1);
@@ -989,7 +989,7 @@ void Context::onResize(glm::uvec2 w_size, glm::uvec2 g_size, uint32_t bpp)
 // Game vertex lighting: the scene ambient is re-estimated every frame from a few
 // screen samples, which jumps as shadows move in and out of them. Keep it in a 1x1
 // target and blend each new estimate in with a ~0.8 s time constant (snap on reset).
-void Context::updateAmbient(glm::ivec2 game_size)
+void Context::updateAmbient(glm::ivec2 game_size, int level)
 {
 	static auto last = std::chrono::steady_clock::now();
 	static int last_level = -1;
@@ -997,7 +997,6 @@ void Context::updateAmbient(glm::ivec2 game_size)
 	const float dt = glm::clamp(std::chrono::duration<float>(now - last).count(), 0.0f, 0.5f);
 	last = now;
 
-	const int level = App.game.screen == GameScreen::InGame ? *d2::level_no : -1;
 	if (level != last_level) {
 		last_level = level;
 		m_ambient_reset = true;
@@ -1516,6 +1515,8 @@ void Context::captureSettings(perf::FrameSettings& st) const
 	st.light_normals = App.dynamic_light.normals;
 	st.light_normals_strength = App.dynamic_light.normals_strength.value;
 	st.spell_glow = App.dynamic_light.spell_glow.value;
+
+	st.level_no = App.game.screen == GameScreen::InGame ? (int32_t)*d2::level_no : -1;
 
 	st.soft_shadows = App.soft_shadows.active;
 	st.shadow_softness = App.soft_shadows.active ? App.soft_shadows.softness.value : 1.0f;

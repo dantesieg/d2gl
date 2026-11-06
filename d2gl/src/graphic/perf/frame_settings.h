@@ -54,6 +54,9 @@ struct FrameSettings {
 	float light_normals_strength = 0.0f;
 	float spell_glow = 0.0f;
 
+	// game state read from engine memory on the game thread (value copy, not a pointer)
+	int32_t level_no = -1; // *d2::level_no while in game, else -1
+
 	bool soft_shadows = false;
 	float shadow_softness = 1.0f;
 
