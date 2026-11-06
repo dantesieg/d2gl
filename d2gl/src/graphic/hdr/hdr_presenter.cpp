@@ -50,6 +50,7 @@ const char* Presenter::transportName() const
 {
 	switch (m_transport) {
 		case Transport::Interop: return "ZERO-COPY (WGL_NV_DX_interop2)";
+		case Transport::SharedTex: return "ZERO-COPY (shared D3D11 texture, GL_EXT_memory_object_win32)";
 		case Transport::CpuCopy: return "CPU READBACK COPY (PBO ring)";
 		default: return "none";
 	}
@@ -390,6 +391,9 @@ bool Presenter::createTarget()
 	glGenTextures(1, &m_tex);
 	glGenFramebuffers(1, &m_fbo);
 
+	if (App.hdr.shared_texture && !m_interop_available && createShared())
+		return true;
+
 	if (m_interop_available) {
 		td.Usage = D3D11_USAGE_DEFAULT;
 		td.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
@@ -448,6 +452,103 @@ bool Presenter::createTarget()
 	return true;
 }
 
+// Zero-copy under Proton: DXVK exports NT handles (VK_KHR_external_memory_win32), Wine's opengl32 imports them
+// (GL_EXT_memory_object_win32). D3D11 owns the memory; GL only writes, D3D11 only samples. Any failure -> false,
+// everything released, caller falls through to the PBO ring.
+bool Presenter::createShared()
+{
+	if (!GLEW_EXT_memory_object_win32 || !glCreateMemoryObjectsEXT || !glImportMemoryWin32HandleEXT || !glTexStorageMem2DEXT) {
+		trace_log("HDR: GL_EXT_memory_object_win32 not available");
+		return false;
+	}
+	D3D11_TEXTURE2D_DESC td = {};
+	td.Width = (UINT)m_w;
+	td.Height = (UINT)m_h;
+	td.MipLevels = 1;
+	td.ArraySize = 1;
+	td.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	td.SampleDesc.Count = 1;
+	td.Usage = D3D11_USAGE_DEFAULT;
+	td.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+	td.MiscFlags = D3D11_RESOURCE_MISC_SHARED | D3D11_RESOURCE_MISC_SHARED_NTHANDLE;
+	D3D11_QUERY_DESC qd = { D3D11_QUERY_EVENT, 0 };
+	while (glGetError() != GL_NO_ERROR) {}
+	bool ok = true;
+	for (int i = 0; i < SHARED && ok; i++) {
+		ok = false;
+		IDXGIResource1* res = nullptr;
+		HANDLE h = nullptr;
+		if (FAILED(HR(m_dev->CreateTexture2D(&td, nullptr, &m_sh_tex[i]))) ||
+			FAILED(HR(m_sh_tex[i]->QueryInterface(__uuidof(IDXGIResource1), (void**)&res))) ||
+			FAILED(HR(res->CreateSharedHandle(nullptr, DXGI_SHARED_RESOURCE_READ | DXGI_SHARED_RESOURCE_WRITE, nullptr, &h)))) {
+			safeRelease(res);
+			break;
+		}
+		safeRelease(res);
+		glCreateMemoryObjectsEXT(1, &m_sh_mem[i]);
+		const GLint dedicated = GL_TRUE;
+		glMemoryObjectParameterivEXT(m_sh_mem[i], GL_DEDICATED_MEMORY_OBJECT_EXT, &dedicated);
+		glImportMemoryWin32HandleEXT(m_sh_mem[i], (GLuint64)m_w * m_h * 4, GL_HANDLE_TYPE_D3D11_IMAGE_EXT, h);
+		CloseHandle(h); // win32 handle import does not transfer ownership
+		GLenum e = glGetError();
+		if (e != GL_NO_ERROR || !glIsMemoryObjectEXT(m_sh_mem[i])) {
+			error_log("HDR: glImportMemoryWin32HandleEXT failed (0x%X)", e);
+			break;
+		}
+		glGenTextures(1, &m_sh_gltex[i]);
+		glBindTexture(GL_TEXTURE_2D, m_sh_gltex[i]);
+		glTexStorageMem2DEXT(GL_TEXTURE_2D, 1, GL_RGBA8, m_w, m_h, m_sh_mem[i], 0);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glBindTexture(GL_TEXTURE_2D, 0);
+		if ((e = glGetError()) != GL_NO_ERROR) {
+			error_log("HDR: glTexStorageMem2DEXT failed (0x%X)", e);
+			break;
+		}
+		glBindFramebuffer(GL_FRAMEBUFFER, m_fbo);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_sh_gltex[i], 0);
+		if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+			error_log("HDR: shared texture FBO incomplete");
+			break;
+		}
+		ok = SUCCEEDED(HR(m_dev->CreateShaderResourceView(m_sh_tex[i], nullptr, &m_sh_srv[i]))) && SUCCEEDED(HR(m_dev->CreateQuery(&qd, &m_sh_done[i])));
+	}
+	if (!ok) {
+		destroyShared();
+		glBindFramebuffer(GL_FRAMEBUFFER, m_fbo);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, 0, 0);
+		error_log("HDR: shared texture import failed, using the CPU copy path");
+		return false;
+	}
+	m_sh_cur = 0;
+	glBindFramebuffer(GL_FRAMEBUFFER, m_fbo);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_sh_gltex[0], 0);
+	m_transport = Transport::SharedTex;
+	return true;
+}
+
+void Presenter::destroyShared()
+{
+	if (m_ctx && m_sh_done[0]) // D3D11 must be done with the memory before GL drops its import
+		m_ctx->Flush();
+	for (int i = 0; i < SHARED; i++) {
+		if (m_sh_pending[i] && m_sh_done[i]) {
+			BOOL d = FALSE;
+			for (int n = 0; n < 2000 && m_ctx->GetData(m_sh_done[i], &d, sizeof(d), 0) == S_FALSE; n++)
+				Sleep(0);
+		}
+		m_sh_pending[i] = false;
+		if (m_sh_gltex[i])
+			glDeleteTextures(1, &m_sh_gltex[i]);
+		if (m_sh_mem[i])
+			glDeleteMemoryObjectsEXT(1, &m_sh_mem[i]);
+		m_sh_gltex[i] = m_sh_mem[i] = 0;
+		safeRelease(m_sh_srv[i]);
+		safeRelease(m_sh_done[i]);
+		safeRelease(m_sh_tex[i]);
+	}
+}
+
 void Presenter::destroyTarget()
 {
 	if (m_locked && m_interop_obj)
@@ -465,6 +566,7 @@ void Presenter::destroyTarget()
 		glDeleteBuffers(RING, m_pbo);
 	memset(m_pbo, 0, sizeof(m_pbo));
 	m_ring_head = m_ring_count = 0;
+	destroyShared();
 	FrameBuffer::setDefault(0);
 	if (m_fbo)
 		glDeleteFramebuffers(1, &m_fbo);
@@ -549,6 +651,16 @@ bool Presenter::beginFrame(int width, int height)
 		}
 		m_locked = m_transport == Transport::Interop;
 	}
+	if (m_transport == Transport::SharedTex && m_sh_pending[m_sh_cur]) {
+		BOOL d = FALSE;
+		HRESULT q;
+		const DWORD t0 = GetTickCount();
+		while ((q = m_ctx->GetData(m_sh_done[m_sh_cur], &d, sizeof(d), 0)) == S_FALSE && GetTickCount() - t0 < 100) // normally done: sampled a frame ago
+			YieldProcessor();
+		m_sh_pending[m_sh_cur] = false;
+		if (FAILED(q) && !recover("shared texture query"))
+			return false;
+	}
 	FrameBuffer::setDefault(m_fbo);
 	return true;
 }
@@ -562,6 +674,17 @@ bool Presenter::present(bool vsync)
 		m_locked = false;
 		if (!wglDXUnlockObjectsNV(m_interop_dev, 1, &m_interop_obj))
 			return recover("interop unlock");
+	} else if (m_transport == Transport::SharedTex) {
+		// GL -> D3D11 ordering: the GL frame must be complete before DXVK samples the shared memory. Two drivers
+		// (radeonsi / RADV) share only the dma-buf, so a GL fence wait is the portable barrier. No pixel copy.
+		GLsync s = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+		GLenum r = glClientWaitSync(s, GL_SYNC_FLUSH_COMMANDS_BIT, 100000000ull);
+		glDeleteSync(s);
+		if (r != GL_ALREADY_SIGNALED && r != GL_CONDITION_SATISFIED)
+			error_log("HDR: shared texture fence wait failed (0x%X)", r);
+		safeRelease(m_in_srv);
+		m_in_srv = m_sh_srv[m_sh_cur];
+		m_in_srv->AddRef();
 	} else {
 		// Async readback: queue this frame into the ring, consume the oldest pending one (one frame later).
 		glBindFramebuffer(GL_READ_FRAMEBUFFER, m_fbo);
@@ -635,6 +758,13 @@ bool Presenter::present(bool vsync)
 	m_ctx->Draw(3, 0);
 	ID3D11ShaderResourceView* nul = nullptr;
 	m_ctx->PSSetShaderResources(0, 1, &nul); // interop texture is written by GL next frame
+	if (m_transport == Transport::SharedTex) {
+		m_ctx->End(m_sh_done[m_sh_cur]);
+		m_sh_pending[m_sh_cur] = true;
+		m_sh_cur = (m_sh_cur + 1) % SHARED;
+		glBindFramebuffer(GL_FRAMEBUFFER, m_fbo);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_sh_gltex[m_sh_cur], 0);
+	}
 
 	HRESULT hr = m_sc->Present(vsync ? 1 : 0, 0);
 	if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET) {

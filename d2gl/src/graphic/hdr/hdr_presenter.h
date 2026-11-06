@@ -20,7 +20,7 @@
 
 namespace d2gl::hdr {
 
-enum class Transport { None, Interop, CpuCopy };
+enum class Transport { None, Interop, SharedTex, CpuCopy };
 
 extern std::atomic<bool> g_display_changed; // set by the window procedure (WM_DISPLAYCHANGE)
 
@@ -61,6 +61,8 @@ private:
 	bool createD3D();
 	void destroyD3D();
 	bool createSwapchain();
+	bool createShared();   // D3D11 NT-handle textures imported into GL (GL_EXT_memory_object_win32)
+	void destroyShared();
 	bool createTarget();   // GL FBO + (registered D3D texture | GL texture + PBO ring) + D3D input SRV
 	void destroyTarget();
 	bool applyFormat(bool want_hdr);
@@ -94,6 +96,13 @@ private:
 	bool m_locked = false;
 
 	GLuint m_fbo = 0, m_tex = 0;
+	static constexpr int SHARED = 2; // GL writes one while D3D11 samples the other
+	ID3D11Texture2D* m_sh_tex[SHARED] = {};
+	ID3D11ShaderResourceView* m_sh_srv[SHARED] = {};
+	ID3D11Query* m_sh_done[SHARED] = {}; // D3D11 finished sampling slot i
+	bool m_sh_pending[SHARED] = {};
+	GLuint m_sh_mem[SHARED] = {}, m_sh_gltex[SHARED] = {};
+	int m_sh_cur = 0;
 	static constexpr int RING = 3;
 	GLuint m_pbo[RING] = {};
 	GLsync m_fence[RING] = {};

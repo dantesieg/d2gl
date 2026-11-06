@@ -196,6 +196,7 @@ struct D2GLApp {
 		Select<int> tonemap = { 1, { { "Clip", 0 }, { "BT.2390 roll-off", 1 } } };
 		Select<int> eotf = { 0, { { "Gamma 2.2", 0 }, { "Gamma 2.4", 1 }, { "sRGB piecewise", 2 } } };
 		bool calibration = false;
+		bool shared_texture = true; // GL_EXT_memory_object_win32 zero-copy; false forces the PBO path
 	} hdr;
 
 	struct {

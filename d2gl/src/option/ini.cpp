@@ -490,6 +490,7 @@ void loadIni()
 		App.show_fps = getBool("Feature", "show_fps", App.show_fps);
 
 		App.hdr.enabled = getBool("HDR", "hdr", App.hdr.enabled);
+		App.hdr.shared_texture = getBool("HDR", "shared_texture", App.hdr.shared_texture);
 		App.hdr.sdr_white.value = getFloat("HDR", "sdr_white", App.hdr.sdr_white);
 		{
 			char peak[32] = { 0 };
