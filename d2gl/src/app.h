@@ -49,6 +49,14 @@ struct D2GLApp {
 	std::string gl_ver_str = "";
 	bool vsync = true;
 	uint32_t frame_latency = 1;
+
+	// R0 instrumentation / R2 sync options: read from the ini once at startup, immutable afterwards.
+	struct {
+		bool log = false;               // perf_log: write d2gl_perf.csv + d2gl_perf_summary.jsonl
+		uint32_t sample_every = 1;      // perf_sample_every: keep 1 row per N frames
+		uint32_t summary_every = 600;   // perf_summary_every: frames per JSON summary line
+		uint32_t gpu_sync = 0;          // gpu_sync: 0 legacy (wait this frame's fence), 1 deferred (UNMEASURED)
+	} perf;
 	bool d2fps_mod = false;
 
 	GLCaps gl_caps;

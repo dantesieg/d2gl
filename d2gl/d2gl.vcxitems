@@ -103,6 +103,11 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)src\d2\structs.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\d2\stubs.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\graphic\context.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)src\graphic\perf\frame_settings.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)src\graphic\perf\frame_stats.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)src\graphic\perf\perf_log.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)src\graphic\perf\perf_sample.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)src\graphic\perf\spsc_ring.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\graphic\frame_buffer.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\graphic\object.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\graphic\pipeline.h" />

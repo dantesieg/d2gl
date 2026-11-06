@@ -25,6 +25,7 @@
 #include "modules/mini_map.h"
 #include "modules/motion_prediction.h"
 #include "option/menu.h"
+#include "perf/perf_log.h"
 #include "upscaler.h"
 #include "win32.h"
 
@@ -364,6 +365,8 @@ Context::Context()
 	m_frame.frame_times.assign(MAX_FRAMETIME_SAMPLE_COUNT, m_frame.frame_time);
 
 	m_limiter.timer = CreateWaitableTimer(NULL, TRUE, NULL);
+	m_perf = App.perf.log;
+	m_gpu_sync = App.perf.gpu_sync;
 	setFpsLimit(!App.vsync && App.foreground_fps.active, App.foreground_fps.range.value);
 
 	m_vertices_mod.count = 0;
@@ -382,7 +385,7 @@ Context::Context()
 	modules::HDCursor::Instance();
 
 	wglMakeCurrent(NULL, NULL);
-	CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)Context::renderThread, reinterpret_cast<void*>(this), 0, NULL);
+	m_render_thread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)Context::renderThread, reinterpret_cast<void*>(this), 0, NULL);
 }
 
 Context::~Context()
@@ -390,6 +393,14 @@ Context::~Context()
 	m_rendering = false;
 	for (uint32_t i = 0; i < MAX_FRAME_LATENCY; i++)
 		ReleaseSemaphore(m_semaphore_cpu[i], 1, NULL);
+
+	// Do not make the GL context current here while the render thread may still own it.
+	// Bounded: at process exit the thread is usually already gone (handle signalled).
+	if (m_render_thread) {
+		WaitForSingleObject(m_render_thread, 2000);
+		CloseHandle(m_render_thread);
+		m_render_thread = nullptr;
+	}
 
 	for (uint32_t i = 0; i < MAX_FRAME_LATENCY; i++)
 		WaitForSingleObject(m_semaphore_gpu[i], INFINITE);
@@ -411,13 +422,37 @@ void Context::renderThread(void* context)
 	Context* ctx = reinterpret_cast<Context*>(context);
 	wglMakeCurrent(App.hdc, ctx->m_context);
 	uint32_t frame_index = 0;
+	uint32_t limiter_generation = 0;
+	GLsync pending_sync = nullptr; // gpu_sync = 1 only
+
+	// R0: everything below is inert unless perf_log = 1 (one predictable branch per point).
+	const bool perf_on = ctx->m_perf;
+	std::unique_ptr<perf::PerfLogger> perf_logger;
+	perf::GpuTimer gpu_timer;
+	const HANDLE self = GetCurrentThread();
+	double perf_cpu = -1.0, perf_gpu_ms = -1.0;
+	int64_t perf_gpu_frame = -1, perf_prev_swap = 0;
+	if (perf_on) {
+		perf_logger = std::make_unique<perf::PerfLogger>("d2gl_perf.csv", "d2gl_perf_summary.jsonl", App.perf.summary_every);
+		gpu_timer.init();
+		perf_cpu = perf::threadCpuMs(self);
+	}
 
 	glBindBuffer(GL_ARRAY_BUFFER, ctx->m_vertex_buffer);
 	Vertex::enableAttribArray();
 
-	while (ctx->m_rendering) {
+	while (ctx->m_rendering.load(std::memory_order_acquire)) {
+		const int64_t t_wait = perf_on ? ctx->qpcNow() : 0;
 		WaitForSingleObject(ctx->m_semaphore_cpu[frame_index], INFINITE);
+		// Acquire: WaitForSingleObject is a full barrier, everything the game thread wrote into this
+		// slot (commands, vertices, m_settings, m_game_timing) before ReleaseSemaphore is visible now.
+		const int64_t t_start = perf_on ? ctx->qpcNow() : 0;
 		const auto cmd = &ctx->m_command_buffer[frame_index];
+		if (!cmd->m_settings.valid) // only a shutdown wake-up of a never-presented slot
+			ctx->captureSettings(cmd->m_settings);
+		const perf::FrameSettings& st = cmd->m_settings;
+		if (perf_on)
+			gpu_timer.begin(cmd->m_game_timing.frame);
 
 		if (cmd->m_resized)
 			ctx->onResize(cmd->m_window_size, cmd->m_game_size, cmd->m_game_tex_bpp);
@@ -446,8 +481,8 @@ void Context::renderThread(void* context)
 		}
 
 		Vertex::bindingDescription();
-		const glm::ivec2 vp_size = { App.viewport.stretched.x ? App.window.size.x : App.viewport.size.x, App.viewport.stretched.y ? App.window.size.y : App.viewport.size.y };
-		const glm::ivec2 vp_offset = { App.viewport.stretched.x ? 0 : App.viewport.offset.x, App.viewport.stretched.y ? 0 : App.viewport.offset.y };
+		const glm::ivec2 vp_size = { st.vp_w, st.vp_h };
+		const glm::ivec2 vp_offset = { st.vp_x, st.vp_y };
 
 		for (uint32_t i = 0; i < cmd->m_count; i++) {
 			const auto command = &cmd->m_commands[i];
@@ -460,7 +495,7 @@ void Context::renderThread(void* context)
 				case CommandType::SetBlendState:
 					// Uniform first: Pipeline::bind() inside setUniform resets the blend state to 0.
 					ctx->m_game_pipeline->setUniform1i("u_BlendIndex", command->index);
-					ctx->m_game_pipeline->setUniform1f("u_SpellGlow", App.dynamic_light.spell_glow.value);
+					ctx->m_game_pipeline->setUniform1f("u_SpellGlow", st.spell_glow);
 					ctx->bindPipeline(ctx->m_game_pipeline, command->index);
 					break;
 				case CommandType::DrawIndexed:
@@ -468,22 +503,22 @@ void Context::renderThread(void* context)
 						glDrawElementsBaseVertex(GL_TRIANGLES, command->draw.count, GL_UNSIGNED_INT, 0, command->draw.start);
 					break;
 				case CommandType::PreFx:
-					if (App.dynamic_light.active && ctx->gameDrawBufferCount() == 5)
+					if (st.light && ctx->gameDrawBufferCount(st) == 5)
 						ctx->updateAmbient(cmd->m_game_size);
-					if (App.dynamic_light.active && App.dynamic_light.debug && ctx->gameDrawBufferCount() == 5) {
+					if (st.light && st.light_debug && ctx->gameDrawBufferCount(st) == 5) {
 						// Debug: raw game light buffer in place of the world (ambient swatch top-left).
 						FrameBuffer::setDrawBuffers(1);
 						ctx->bindPipeline(ctx->m_light_pipeline);
 						ctx->drawQuad(4);
-					} else if (App.dynamic_light.active && ctx->m_light_tex_size.x > 0 && ctx->m_light_tex_size.y > 0) {
-						const int vsource = ctx->gameDrawBufferCount() == 5 ? 1 : 0;
+					} else if (st.light && ctx->m_light_tex_size.x > 0 && ctx->m_light_tex_size.y > 0) {
+						const int vsource = ctx->gameDrawBufferCount(st) == 5 ? 1 : 0;
 						FrameBuffer::setDrawBuffers(1);
 						ctx->m_prefx_texture->fillFromBuffer(ctx->m_game_framebuffer);
 						ctx->bindPipeline(ctx->m_light_pipeline);
 						ctx->m_light_pipeline->setUniformVec2f("u_RelSize", { 1.0f / ctx->m_light_tex_size.x, 1.0f / ctx->m_light_tex_size.y });
-						ctx->m_light_pipeline->setUniform1f("u_Intensity", App.dynamic_light.intensity.value);
+						ctx->m_light_pipeline->setUniform1f("u_Intensity", st.light_intensity);
 						ctx->m_light_pipeline->setUniform1i("u_Source", vsource);
-						ctx->m_light_pipeline->setUniform1f("u_Haze", App.dynamic_light.depth_haze ? App.dynamic_light.depth_haze_strength.value : 0.0f);
+						ctx->m_light_pipeline->setUniform1f("u_Haze", st.light_haze);
 						ctx->bindFrameBuffer(ctx->m_light_framebuffer, false);
 						ctx->setViewport(ctx->m_light_tex_size);
 						ctx->drawQuad(0);
@@ -493,16 +528,16 @@ void Context::renderThread(void* context)
 							ctx->m_light_texture->fillFromBuffer(ctx->m_light_framebuffer);
 							ctx->drawQuad(2);
 						}
-						const bool lightfx = App.dynamic_light.normals;
+						const bool lightfx = st.light_normals;
 						if (lightfx) {
 							// lightfx.glsl: blurred light -> LIGHT2, shafts -> LIGHT1, then combine.
 							ctx->m_light_texture->fillFromBuffer(ctx->m_light_framebuffer);
 							ctx->bindPipeline(ctx->m_lightfx_pipeline);
 							ctx->m_lightfx_pipeline->setUniformVec2f("u_RelSize", { 1.0f / ctx->m_light_tex_size.x, 1.0f / ctx->m_light_tex_size.y });
-							ctx->m_lightfx_pipeline->setUniform1f("u_Intensity", App.dynamic_light.intensity.value);
+							ctx->m_lightfx_pipeline->setUniform1f("u_Intensity", st.light_intensity);
 							ctx->m_lightfx_pipeline->setUniform1i("u_Source", vsource);
-							ctx->m_lightfx_pipeline->setUniform1f("u_Haze", App.dynamic_light.depth_haze ? App.dynamic_light.depth_haze_strength.value : 0.0f);
-							ctx->m_lightfx_pipeline->setUniform1f("u_Normals", App.dynamic_light.normals ? App.dynamic_light.normals_strength.value : 0.0f);
+							ctx->m_lightfx_pipeline->setUniform1f("u_Haze", st.light_haze);
+							ctx->m_lightfx_pipeline->setUniform1f("u_Normals", (st.light_normals ? st.light_normals_strength : 0.0f));
 							ctx->m_lightfx_pipeline->setUniform1f("u_Shafts", 0.0f);
 						}
 						ctx->bindFrameBuffer(ctx->m_game_framebuffer, false);
@@ -511,11 +546,11 @@ void Context::renderThread(void* context)
 						FrameBuffer::setDrawBuffers(1);
 						ctx->drawQuad(lightfx ? 1 : 3);
 					}
-					if (App.bloom.active || App.lut.selected) {
+					if (st.bloom || st.lut) {
 					ctx->m_prefx_texture->fillFromBuffer(ctx->m_game_framebuffer);
 					ctx->bindPipeline(ctx->m_prefx_pipeline);
 
-					if (App.bloom.active) {
+					if (st.bloom) {
 						ctx->bindFrameBuffer(ctx->m_bloom_framebuffer, false);
 						ctx->setViewport(ctx->m_bloom_tex_size);
 						ctx->drawQuad();
@@ -545,26 +580,26 @@ void Context::renderThread(void* context)
 						ctx->bindPipeline(ctx->m_prefx_pipeline);
 						FrameBuffer::setDrawBuffers(1);
 					}
-					ctx->drawQuad(3 + App.bloom.active, 0, App.lut.selected);
+					ctx->drawQuad(3 + st.bloom, 0, st.lut);
 					}
 
-					if (App.tonemap.active) {
+					if (st.tonemap) {
 						FrameBuffer::setDrawBuffers(1);
 						ctx->bindPipeline(ctx->m_atmos_pipeline);
 						ctx->m_atmos_pipeline->setUniformVec2f("u_RelSize", { 1.0f / cmd->m_game_size.x, 1.0f / cmd->m_game_size.y });
 						ctx->m_prefx_texture->fillFromBuffer(ctx->m_game_framebuffer);
-						ctx->m_atmos_pipeline->setUniform1f("u_Exposure", App.tonemap.exposure.value);
+						ctx->m_atmos_pipeline->setUniform1f("u_Exposure", st.tonemap_exposure);
 						ctx->drawQuad(1);
 					}
 
 					ctx->bindPipeline(ctx->m_game_pipeline, command->index);
-					FrameBuffer::setDrawBuffers(ctx->gameDrawBufferCount());
+					FrameBuffer::setDrawBuffers(ctx->gameDrawBufferCount(st));
 					break;
 				case CommandType::SoftShadow:
 					if (ctx->m_shadow_tex_size.x > 0 && ctx->m_shadow_tex_size.y > 0) {
 						ctx->bindPipeline(ctx->m_shadow_pipeline);
 						ctx->m_shadow_pipeline->setUniformVec2f("u_RelSize", { 1.0f / ctx->m_shadow_tex_size.x, 1.0f / ctx->m_shadow_tex_size.y });
-						ctx->m_shadow_pipeline->setUniform1f("u_Softness", App.soft_shadows.active ? App.soft_shadows.softness.value : 1.0f);
+						ctx->m_shadow_pipeline->setUniform1f("u_Softness", st.shadow_softness);
 						ctx->bindFrameBuffer(ctx->m_shadow_framebuffer, false);
 						ctx->setViewport(ctx->m_shadow_tex_size);
 						ctx->drawQuad(0);
@@ -580,25 +615,25 @@ void Context::renderThread(void* context)
 						ctx->bindPipeline(ctx->m_shadow_pipeline, 1);
 						ctx->drawQuad(3);
 						ctx->bindPipeline(ctx->m_game_pipeline, command->index);
-						FrameBuffer::setDrawBuffers(ctx->gameDrawBufferCount());
+						FrameBuffer::setDrawBuffers(ctx->gameDrawBufferCount(st));
 					}
 					break;
 				case CommandType::WorldSnapshot:
 					ctx->m_world_framebuffer->getTexture()->fillFromBuffer(ctx->m_game_framebuffer);
 					ctx->bindFrameBuffer(ctx->m_game_framebuffer, false);
-					FrameBuffer::setDrawBuffers(ctx->gameDrawBufferCount());
+					FrameBuffer::setDrawBuffers(ctx->gameDrawBufferCount(st));
 					ctx->m_world_ready = true;
 					break;
 				case CommandType::Begin:
 					ctx->m_world_ready = false;
 					if (cmd->m_screen == GameScreen::Movie) {
 						ctx->bindDefaultFrameBuffer();
-						ctx->setViewport(App.window.size);
+						ctx->setViewport({ st.window_w, st.window_h });
 					} else {
 						if (ISGLIDE3X()) {
 							// Set draw buffers first so the clear also covers the light attachment.
 							ctx->bindFrameBuffer(ctx->m_game_framebuffer, false);
-							FrameBuffer::setDrawBuffers(ctx->gameDrawBufferCount());
+							FrameBuffer::setDrawBuffers(ctx->gameDrawBufferCount(st));
 						}
 						ctx->bindFrameBuffer(ctx->m_game_framebuffer, ISGLIDE3X());
 						ctx->setViewport(cmd->m_game_size);
@@ -609,8 +644,8 @@ void Context::renderThread(void* context)
 						ctx->bindPipeline(ctx->m_movie_pipeline);
 						ctx->drawQuad();
 					} else {
-						if (App.sharpen.active) {
-														const auto sharpen_data = glm::vec3(App.sharpen.strength.value, App.sharpen.clamp.value, App.sharpen.radius.value);
+						if (st.sharpen) {
+														const auto sharpen_data = glm::vec3(st.sharpen_strength, st.sharpen_clamp, st.sharpen_radius);
 							if (ctx->m_sharpen_data != sharpen_data) {
 								ctx->m_postfx_ubo->updateDataVec4f("sharpen", glm::vec4(sharpen_data, 1.0f));
 								ctx->m_sharpen_data = sharpen_data;
@@ -618,8 +653,8 @@ void Context::renderThread(void* context)
 						}
 
 						if (ISGLIDE3X()) {
-							if (App.bloom.active) {
-								const auto bloom_data = glm::vec2(App.bloom.exposure.value, App.bloom.gamma.value);
+							if (st.bloom) {
+								const auto bloom_data = glm::vec2(st.bloom_exposure, st.bloom_gamma);
 								if (ctx->m_bloom_data != bloom_data) {
 									ctx->m_bloom_ubo->updateDataVec2f("bloom", bloom_data);
 									ctx->m_bloom_data = bloom_data;
@@ -632,33 +667,33 @@ void Context::renderThread(void* context)
 
 						// world-only shader: the preset runs on the snapshot taken before the UI was drawn,
 						// and the UI is laid on top crisply by the uilayer pass below.
-						const bool ui_layer = ISGLIDE3X() && App.shader.world_only && ctx->m_world_ready;
+						const bool ui_layer = ISGLIDE3X() && st.world_only && ctx->m_world_ready;
 						const auto& upscale_in = ui_layer ? ctx->m_world_framebuffer : ctx->m_game_framebuffer;
-						if (App.sharpen.active || App.fxaa.active)
+						if (st.sharpen || st.fxaa)
 							Upscaler::Instance().process(upscale_in, vp_size, vp_offset, ctx->m_postfx_framebuffer);
 						else
 							Upscaler::Instance().process(upscale_in, vp_size, vp_offset);
 
-						if (App.sharpen.active) {
-							if (App.fxaa.active)
+						if (st.sharpen) {
+							if (st.fxaa)
 								ctx->m_postfx_texture->fillFromBuffer(ctx->m_postfx_framebuffer);
 							else {
 								ctx->bindDefaultFrameBuffer();
 								ctx->setViewport(vp_size, vp_offset);
 							}
 							ctx->bindPipeline(ctx->m_postfx_pipeline);
-							ctx->drawQuad(App.fxaa.active);
+							ctx->drawQuad(st.fxaa);
 						}
 
-						if (App.fxaa.active) {
+						if (st.fxaa) {
 							if (App.gl_caps.compute_shader) {
 								ctx->m_postfx_texture->fillFromBuffer(ctx->m_postfx_framebuffer);
-								ctx->m_fxaa_compute_pipeline->dispatchCompute(App.fxaa.presets.selected, ctx->m_fxaa_work_size, GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+								ctx->m_fxaa_compute_pipeline->dispatchCompute(st.fxaa_preset, ctx->m_fxaa_work_size, GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 							}
 							ctx->bindDefaultFrameBuffer();
 							ctx->setViewport(vp_size, vp_offset);
 							ctx->bindPipeline(ctx->m_postfx_pipeline);
-							ctx->drawQuad(2 + App.gl_caps.compute_shader, App.fxaa.presets.selected);
+							ctx->drawQuad(2 + App.gl_caps.compute_shader, st.fxaa_preset);
 						}
 
 						if (ui_layer) {
@@ -694,23 +729,53 @@ void Context::renderThread(void* context)
 			glDrawElements(GL_TRIANGLES, cmd->m_vertex_mod_count / 4 * 6, GL_UNSIGNED_INT, 0);
 		}
 
-		GLsync sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-		glFlush();
-		glClientWaitSync(sync, 0, GL_TIMEOUT_IGNORED);
-		glDeleteSync(sync);
+		int64_t t_fence = 0, t_fenced = 0;
+		if (perf_on) {
+			gpu_timer.end();
+			t_fence = ctx->qpcNow();
+		}
+
+		if (ctx->m_gpu_sync == 0) {
+			// legacy: block until this frame's GPU work completes
+			GLsync sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+			glFlush();
+			glClientWaitSync(sync, 0, GL_TIMEOUT_IGNORED);
+			glDeleteSync(sync);
+		} else {
+			// gpu_sync = 1 (experimental, UNMEASURED): block on the previous frame's fence only,
+			// letting the GPU overlap one frame. See docs/r0r2/FENCE_LIFECYCLE.md.
+			GLsync sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+			glFlush();
+			if (pending_sync) {
+				glClientWaitSync(pending_sync, 0, GL_TIMEOUT_IGNORED);
+				glDeleteSync(pending_sync);
+			}
+			pending_sync = sync;
+		}
+		if (perf_on)
+			t_fenced = ctx->qpcNow();
 
 		ReleaseSemaphore(ctx->m_semaphore_gpu[frame_index], 1, NULL);
 		option::Menu::instance().draw();
 		SwapBuffers(App.hdc);
+		const int64_t t_swapped = perf_on ? ctx->qpcNow() : 0;
 
-		if (ctx->m_limiter.active && App.foreground_fps.pacing) {
+		if (st.limiter.generation != limiter_generation) {
+			// setFpsLimit() ran on the game thread: restart pacing here, on the thread that owns it.
+			limiter_generation = st.limiter.generation;
+			ctx->m_limiter.pace_next = 0;
+			ctx->resetFileTime();
+		}
+
+		if (st.limiter.active && st.limiter.pacing) {
 			// Frame pacing: sleep to ~1.5 ms before the deadline, then spin on QPC. A frame
 			// that is already more than one period late resyncs instead of bursting.
 			LARGE_INTEGER now;
 			QueryPerformanceCounter(&now);
 			auto& lim = ctx->m_limiter;
-			if (lim.pace_next == 0 || now.QuadPart - lim.pace_next > lim.pace_period)
-				lim.pace_next = now.QuadPart + lim.pace_period;
+			const int64_t pace_period = st.limiter.pace_period;
+			if (lim.pace_next == 0 || now.QuadPart - lim.pace_next > pace_period)
+				lim.pace_next = now.QuadPart + pace_period;
 			else {
 				const double counts_per_ms = ctx->m_frame.frequency;
 				for (;;) {
@@ -723,19 +788,62 @@ void Context::renderThread(void* context)
 					else
 						YieldProcessor();
 				}
-				lim.pace_next += lim.pace_period;
+				lim.pace_next += pace_period;
 			}
-		} else if (ctx->m_limiter.active) {
-			WaitForSingleObject(ctx->m_limiter.timer, (DWORD)ctx->m_limiter.frame_len_ms + 1);
-			ctx->m_limiter.due_time.QuadPart += ctx->m_limiter.frame_len_ns;
+		} else if (st.limiter.active) {
+			WaitForSingleObject(ctx->m_limiter.timer, (DWORD)st.limiter.frame_len_ms + 1);
+			ctx->m_limiter.due_time.QuadPart += st.limiter.frame_len_ns;
 			SetWaitableTimer(ctx->m_limiter.timer, &ctx->m_limiter.due_time, 0, NULL, NULL, FALSE);
+		}
+
+		if (perf_on) {
+			const int64_t t_end = ctx->qpcNow();
+			ctx->m_inflight.fetch_sub(1, std::memory_order_relaxed);
+			const double cpu = perf::threadCpuMs(self);
+			double gpu_ms;
+			int64_t gpu_frame;
+			if (gpu_timer.poll(gpu_ms, gpu_frame)) { // non-blocking; result of an earlier frame
+				perf_gpu_ms = gpu_ms;
+				perf_gpu_frame = gpu_frame;
+			}
+			if (cmd->m_game_timing.frame % App.perf.sample_every == 0) {
+				perf::PerfSample s;
+				s.game = cmd->m_game_timing;
+				s.slot = frame_index;
+				s.t_ms = ctx->qpcMs(t_end);
+				s.render_wait_ms = ctx->qpcMs(t_start - t_wait);
+				s.render_busy_ms = ctx->qpcMs(t_fence - t_start);
+				s.fence_ms = ctx->qpcMs(t_fenced - t_fence);
+				s.swap_ms = ctx->qpcMs(t_swapped - t_fenced);
+				s.limiter_ms = ctx->qpcMs(t_end - t_swapped);
+				s.interval_ms = perf_prev_swap ? ctx->qpcMs(t_swapped - perf_prev_swap) : -1.0;
+				s.render_cpu_ms = (perf_cpu >= 0.0 && cpu >= 0.0) ? cpu - perf_cpu : -1.0;
+				s.gpu_ms = perf_gpu_ms;
+				s.gpu_frame = perf_gpu_frame;
+				perf_gpu_ms = -1.0; // report each GPU result once
+				perf_gpu_frame = -1;
+				perf_logger->push(s);
+			}
+			perf_prev_swap = t_swapped;
+			perf_cpu = cpu;
 		}
 
 		frame_index = (frame_index + 1) % (App.frame_latency + 1);
 	}
 
+	if (pending_sync) {
+		glClientWaitSync(pending_sync, 0, GL_TIMEOUT_IGNORED);
+		glDeleteSync(pending_sync);
+	}
+	if (perf_on) {
+		gpu_timer.destroy();
+		perf_logger.reset(); // joins the writer, flushes the files
+	}
+
 	wglMakeCurrent(NULL, NULL);
-	for (uint32_t i = 0; i < 2; i++)
+	// Release every slot (the old loop released only 0 and 1, which could leave ~Context waiting
+	// forever on a slot >= 2 with frame_latency >= 2). Releasing a full semaphore is a no-op.
+	for (uint32_t i = 0; i < MAX_FRAME_LATENCY; i++)
 		ReleaseSemaphore(ctx->m_semaphore_gpu[i], 1, NULL);
 }
 
@@ -908,13 +1016,13 @@ void Context::updateAmbient(glm::ivec2 game_size)
 	setViewport(game_size);
 }
 
-uint32_t Context::gameDrawBufferCount() const
+uint32_t Context::gameDrawBufferCount(const perf::FrameSettings& st) const
 {
 	const uint32_t count = m_game_framebuffer->getAttachmentCount();
 	// 0 game, 1 map, 2 mask, 3 shadow (always drawn so it is cleared every frame), 4 vlight (only while used)
 	if (count < 5)
 		return count;
-	const bool vlight = App.dynamic_light.active && (App.dynamic_light.source.selected == 1 || App.dynamic_light.debug);
+	const bool vlight = st.light && (st.light_vsource || st.light_debug);
 	return vlight ? 5 : 4;
 }
 
@@ -998,6 +1106,9 @@ void Context::setBlendState(uint32_t index)
 
 void Context::beginFrame()
 {
+	if (m_perf)
+		m_perf_begin_qpc = qpcNow();
+
 	if (!App.wndproc && App.game.screen == GameScreen::Menu)
 		App.wndproc = (WNDPROC)SetWindowLongA(App.hwnd, GWL_WNDPROC, (LONG)win32::WndProc);
 
@@ -1050,10 +1161,32 @@ void Context::presentFrame()
 	option::Menu::instance().check();
 	win32::checkCursorLock();
 
+	CommandBuffer& cb = m_command_buffer[m_frame_index];
+	captureSettings(cb.m_settings);
+	if (m_perf) {
+		const int64_t now = qpcNow();
+		const double cpu = perf::threadCpuMs(GetCurrentThread());
+		auto& g = cb.m_game_timing;
+		g.frame = m_perf_frame++;
+		g.work_ms = (m_perf_begin_qpc && m_perf_begin_qpc > m_perf_present_qpc) ? qpcMs(now - m_perf_begin_qpc) : -1.0;
+		g.frame_ms = m_perf_present_qpc ? qpcMs(now - m_perf_present_qpc) : -1.0;
+		g.wait_ms = m_perf_wait_ms;
+		g.cpu_ms = (m_perf_cpu_ms >= 0.0 && cpu >= 0.0) ? cpu - m_perf_cpu_ms : -1.0;
+		g.inflight = m_inflight.fetch_add(1, std::memory_order_relaxed) + 1;
+		m_perf_present_qpc = now;
+		m_perf_cpu_ms = cpu;
+	}
+
+	// Release: publishes the slot (commands, vertices, snapshot) to the render thread.
 	ReleaseSemaphore(m_semaphore_cpu[m_frame_index], 1, NULL);
 	m_frame_index = (m_frame_index + 1) % (App.frame_latency + 1);
 
-	WaitForSingleObject(m_semaphore_gpu[m_frame_index], INFINITE);
+	if (m_perf) {
+		const int64_t t = qpcNow();
+		WaitForSingleObject(m_semaphore_gpu[m_frame_index], INFINITE);
+		m_perf_wait_ms = qpcMs(qpcNow() - t);
+	} else
+		WaitForSingleObject(m_semaphore_gpu[m_frame_index], INFINITE);
 	m_command_buffer[m_frame_index].reset();
 
 	QueryPerformanceCounter(&m_frame.time);
@@ -1338,14 +1471,58 @@ void Context::toggleVsync()
 
 void Context::setFpsLimit(bool active, int max_fps)
 {
-	m_limiter.active = active;
-	m_limiter.frame_len_ms = 1000.0f / max_fps;
-	m_limiter.frame_len_ns = (uint64_t)(m_limiter.frame_len_ms * 10000);
-	m_limiter.pace_period = (int64_t)(m_frame.frequency * m_limiter.frame_len_ms);
-	m_limiter.pace_next = 0;
+	// Game thread only (ctor, Menu::check, WndProc). The render thread picks the new values up from
+	// the next frame snapshot and resets its own pacing state (pace_next, due_time) when the
+	// generation changes, so this no longer writes render-thread state.
+	auto& ls = m_limiter_settings;
+	ls.active = active;
+	ls.frame_len_ms = 1000.0f / max_fps;
+	ls.frame_len_ns = (uint64_t)(ls.frame_len_ms * 10000);
+	ls.pace_period = (int64_t)(m_frame.frequency * ls.frame_len_ms);
+	ls.generation++;
 	m_frame.frame_sample_count = 1;
+}
 
-	resetFileTime();
+// Game thread, presentFrame(), before the slot is released. Also used once by the render thread for
+// a slot that was never presented (shutdown wake-up), when the game thread no longer records.
+void Context::captureSettings(perf::FrameSettings& st) const
+{
+	st.window_w = (int32_t)App.window.size.x;
+	st.window_h = (int32_t)App.window.size.y;
+	st.vp_w = (int32_t)(App.viewport.stretched.x ? App.window.size.x : App.viewport.size.x);
+	st.vp_h = (int32_t)(App.viewport.stretched.y ? App.window.size.y : App.viewport.size.y);
+	st.vp_x = App.viewport.stretched.x ? 0 : App.viewport.offset.x;
+	st.vp_y = App.viewport.stretched.y ? 0 : App.viewport.offset.y;
+
+	st.sharpen = App.sharpen.active;
+	st.sharpen_strength = App.sharpen.strength.value;
+	st.sharpen_clamp = App.sharpen.clamp.value;
+	st.sharpen_radius = App.sharpen.radius.value;
+	st.fxaa = App.fxaa.active;
+	st.fxaa_preset = App.fxaa.presets.selected;
+	st.bloom = App.bloom.active;
+	st.bloom_exposure = App.bloom.exposure.value;
+	st.bloom_gamma = App.bloom.gamma.value;
+	st.lut = App.lut.selected;
+	st.tonemap = App.tonemap.active;
+	st.tonemap_exposure = App.tonemap.exposure.value;
+	st.world_only = App.shader.world_only;
+
+	st.light = App.dynamic_light.active;
+	st.light_debug = App.dynamic_light.debug;
+	st.light_vsource = App.dynamic_light.source.selected == 1;
+	st.light_intensity = App.dynamic_light.intensity.value;
+	st.light_haze = App.dynamic_light.depth_haze ? App.dynamic_light.depth_haze_strength.value : 0.0f;
+	st.light_normals = App.dynamic_light.normals;
+	st.light_normals_strength = App.dynamic_light.normals_strength.value;
+	st.spell_glow = App.dynamic_light.spell_glow.value;
+
+	st.soft_shadows = App.soft_shadows.active;
+	st.shadow_softness = App.soft_shadows.active ? App.soft_shadows.softness.value : 1.0f;
+
+	st.limiter = m_limiter_settings;
+	st.limiter.pacing = App.foreground_fps.pacing;
+	st.valid = true;
 }
 
 void Context::resetFileTime()

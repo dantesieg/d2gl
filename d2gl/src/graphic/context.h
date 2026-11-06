@@ -18,6 +18,8 @@
 
 #pragma once
 
+#include <atomic>
+
 #include "types.h"
 #include "vertex.h"
 
@@ -101,13 +103,10 @@ struct FrameMetrics {
 	uint32_t frame_sample_count = 0;
 };
 
+// Render-thread-owned limiter state (the settings live in perf::LimiterSettings, see setFpsLimit).
 struct LimiterMetrics {
-	bool active = false;
 	HANDLE timer = 0;
 	LARGE_INTEGER due_time = { 0 };
-	float frame_len_ms = 0.0f;
-	uint64_t frame_len_ns = 0;
-	int64_t pace_period = 0; // QPC counts per frame
 	int64_t pace_next = 0;
 };
 
@@ -121,7 +120,8 @@ class Context {
 	HANDLE m_semaphore_cpu[MAX_FRAME_LATENCY];
 	HANDLE m_semaphore_gpu[MAX_FRAME_LATENCY];
 	CommandBuffer m_command_buffer[MAX_FRAME_LATENCY];
-	bool m_rendering = true;
+	std::atomic<bool> m_rendering{ true }; // written by ~Context (game thread), read by renderThread
+	HANDLE m_render_thread = nullptr;
 
 	GLuint m_pixel_buffer;
 	GLuint m_index_buffer;
@@ -138,7 +138,18 @@ class Context {
 	uint32_t m_mod_coverage[MOD_COVERAGE_CELLS] = {};
 
 	FrameMetrics m_frame;
-	LimiterMetrics m_limiter;
+	LimiterMetrics m_limiter;              // render thread: timer, due_time, pace_next
+	perf::LimiterSettings m_limiter_settings; // game thread (setFpsLimit), copied into each frame snapshot
+
+	// R0 instrumentation (game-thread state unless noted). m_perf / m_gpu_sync are fixed at startup.
+	bool m_perf = false;
+	uint32_t m_gpu_sync = 0;
+	uint32_t m_perf_frame = 0;
+	int64_t m_perf_begin_qpc = 0;
+	int64_t m_perf_present_qpc = 0;
+	double m_perf_wait_ms = -1.0;
+	double m_perf_cpu_ms = -1.0;
+	std::atomic<uint32_t> m_inflight{ 0 }; // game ++ at submit, render -- at retire (perf only)
 
 	std::unique_ptr<Texture> m_game_texture;
 	std::unique_ptr<UniformBuffer> m_game_color_ubo;
@@ -185,7 +196,7 @@ class Context {
 	std::unique_ptr<FrameBuffer> m_light_framebuffer;
 	std::unique_ptr<Texture> m_light_texture;
 	glm::uvec2 m_light_tex_size = { 0, 0 };
-	uint32_t gameDrawBufferCount() const;
+	uint32_t gameDrawBufferCount(const perf::FrameSettings& st) const;
 	std::unique_ptr<FrameBuffer> m_world_framebuffer;
 	bool m_world_ready = false;
 
@@ -260,6 +271,14 @@ public:
 
 private:
 	void resetFileTime();
+	void captureSettings(perf::FrameSettings& st) const;
+	inline int64_t qpcNow() const
+	{
+		LARGE_INTEGER t;
+		QueryPerformanceCounter(&t);
+		return t.QuadPart;
+	}
+	inline double qpcMs(int64_t counts) const { return (double)counts / m_frame.frequency; }
 
 	glm::ivec4 coverageCells(glm::vec2 pos, glm::vec2 size);
 	void markModCoverage(glm::vec2 pos, glm::vec2 size);

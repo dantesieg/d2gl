@@ -324,6 +324,15 @@ void saveIni()
 		"; Frame Latency (how many frames cpu generate before rendering).\n"
 		"; Set 1-5 (increasing this value notice less frame stutter but introduces more input lag).\n"
 		"frame_latency=%d\n\n"
+		"; Performance log (d2gl_perf.csv per frame + d2gl_perf_summary.jsonl). Off has near-zero cost.\n"
+		"perf_log=%s\n"
+		"; Keep one CSV row per N frames (1-1000).\n"
+		"perf_sample_every=%d\n"
+		"; Frames per JSON summary line (60-100000).\n"
+		"perf_summary_every=%d\n\n"
+		"; GPU sync mode: 0 = legacy (wait for the current frame's fence), 1 = deferred (wait for the previous\n"
+		"; frame's fence; experimental, NOT measured, may add one frame of latency).\n"
+		"gpu_sync=%d\n\n"
 		"; Comma-delimited DLLs to load (early: right after attached).\n"
 		"load_dlls_early=%s\n\n"
 		"; Comma-delimited DLLs to load (late: right after window created).\n"
@@ -334,6 +343,10 @@ void saveIni()
 		App.gl_ver.y,
 		boolString(App.use_compute_shader),
 		App.frame_latency,
+		boolString(App.perf.log),
+		App.perf.sample_every,
+		App.perf.summary_every,
+		App.perf.gpu_sync,
 		App.dlls_early.c_str(),
 		App.dlls_late.c_str());
 	out_file << buf;
@@ -441,6 +454,10 @@ void loadIni()
 
 		App.use_compute_shader = getBool("Other", "use_compute_shader", App.use_compute_shader);
 		App.frame_latency = getInt("Other", "frame_latency", App.frame_latency, 1, 5);
+		App.perf.log = getBool("Other", "perf_log", App.perf.log);
+		App.perf.sample_every = getInt("Other", "perf_sample_every", App.perf.sample_every, 1, 1000);
+		App.perf.summary_every = getInt("Other", "perf_summary_every", App.perf.summary_every, 60, 100000);
+		App.perf.gpu_sync = getInt("Other", "gpu_sync", App.perf.gpu_sync, 0, 1);
 
 		App.dlls_early = getString("Other", "load_dlls_early", App.dlls_early);
 		App.dlls_late = getString("Other", "load_dlls_late", App.dlls_late);

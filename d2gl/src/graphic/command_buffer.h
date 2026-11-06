@@ -1,5 +1,8 @@
 #pragma once
 
+#include "perf/frame_settings.h"
+#include "perf/perf_sample.h"
+
 namespace d2gl {
 
 enum class CommandType {
@@ -99,6 +102,13 @@ class CommandBuffer {
 	GameTexUpdate m_tex_update;
 	HDTextMasking m_hd_text_mask;
 	Occluders m_occluders;
+
+	// R2: immutable per-frame settings snapshot; written by the game thread in presentFrame()
+	// before ReleaseSemaphore(m_semaphore_cpu[slot]), read only by the render thread after it
+	// acquired that semaphore. Never reset by reset(): it is fully overwritten every frame.
+	perf::FrameSettings m_settings;
+	// R0: game-thread timings for this frame (only written when App.perf.log is on).
+	perf::GameTiming m_game_timing;
 
 	friend class Context;
 
