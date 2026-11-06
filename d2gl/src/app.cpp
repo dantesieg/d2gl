@@ -65,7 +65,7 @@ void dllAttach(HMODULE hmodule)
 		return;
 	}
 
-	App.log = command_line.find("-log") != std::string::npos;
+	App.log = command_line.find("-log") != std::string::npos || GetFileAttributesA("d2gl.log") != INVALID_FILE_ATTRIBUTES; // touch d2gl.log to enable
 	App.direct = command_line.find("-direct") != std::string::npos;
 
 	logInit();

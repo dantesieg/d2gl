@@ -458,7 +458,7 @@ bool Presenter::createTarget()
 bool Presenter::createShared()
 {
 	if (!GLEW_EXT_memory_object_win32 || !glCreateMemoryObjectsEXT || !glImportMemoryWin32HandleEXT || !glTexStorageMem2DEXT) {
-		trace_log("HDR: GL_EXT_memory_object_win32 not available");
+		error_log("HDR: shared texture unavailable: ext=%d memobj=%d create=%p import=%p storage=%p", (int)GLEW_EXT_memory_object_win32, (int)GLEW_EXT_memory_object, (void*)glCreateMemoryObjectsEXT, (void*)glImportMemoryWin32HandleEXT, (void*)glTexStorageMem2DEXT);
 		return false;
 	}
 	D3D11_TEXTURE2D_DESC td = {};
