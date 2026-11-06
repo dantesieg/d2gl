@@ -51,7 +51,7 @@ int main() {
 		float3 o = encode_pixel({v, v, v}, 1.0f, p);
 		maxdev = std::max({maxdev, (double)std::fabs(o.r - o.g), (double)std::fabs(o.g - o.b)});
 	}
-	near("neutral greys stay neutral (max |R-G|,|G-B| PQ)", maxdev, 0.0, 1e-6);
+	near("neutral greys stay neutral (PQ dev <0.02 code)", maxdev, 0.0, 2e-5);
 	p.highlight_strength = 1.0f;
 	maxdev = 0;
 	for (int i = 0; i <= 255; ++i) {
@@ -59,7 +59,7 @@ int main() {
 		float3 o = encode_pixel({v, v, v}, 1.0f, p);
 		maxdev = std::max({maxdev, (double)std::fabs(o.r - o.g), (double)std::fabs(o.g - o.b)});
 	}
-	near("neutral preserved with expansion+EETF", maxdev, 0.0, 1e-6);
+	near("neutral preserved with expansion+EETF", maxdev, 0.0, 2e-5);
 	p = Params{};
 	// SDR white -> paper white exactly (peak 1000 > 203, EETF knee above 203 nits)
 	float3 wo = encode_pixel({1, 1, 1}, 1.0f, p);

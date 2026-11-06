@@ -18,6 +18,6 @@ if(WIN32)
   target_compile_options(hdr10_proto PRIVATE ${WARN} -Wno-cast-function-type)
   # d3dcompiler_47 is loaded at runtime (LoadLibrary), not linked.
   target_link_libraries(hdr10_proto PRIVATE d3d11 dxgi opengl32 gdi32 user32 dxguid)
-  target_link_options(hdr10_proto PRIVATE -static -static-libgcc -static-libstdc++)
-  target_link_options(test_color PRIVATE -static -static-libgcc -static-libstdc++)
+  target_link_options(hdr10_proto PRIVATE -s -static -static-libgcc -static-libstdc++)
+  target_link_options(test_color PRIVATE -s -static -static-libgcc -static-libstdc++)
 endif()
