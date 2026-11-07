@@ -130,7 +130,6 @@ void main()
 		FragColor = v_Color2;
 	else if (v_Flags.y == 2u) // local = iterated (per-vertex colour)
 		FragColor = v_Color1;
-	else
 	else if (u_NativeScale > 1.0 && u_NativeFilter > 0 && v_TexRect.z > 0u)
 	{
 		vec4 pal;
