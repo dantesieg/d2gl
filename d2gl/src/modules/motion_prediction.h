@@ -40,6 +40,8 @@ struct UnitMotion {
 	glm::dvec2 v2_prev = { 0.0, 0.0 }; // position at the tick before
 	glm::dvec2 v2_cur = { 0.0, 0.0 };  // position at the latest tick
 	glm::dvec2 v2_vel = { 0.0, 0.0 };  // smoothed tiles / s
+	glm::dvec2 v2_shown = { 0.0, 0.0 }; // last drawn position
+	glm::dvec2 v2_err = { 0.0, 0.0 };   // drawn - new estimate at the last tick, faded out (no jumps)
 };
 
 struct ParticleMotion {

@@ -399,10 +399,11 @@ void MotionPrediction::setUnitMotionV2(UnitMotion* unit_motion, bool tick, doubl
 
 	const glm::dvec2 jump = glm::abs(pos - unit_motion->v2_cur);
 	if (!unit_motion->v2_init || glm::max(jump.x, jump.y) > 2.0) { // new unit, teleport, waypoint, knockback: snap
-		unit_motion->v2_prev = unit_motion->v2_cur = pos;
-		unit_motion->v2_vel = { 0.0, 0.0 };
+		unit_motion->v2_prev = unit_motion->v2_cur = unit_motion->v2_shown = pos;
+		unit_motion->v2_vel = unit_motion->v2_err = { 0.0, 0.0 };
 		unit_motion->v2_init = true;
 	} else if (tick || pos != unit_motion->v2_cur) {
+		const glm::dvec2 shown_before = unit_motion->v2_shown;
 		const glm::dvec2 step_vel = (pos - unit_motion->v2_cur) / tick_len;
 		if (pos == unit_motion->v2_cur)
 			unit_motion->v2_vel = { 0.0, 0.0 }; // no move at this tick: stopped, no slide
@@ -412,6 +413,10 @@ void MotionPrediction::setUnitMotionV2(UnitMotion* unit_motion, bool tick, doubl
 			unit_motion->v2_vel = 0.5 * unit_motion->v2_vel + 0.5 * step_vel; // smooth the rounding jitter
 		unit_motion->v2_prev = unit_motion->v2_cur;
 		unit_motion->v2_cur = pos;
+		// the new estimate starts at prev (exact) or cur (predict); keep drawing from where we were
+		unit_motion->v2_err = shown_before - (App.motion_prediction_exact ? unit_motion->v2_prev : unit_motion->v2_cur);
+		if (glm::max(glm::abs(unit_motion->v2_err.x), glm::abs(unit_motion->v2_err.y)) > 1.0)
+			unit_motion->v2_err = { 0.0, 0.0 };
 	}
 
 	const double t = glm::clamp(since_tick, 0.0, tick_len);
@@ -420,6 +425,8 @@ void MotionPrediction::setUnitMotionV2(UnitMotion* unit_motion, bool tick, doubl
 		shown = glm::mix(unit_motion->v2_prev, unit_motion->v2_cur, t / tick_len); // one tick behind, never overshoots
 	else
 		shown = unit_motion->v2_cur + unit_motion->v2_vel * t;
+	shown += unit_motion->v2_err * exp(-glm::max(since_tick, 0.0) / 0.035);
+	unit_motion->v2_shown = shown;
 
 	// getUnitOffset() works on predicted_pos - last_pos (16.16)
 	unit_motion->last_pos = { (int32_t)(unit_motion->v2_cur.x * 65536.0), (int32_t)(unit_motion->v2_cur.y * 65536.0) };
