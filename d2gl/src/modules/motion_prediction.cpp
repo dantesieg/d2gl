@@ -391,7 +391,12 @@ void MotionPrediction::setUnitMotionV2(UnitMotion* um, double now)
 		return;
 	const glm::dvec2 pos = { path->x / 65536.0, path->y / 65536.0 };
 	const bool exact = App.motion_prediction_exact;
-	const glm::dvec2 shown_before = um->v2_shown;
+	auto eval = [&](double at) {
+		const double tt = glm::clamp(at - um->v2_change_time, 0.0, um->v2_interval);
+		const glm::dvec2 b = exact ? glm::mix(um->v2_prev, um->v2_cur, um->v2_interval > 0.0 ? tt / um->v2_interval : 1.0) : um->v2_cur + um->v2_vel * tt;
+		return b + um->v2_err * exp(-(at - um->v2_err_time) / 0.035);
+	};
+	const glm::dvec2 shown_before = um->v2_init ? eval(now) : pos; // the old motion carried on to this frame
 
 	const glm::dvec2 jump = glm::abs(pos - um->v2_cur);
 	if (!um->v2_init || glm::max(jump.x, jump.y) > 2.0) { // new unit, teleport, waypoint, knockback: snap
