@@ -14,6 +14,7 @@ cbuffer P : register(b0) {
 	float gain; float black; float contrast; float saturation;
 	int calib; int flip_y; float width; float height;
 	float emit_scale; int graded; float pad1; float pad2;
+	float3 tint; float pad3;
 };
 Texture2D<float4> src : register(t0);
 SamplerState smp : register(s0);
@@ -81,6 +82,7 @@ float4 ps_main(VO i) : SV_Target {
 	// saturation (luminance preserving, linear Rec.709)
 	float y = LUMA(lin);
 	lin = max(y + saturation * (lin - y), 0);
+	lin = lin * tint; // per-act colour grading
 	// contrast around 0.18 linear, on luminance (hue/neutrality preserved)
 	y = LUMA(lin);
 	if (y > 0) lin = lin * (0.18 * pow(y / 0.18, contrast) / y);
@@ -135,14 +137,15 @@ struct ShaderConstants {
 	float gain, black, contrast, saturation;
 	int calib, flip_y; float width, height;
 	float emit_scale; int graded; float pad1, pad2;
+	float tint_r, tint_g, tint_b, pad3;
 };
-static_assert(sizeof(ShaderConstants) == 80, "cbuffer layout");
+static_assert(sizeof(ShaderConstants) == 96, "cbuffer layout");
 
 inline ShaderConstants makeConstants(const Params& p, int out_mode, bool calib, bool flip_y, float w, float h, float emit_scale = 0.0f, bool graded = false)
 {
 	return { p.sdr_white_nits, p.peak_nits, p.src_peak_nits, p.highlight_strength, p.highlight_knee, (int)p.transfer,
 		(int)p.tonemap, out_mode, std::exp2(p.brightness_stops), p.black_level, p.contrast, p.saturation,
-		calib ? 1 : 0, flip_y ? 1 : 0, w, h, emit_scale, graded ? 1 : 0, 0.0f, 0.0f };
+		calib ? 1 : 0, flip_y ? 1 : 0, w, h, emit_scale, graded ? 1 : 0, 0.0f, 0.0f, p.tint[0], p.tint[1], p.tint[2], 0.0f };
 }
 
 }

@@ -226,6 +226,9 @@ struct D2GLApp {
 		Range<float> emissive_gain = { 1.5f, 0.5f, 4.0f };       // emission = clamp(additive luma * gain)
 		bool emissive_graded = false; // R16F emission, unbounded; alpha = 1 / (1 + e), decoded in the presenter
 		Range<float> movie_nits = { 0.0f, 0.0f, 500.0f }; // paper white of movies/menus/loading; 0 = sdr_white
+		bool act_grading = false;                         // per-act exposure + colour tint in game
+		Range<float> act_tint = { 1.0f, 0.0f, 2.0f };     // tint strength (0 = exposure only)
+		Range<float> act_exposure[5] = { { 0.0f, -1.0f, 1.0f }, { -0.25f, -1.0f, 1.0f }, { 0.0f, -1.0f, 1.0f }, { 0.0f, -1.0f, 1.0f }, { 0.0f, -1.0f, 1.0f } }; // stops
 		bool shared_texture = true; // GL_EXT_memory_object_win32 zero-copy; false forces the PBO path
 	} hdr;
 

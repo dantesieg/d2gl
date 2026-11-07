@@ -371,6 +371,14 @@ void saveIni()
 		"; Paper white in nits for movies, menus and loading screens (0 = same as sdr_white, up to 500).\n"
 		"; These also skip brightness, highlight expansion and emissive.\n"
 		"movie_nits=%.1f\n"
+		"; Per-act grading: exposure offset in stops per act and a colour tint (strength 0-2).\n"
+		"act_grading=%s\n"
+		"act_tint=%.2f\n"
+		"act1_exposure=%.2f\n"
+		"act2_exposure=%.2f\n"
+		"act3_exposure=%.2f\n"
+		"act4_exposure=%.2f\n"
+		"act5_exposure=%.2f\n"
 		"; Float pipeline (needs hdr=true and a restart): world rendered to RGBA16F so spells, fire and\n"
 		"; lights go above paper white, one HDR tonemap at the end; the SDR [Graphic] tonemap is skipped.\n"
 		"float_pipeline=%s\n"
@@ -408,6 +416,13 @@ void saveIni()
 		App.hdr.emissive_gain.value,
 		boolString(App.hdr.emissive_graded),
 		App.hdr.movie_nits.value,
+		boolString(App.hdr.act_grading),
+		App.hdr.act_tint.value,
+		App.hdr.act_exposure[0].value,
+		App.hdr.act_exposure[1].value,
+		App.hdr.act_exposure[2].value,
+		App.hdr.act_exposure[3].value,
+		App.hdr.act_exposure[4].value,
 		boolString(App.hdr.float_pipeline),
 		boolString(App.hdr.diffuse_shoulder),
 		App.hdr.shoulder_knee.value,
@@ -608,6 +623,13 @@ void loadIni()
 		App.hdr.emissive_gain.value = getFloat("HDR", "emissive_gain", App.hdr.emissive_gain);
 		App.hdr.emissive_graded = getBool("HDR", "emissive_graded", App.hdr.emissive_graded);
 		App.hdr.movie_nits.value = getFloat("HDR", "movie_nits", App.hdr.movie_nits);
+		App.hdr.act_grading = getBool("HDR", "act_grading", App.hdr.act_grading);
+		App.hdr.act_tint.value = getFloat("HDR", "act_tint", App.hdr.act_tint);
+		for (int i = 0; i < 5; i++) {
+			char key[20];
+			sprintf_s(key, "act%d_exposure", i + 1);
+			App.hdr.act_exposure[i].value = getFloat("HDR", key, App.hdr.act_exposure[i]);
+		}
 		App.hdr.float_pipeline = getBool("HDR", "float_pipeline", App.hdr.float_pipeline);
 		App.hdr.diffuse_shoulder = getBool("HDR", "diffuse_shoulder", App.hdr.diffuse_shoulder);
 		App.hdr.shoulder_knee.value = getFloat("HDR", "shoulder_knee", App.hdr.shoulder_knee);

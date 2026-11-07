@@ -599,6 +599,24 @@ void Menu::draw()
 				drawSlider_m(float, "Emissive Gain", App.hdr.emissive_gain, "%.2f", "", hdr_emissive_gain)
 					saveFloat("HDR", "emissive_gain", App.hdr.emissive_gain.value);
 			ImGui::EndDisabled();
+			drawSeparator();
+			drawCheckbox_m("Per-Act Grading", App.hdr.act_grading, "Own exposure and colour tint per act (Act 2 warm, Act 3 green, Act 4 red, Act 5 cold).", hdr_act_grading)
+				saveBool("HDR", "act_grading", App.hdr.act_grading);
+			ImGui::BeginDisabled(!App.hdr.act_grading);
+				auto &act_exp1 = App.hdr.act_exposure[0], &act_exp2 = App.hdr.act_exposure[1], &act_exp3 = App.hdr.act_exposure[2], &act_exp4 = App.hdr.act_exposure[3], &act_exp5 = App.hdr.act_exposure[4];
+				drawSlider_m(float, "Act Tint", App.hdr.act_tint, "%.2f", "", hdr_act_tint)
+					saveFloat("HDR", "act_tint", App.hdr.act_tint.value);
+				drawSlider_m(float, "Act 1 Exposure", act_exp1, "%.2f", "", hdr_act1)
+					saveFloat("HDR", "act1_exposure", App.hdr.act_exposure[0].value);
+				drawSlider_m(float, "Act 2 Exposure", act_exp2, "%.2f", "", hdr_act2)
+					saveFloat("HDR", "act2_exposure", App.hdr.act_exposure[1].value);
+				drawSlider_m(float, "Act 3 Exposure", act_exp3, "%.2f", "", hdr_act3)
+					saveFloat("HDR", "act3_exposure", App.hdr.act_exposure[2].value);
+				drawSlider_m(float, "Act 4 Exposure", act_exp4, "%.2f", "", hdr_act4)
+					saveFloat("HDR", "act4_exposure", App.hdr.act_exposure[3].value);
+				drawSlider_m(float, "Act 5 Exposure", act_exp5, "%.2f", "", hdr_act5)
+					saveFloat("HDR", "act5_exposure", App.hdr.act_exposure[4].value);
+			ImGui::EndDisabled();
 			childSeparator("##hdr1");
 			ImGui::BeginDisabled(!App.hdr.float_pipeline);
 				drawCheckbox_m("Auto Exposure", App.hdr.auto_exposure, "Eye adaptation on the world (float pipeline); spells and UI do not affect it.", hdr_auto_exposure)

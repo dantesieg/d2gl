@@ -2,6 +2,7 @@
 #include "hdr_presenter.h"
 #include "hdr_shader.h"
 #include "graphic/frame_buffer.h"
+#include "d2/common.h"
 
 #include <d3dcompiler.h>
 
@@ -789,6 +790,15 @@ bool Presenter::present(bool vsync)
 	}
 	if (m_float)
 		p.highlight_strength = 0.0f; // float pipeline: real light above 1.0 replaces highlight expansion
+	if (App.hdr.act_grading && !m_cinematic && App.game.screen == GameScreen::InGame && d2::level_no) {
+		// per-act look: Act 1 neutral, Act 2 warm desert, Act 3 humid green, Act 4 hellish red, Act 5 cold
+		static const float tints[5][3] = { { 1.00f, 1.00f, 1.00f }, { 1.04f, 1.00f, 0.92f }, { 0.95f, 1.03f, 0.96f }, { 1.05f, 0.96f, 0.94f }, { 0.95f, 0.99f, 1.06f } };
+		const int lvl = *d2::level_no;
+		const int act = lvl >= 109 ? 4 : lvl >= 103 ? 3 : lvl >= 75 ? 2 : lvl >= 40 ? 1 : 0;
+		p.brightness_stops += App.hdr.act_exposure[act].value;
+		for (int i = 0; i < 3; i++)
+			p.tint[i] = 1.0f + (tints[act][i] - 1.0f) * App.hdr.act_tint.value;
+	}
 	if (m_hdr_presenting && m_sc4 && (!m_metadata_set || m_metadata_peak != p.peak_nits)) {
 		auto c = [](double v) { return (UINT16)(v / 0.00002 + 0.5); };
 		DXGI_HDR_METADATA_HDR10 md = {};

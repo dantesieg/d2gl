@@ -24,6 +24,7 @@ struct Params {
 	float highlight_knee = 0.75f;
 	Transfer transfer = Transfer::GAMMA22;
 	Tonemap tonemap = Tonemap::BT2390;
+	float tint[3] = { 1.0f, 1.0f, 1.0f }; // per-act colour grading (linear multiplier)
 };
 
 constexpr float CONTRAST_PIVOT = 0.18f;
