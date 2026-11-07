@@ -504,6 +504,8 @@ void Menu::draw()
 				ImGui::BeginDisabled(!App.loot_sparkle.active);
 					drawCombo_m("", App.loot_sparkle.min_quality, "Minimum item quality that sparkles.", false, 17, loot_sparkle_min_quality)
 						saveInt("Feature", "loot_sparkle_min_quality", App.loot_sparkle.min_quality.selected);
+					drawCheckbox_m("Class Colours", App.loot_sparkle.colors, "Sparkle in strong item-class colours: unique gold, set green, rune orange, rare yellow, magic blue.", loot_sparkle_colors)
+						saveBool("Feature", "loot_sparkle_colors", App.loot_sparkle.colors);
 				ImGui::EndDisabled();
 				ImGui::BeginDisabled(!(isVer(V_114d)));
 					drawCheckbox_m("Minion Ring", App.minion_ring, "Soft green ring under your summons (glide only, 1.14d).", minion_ring)

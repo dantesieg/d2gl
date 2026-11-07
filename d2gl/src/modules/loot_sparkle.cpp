@@ -252,6 +252,15 @@ void LootSparkle::draw()
 		{ 0.35f, 1.00f, 0.40f }, // set
 		{ 1.00f, 0.82f, 0.45f }, // unique
 	};
+	// [Feature] loot_sparkle_colors: saturated class colours, max channel 1 like the default set
+	static const glm::vec3 class_colors[5] = {
+		{ 0.30f, 0.45f, 1.00f }, // magic: blue
+		{ 1.00f, 1.00f, 0.25f }, // rare: yellow
+		{ 1.00f, 0.50f, 0.10f }, // rune: orange
+		{ 0.20f, 1.00f, 0.25f }, // set: green
+		{ 1.00f, 0.72f, 0.15f }, // unique: gold
+	};
+	const glm::vec3* palette = App.loot_sparkle.colors ? class_colors : colors;
 	auto pack = [](glm::vec3 c, float a) -> uint32_t {
 		c = glm::clamp(c * a, 0.0f, 1.0f);
 		return 0xFF000000 | ((uint32_t)(c.r * 255.0f) << 16) | ((uint32_t)(c.g * 255.0f) << 8) | (uint32_t)(c.b * 255.0f);
@@ -282,8 +291,8 @@ void LootSparkle::draw()
 		const float size = (it->second.kind >= 3 ? 26.0f : 20.0f) * (0.6f + 0.4f * sinf(glm::pi<float>() * t));
 		const float rot = t * 1.2f;
 		const glm::vec2 c = { it->second.x, it->second.y - 12.0f };
-		const uint32_t bright = pack(colors[it->second.kind], a);
-		const uint32_t dim = pack(colors[it->second.kind], a * 0.6f);
+		const uint32_t bright = pack(palette[it->second.kind], a);
+		const uint32_t dim = pack(palette[it->second.kind], a * 0.6f);
 		for (int i = 0; i < 4; i++) {
 			const float ang = rot + i * glm::half_pi<float>();
 			ray(c, { cosf(ang), sinf(ang) }, size, 1.6f, bright);
