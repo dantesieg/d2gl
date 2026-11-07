@@ -41,7 +41,10 @@ struct UnitMotion {
 	glm::dvec2 v2_cur = { 0.0, 0.0 };  // position at the latest tick
 	glm::dvec2 v2_vel = { 0.0, 0.0 };  // smoothed tiles / s
 	glm::dvec2 v2_shown = { 0.0, 0.0 }; // last drawn position
-	glm::dvec2 v2_err = { 0.0, 0.0 };   // drawn - new estimate at the last tick, faded out (no jumps)
+	glm::dvec2 v2_err = { 0.0, 0.0 };   // drawn - new estimate at the last change, faded out (no jumps)
+	double v2_change_time = 0.0;        // when the position last changed (s)
+	double v2_err_time = 0.0;
+	double v2_interval = 0.04;          // measured time between this unit's updates (s)
 };
 
 struct ParticleMotion {
@@ -98,10 +101,7 @@ public:
 
 private:
 	void setUnitMotion(UnitMotion* unit_motion, int32_t delta);
-	void setUnitMotionV2(UnitMotion* unit_motion, bool tick, double since_tick);
-	bool unitMoved(UnitMotion* unit_motion);
-
-	double m_v2_tick_time = 0.0; // seconds, when the last game tick was seen (any tracked unit moved)
+	void setUnitMotionV2(UnitMotion* unit_motion, double now);
 	glm::ivec2 getUnitOffset(UnitMotion* unit_motion);
 
 	inline bool isAvailable() { return m_active && App.game.screen == GameScreen::InGame; }

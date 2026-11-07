@@ -103,21 +103,12 @@ void MotionPrediction::update()
 	}
 
 	if (App.motion_prediction_v2) {
-		// A game tick is seen when any tracked unit's position changed; every unit is then advanced
-		// on the same tick clock, so stops (no change at a tick) and the 90/25 frame rhythm are exact.
+		// Each unit is timed by its own position updates (units do not all update on the same frame).
 		const double now = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
-		bool tick = m_player_motion.unit && unitMoved(&m_player_motion);
-		for (auto it = m_units.begin(); !tick && it != m_units.end(); it++)
-			tick = unitMoved(&it->second);
-		if (tick && now - m_v2_tick_time < 0.020)
-			tick = false; // same game tick still being reported (render faster than 50 Hz)
-		if (tick)
-			m_v2_tick_time = now;
-		const double since = d2::isEscMenuOpen() ? 0.0 : now - m_v2_tick_time;
 		if (m_player_motion.unit)
-			setUnitMotionV2(&m_player_motion, tick, since);
+			setUnitMotionV2(&m_player_motion, now);
 		for (auto& item : m_units)
-			setUnitMotionV2(&item.second, tick, since);
+			setUnitMotionV2(&item.second, now);
 	} else {
 		setUnitMotion(&m_player_motion, delta);
 		for (auto& item : m_units)
@@ -380,58 +371,57 @@ void MotionPrediction::setUnitMotion(UnitMotion* unit_motion, int32_t delta)
 	unit_motion->offset_update = true;
 }
 
-bool MotionPrediction::unitMoved(UnitMotion* unit_motion)
+void MotionPrediction::setUnitMotionV2(UnitMotion* um, double now)
 {
-	const d2::Path* path = d2::getUnitPath(unit_motion->unit);
-	if (!path || !unit_motion->v2_init)
-		return false;
-	const glm::dvec2 pos = { path->x / 65536.0, path->y / 65536.0 };
-	return pos != unit_motion->v2_cur;
-}
-
-void MotionPrediction::setUnitMotionV2(UnitMotion* unit_motion, bool tick, double since_tick)
-{
-	const d2::Path* path = d2::getUnitPath(unit_motion->unit);
+	const d2::Path* path = d2::getUnitPath(um->unit);
 	if (!path)
 		return;
 	const glm::dvec2 pos = { path->x / 65536.0, path->y / 65536.0 };
-	const double tick_len = 1.0 / 25.0;
+	const bool exact = App.motion_prediction_exact;
+	const glm::dvec2 shown_before = um->v2_shown;
 
-	const glm::dvec2 jump = glm::abs(pos - unit_motion->v2_cur);
-	if (!unit_motion->v2_init || glm::max(jump.x, jump.y) > 2.0) { // new unit, teleport, waypoint, knockback: snap
-		unit_motion->v2_prev = unit_motion->v2_cur = unit_motion->v2_shown = pos;
-		unit_motion->v2_vel = unit_motion->v2_err = { 0.0, 0.0 };
-		unit_motion->v2_init = true;
-	} else if (tick || pos != unit_motion->v2_cur) {
-		const glm::dvec2 shown_before = unit_motion->v2_shown;
-		const glm::dvec2 step_vel = (pos - unit_motion->v2_cur) / tick_len;
-		if (pos == unit_motion->v2_cur)
-			unit_motion->v2_vel = { 0.0, 0.0 }; // no move at this tick: stopped, no slide
-		else if (unit_motion->v2_vel == glm::dvec2(0.0))
-			unit_motion->v2_vel = step_vel; // starting: no history to smooth with
-		else
-			unit_motion->v2_vel = 0.5 * unit_motion->v2_vel + 0.5 * step_vel; // smooth the rounding jitter
-		unit_motion->v2_prev = unit_motion->v2_cur;
-		unit_motion->v2_cur = pos;
-		// the new estimate starts at prev (exact) or cur (predict); keep drawing from where we were
-		unit_motion->v2_err = shown_before - (App.motion_prediction_exact ? unit_motion->v2_prev : unit_motion->v2_cur);
-		if (glm::max(glm::abs(unit_motion->v2_err.x), glm::abs(unit_motion->v2_err.y)) > 1.0)
-			unit_motion->v2_err = { 0.0, 0.0 };
+	const glm::dvec2 jump = glm::abs(pos - um->v2_cur);
+	if (!um->v2_init || glm::max(jump.x, jump.y) > 2.0) { // new unit, teleport, waypoint, knockback: snap
+		um->v2_prev = um->v2_cur = um->v2_shown = pos;
+		um->v2_vel = um->v2_err = { 0.0, 0.0 };
+		um->v2_change_time = um->v2_err_time = now;
+		um->v2_interval = 0.04;
+		um->v2_init = true;
+		return;
 	}
 
-	const double t = glm::clamp(since_tick, 0.0, tick_len);
-	glm::dvec2 shown;
-	if (App.motion_prediction_exact)
-		shown = glm::mix(unit_motion->v2_prev, unit_motion->v2_cur, t / tick_len); // one tick behind, never overshoots
-	else
-		shown = unit_motion->v2_cur + unit_motion->v2_vel * t;
-	shown += unit_motion->v2_err * exp(-glm::max(since_tick, 0.0) / 0.035);
-	unit_motion->v2_shown = shown;
+	bool changed = false;
+	if (pos != um->v2_cur) {
+		const double dt = glm::clamp(now - um->v2_change_time, 1.0 / 120.0, 0.08);
+		um->v2_interval = (now - um->v2_change_time) < 0.1 ? 0.5 * um->v2_interval + 0.5 * dt : um->v2_interval;
+		const glm::dvec2 step_vel = (pos - um->v2_cur) / dt;
+		um->v2_vel = um->v2_vel == glm::dvec2(0.0) ? step_vel : 0.5 * um->v2_vel + 0.5 * step_vel; // smooth rounding jitter
+		um->v2_prev = um->v2_cur;
+		um->v2_cur = pos;
+		um->v2_change_time = now;
+		changed = true;
+	} else if (um->v2_vel != glm::dvec2(0.0) && now - um->v2_change_time > 1.5 * um->v2_interval) {
+		um->v2_vel = { 0.0, 0.0 }; // no update for 1.5 intervals: stopped, no slide
+		um->v2_prev = um->v2_cur;
+		changed = true;
+	}
+
+	const double t = glm::clamp(now - um->v2_change_time, 0.0, um->v2_interval);
+	glm::dvec2 base = exact ? glm::mix(um->v2_prev, um->v2_cur, um->v2_interval > 0.0 ? t / um->v2_interval : 1.0) : um->v2_cur + um->v2_vel * t;
+
+	if (changed) { // keep drawing from where we were; the correction fades out
+		um->v2_err = shown_before - base;
+		um->v2_err_time = now;
+		if (glm::max(glm::abs(um->v2_err.x), glm::abs(um->v2_err.y)) > 1.0)
+			um->v2_err = { 0.0, 0.0 };
+	}
+	const glm::dvec2 shown = base + um->v2_err * exp(-(now - um->v2_err_time) / 0.035);
+	um->v2_shown = shown;
 
 	// getUnitOffset() works on predicted_pos - last_pos (16.16)
-	unit_motion->last_pos = { (int32_t)(unit_motion->v2_cur.x * 65536.0), (int32_t)(unit_motion->v2_cur.y * 65536.0) };
-	unit_motion->predicted_pos = { (int32_t)(shown.x * 65536.0), (int32_t)(shown.y * 65536.0) };
-	unit_motion->offset_update = true;
+	um->last_pos = { (int32_t)(um->v2_cur.x * 65536.0), (int32_t)(um->v2_cur.y * 65536.0) };
+	um->predicted_pos = { (int32_t)(shown.x * 65536.0), (int32_t)(shown.y * 65536.0) };
+	um->offset_update = true;
 }
 
 glm::ivec2 MotionPrediction::getUnitOffset(UnitMotion* unit_motion)
