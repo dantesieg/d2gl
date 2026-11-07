@@ -61,6 +61,7 @@ namespace d2gl {
 #define TEXTURE_SLOT_SHADOW2 17
 #define TEXTURE_SLOT_VLIGHT 18 // game framebuffer attachment 4 (needs > 18 texture units)
 #define TEXTURE_SLOT_AMBIENT 19 // 1x1 time-smoothed ambient for game vertex lighting
+#define TEXTURE_SLOT_EMIT 20 // game framebuffer attachment 5: HDR emission (additive sprites), [HDR] emissive
 
 #define IMAGE_UNIT_BLUR 0
 #define IMAGE_UNIT_FXAA 1
@@ -211,6 +212,13 @@ class Context {
 	// Soft shadows / ambient occlusion (game framebuffer attachment 3: r = darkness, g = occluder)
 	bool m_shadow_supported = false;
 	bool m_vlight_supported = false;
+	// HDR emissive highlights: 6th game attachment (r = additive emission), packed into default-FB alpha
+	bool m_emit_supported = false;
+	bool m_emit_attached = false;
+	uint32_t m_color_bpp = 8;
+	std::unique_ptr<Pipeline> m_emit_pipeline;
+	bool emitWanted() const;
+	bool vlightActive(const perf::FrameSettings& st) const;
 	bool m_shadow_fx = false;
 	bool m_shadow_seen = false;
 	uint8_t m_shadow_draw = 0; // 0: normal, 1: unit shadow, 2: ground/tile

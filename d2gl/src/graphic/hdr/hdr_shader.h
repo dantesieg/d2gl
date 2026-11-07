@@ -13,6 +13,7 @@ cbuffer P : register(b0) {
 	float knee; int transfer; int tonemap; int out_mode;
 	float gain; float black; float contrast; float saturation;
 	int calib; int flip_y; float width; float height;
+	float emit_scale; float pad0; float pad1; float pad2;
 };
 Texture2D<float4> src : register(t0);
 SamplerState smp : register(s0);
@@ -38,7 +39,9 @@ VO vs_main(uint id : SV_VertexID) {
 float4 ps_main(VO i) : SV_Target {
 	float2 uv = i.uv;
 	if (flip_y == 1) uv.y = 1.0 - uv.y;                 // GL rows are bottom-up
-	float3 rgb = src.Sample(smp, uv).rgb;
+	float4 texel = src.Sample(smp, uv);
+	float3 rgb = texel.rgb;
+	float ev = 1.0 - texel.a;                           // GL wrote alpha = 1 - emission ([HDR] emissive)
 	if (out_mode == 0) return float4(saturate(rgb), 1); // SDR swapchain: signal unchanged
 
 	// Calibration overlay: dark band with paper-white (signal 1.0, full pipeline), peak (direct peak nits)
@@ -90,6 +93,8 @@ float4 ps_main(VO i) : SV_Target {
 			lin = lin * (1.0 + strength * (max(peak / sdr_white, 1.0) - 1.0) * t * t);
 		}
 	}
+	// emissive highlights: additive sprites lifted toward emissive_nits; the tonemap below rolls off peaks
+	if (emit_scale > 0) lin = lin * (1.0 + saturate(ev) * emit_scale);
 	float3 n709 = lin * sdr_white;
 	float3 n = float3(dot(float3(0.627403896, 0.329283039, 0.043313065), n709),
 	                  dot(float3(0.069097289, 0.919540395, 0.011362316), n709),
@@ -124,14 +129,15 @@ struct ShaderConstants {
 	float knee; int transfer, tonemap, out_mode;
 	float gain, black, contrast, saturation;
 	int calib, flip_y; float width, height;
+	float emit_scale, pad0, pad1, pad2;
 };
-static_assert(sizeof(ShaderConstants) == 64, "cbuffer layout");
+static_assert(sizeof(ShaderConstants) == 80, "cbuffer layout");
 
-inline ShaderConstants makeConstants(const Params& p, int out_mode, bool calib, bool flip_y, float w, float h)
+inline ShaderConstants makeConstants(const Params& p, int out_mode, bool calib, bool flip_y, float w, float h, float emit_scale = 0.0f)
 {
 	return { p.sdr_white_nits, p.peak_nits, p.src_peak_nits, p.highlight_strength, p.highlight_knee, (int)p.transfer,
 		(int)p.tonemap, out_mode, std::exp2(p.brightness_stops), p.black_level, p.contrast, p.saturation,
-		calib ? 1 : 0, flip_y ? 1 : 0, w, h };
+		calib ? 1 : 0, flip_y ? 1 : 0, w, h, emit_scale, 0.0f, 0.0f, 0.0f };
 }
 
 }

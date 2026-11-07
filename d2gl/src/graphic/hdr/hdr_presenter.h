@@ -60,6 +60,7 @@ public:
 	const char* refusal() const { return m_refusal; }
 	float effectivePeak() const { return m_effective_peak; }
 	int lostCount() const { return m_lost_count; }
+	void setEmissive(bool on) { m_emissive = on; } // render thread: GL wrote 1 - emission into alpha this frame
 
 private:
 	bool createD3D();
@@ -121,6 +122,7 @@ private:
 	float m_metadata_peak = 0.0f;
 	float m_effective_peak = 1000.0f;
 	int m_lost_count = 0;
+	bool m_emissive = false;
 	uint32_t m_frame = 0;
 	char m_adapter_name[128] = "?";
 	char m_refusal[128] = "";

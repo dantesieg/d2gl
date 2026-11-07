@@ -781,7 +781,8 @@ bool Presenter::present(bool vsync)
 		m_metadata_set = SUCCEEDED(HR(m_sc4->SetHDRMetaData(DXGI_HDR_METADATA_TYPE_HDR10, sizeof(md), &md)));
 		m_metadata_peak = p.peak_nits;
 	}
-	const ShaderConstants k = makeConstants(p, m_hdr_presenting ? 1 : 0, App.hdr.calibration, true, (float)m_w, (float)m_h);
+	const float emit_scale = m_emissive ? std::max(App.hdr.emissive_nits.value / std::max(p.sdr_white_nits, 1.0f) - 1.0f, 0.0f) : 0.0f;
+	const ShaderConstants k = makeConstants(p, m_hdr_presenting ? 1 : 0, App.hdr.calibration, true, (float)m_w, (float)m_h, emit_scale);
 	D3D11_MAPPED_SUBRESOURCE m;
 	if (SUCCEEDED(m_ctx->Map(m_cb, 0, D3D11_MAP_WRITE_DISCARD, 0, &m))) {
 		memcpy(m.pData, &k, sizeof(k));

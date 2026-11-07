@@ -148,6 +148,12 @@ Context::Context()
 	m_shadow_supported = App.gl_caps.independent_blending && max_texture_unit > TEXTURE_SLOT_SHADOW2;
 	// Vertex-light capture: 5th game attachment at TEXTURE_SLOT_VLIGHT (implies m_shadow_supported).
 	m_vlight_supported = App.gl_caps.independent_blending && max_texture_unit > TEXTURE_SLOT_AMBIENT;
+	// HDR emissive highlights: 6th game attachment at TEXTURE_SLOT_EMIT (after the vlight attachment).
+	{
+		GLint max_draw_buffers = 0;
+		glGetIntegerv(GL_MAX_DRAW_BUFFERS, &max_draw_buffers);
+		m_emit_supported = m_vlight_supported && max_texture_unit > TEXTURE_SLOT_EMIT && max_draw_buffers >= 6;
+	}
 
 	glDisable(GL_CULL_FACE);
 	glDisable(GL_DEPTH_TEST);
@@ -261,8 +267,12 @@ Context::Context()
 			{ BindingType::Texture, "u_Texture", TEXTURE_SLOT_DEFAULT, &m_glide_texture },
 		};
 		game_pipeline_ci.attachment_blends.clear();
-		for (auto& blend : g_blend_types)
+		for (auto& blend : g_blend_types) {
 			game_pipeline_ci.attachment_blends.push_back({ blend.second.second, BlendType::SAlpha_OneMinusSAlpha, BlendType::SAlpha_OneMinusSAlpha, BlendType::One_One, blend.second.first == 0 ? BlendType::One_Zero : BlendType::One_One });
+			// emission: opaque replaces (occludes), alpha attenuates by coverage, additive/multiply add (multiply adds 0)
+			if (m_emit_supported)
+				game_pipeline_ci.attachment_blends.back().push_back(blend.second.first == 0 ? BlendType::One_Zero : (blend.second.first == 3 ? BlendType::SAlpha_OneMinusSAlpha : BlendType::One_One));
+		}
 		m_game_pipeline = Context::createPipeline(game_pipeline_ci);
 
 		TextureCreateInfo lut_texture_ci;
@@ -364,6 +374,16 @@ Context::Context()
 		};
 		m_uilayer_pipeline = Context::createPipeline(uilayer_pipeline_ci);
 		m_uilayer_pipeline->setUniformMat4f("u_MVP", glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f));
+
+		if (m_emit_supported) {
+			PipelineCreateInfo emit_pipeline_ci = { "emit" };
+			emit_pipeline_ci.shader = g_shader_emit;
+			emit_pipeline_ci.bindings = {
+				{ BindingType::FBTexture, "u_EmitTexture", TEXTURE_SLOT_EMIT, &m_game_framebuffer, 5 },
+			};
+			m_emit_pipeline = Context::createPipeline(emit_pipeline_ci);
+			m_emit_pipeline->setUniformMat4f("u_MVP", glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f));
+		}
 	} else {
 		UniformBufferCreateInfo ubo_ci;
 		ubo_ci.variables = { { "palette", 256 * sizeof(glm::vec4) } };
@@ -521,6 +541,8 @@ void Context::renderThread(void* context)
 
 		if (cmd->m_resized)
 			ctx->onResize(cmd->m_window_size, cmd->m_game_size, cmd->m_game_tex_bpp);
+		else if (ctx->m_game_framebuffer && ctx->emitWanted() != ctx->m_emit_attached)
+			ctx->onResize(cmd->m_window_size, cmd->m_game_size, ctx->m_color_bpp); // [HDR] emissive toggled: rebuild the game framebuffer
 
 		if (ctx->m_hdr && !ctx->m_hdr->beginFrame(st.window_w, st.window_h))
 			ctx->hdrFallbackToWgl("frame setup failed");
@@ -571,15 +593,15 @@ void Context::renderThread(void* context)
 						glDrawElementsBaseVertex(GL_TRIANGLES, command->draw.count, GL_UNSIGNED_INT, 0, command->draw.start);
 					break;
 				case CommandType::PreFx:
-					if (st.light && ctx->gameDrawBufferCount(st) == 5)
+					if (ctx->vlightActive(st))
 						ctx->updateAmbient(cmd->m_game_size, st.level_no);
-					if (st.light && st.light_debug && ctx->gameDrawBufferCount(st) == 5) {
+					if (st.light_debug && ctx->vlightActive(st)) {
 						// Debug: raw game light buffer in place of the world (ambient swatch top-left).
 						FrameBuffer::setDrawBuffers(1);
 						ctx->bindPipeline(ctx->m_light_pipeline);
 						ctx->drawQuad(4);
 					} else if (st.light && ctx->m_light_tex_size.x > 0 && ctx->m_light_tex_size.y > 0) {
-						const int vsource = ctx->gameDrawBufferCount(st) == 5 ? 1 : 0;
+						const int vsource = ctx->vlightActive(st) ? 1 : 0;
 						FrameBuffer::setDrawBuffers(1);
 						ctx->m_prefx_texture->fillFromBuffer(ctx->m_game_framebuffer);
 						ctx->bindPipeline(ctx->m_light_pipeline);
@@ -764,6 +786,18 @@ void Context::renderThread(void* context)
 							ctx->drawQuad(2 + App.gl_caps.compute_shader, st.fxaa_preset);
 						}
 
+						// [HDR] emissive: default-FB alpha = 1 - emission (1 = no boost), so the UI, HD text and
+						// menus drawn after this blend alpha back toward 1 and are never boosted.
+						if (ISGLIDE3X() && ctx->m_emit_attached && ctx->m_emit_pipeline) {
+							FrameBuffer::unBind();
+							ctx->setViewport(vp_size, vp_offset);
+							ctx->m_emit_pipeline->setUniform1f("u_Gain", App.hdr.emissive_gain.value);
+							ctx->bindPipeline(ctx->m_emit_pipeline);
+							glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_TRUE);
+							ctx->drawQuad();
+							glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+						}
+
 						if (ui_layer) {
 							FrameBuffer::unBind(); // not bindDefaultFrameBuffer(): that clears the shaded world
 							ctx->setViewport(vp_size, vp_offset);
@@ -840,6 +874,7 @@ void Context::renderThread(void* context)
 		if (ctx->m_hdr) {
 			FrameBuffer::unBind(); // the menu goes into the HDR target like everything else
 			option::Menu::instance().draw();
+			ctx->m_hdr->setEmissive(ctx->m_emit_attached);
 			if (!ctx->m_hdr->present(App.vsync))
 				ctx->hdrFallbackToWgl("present failed");
 		} else {
@@ -973,6 +1008,10 @@ void Context::onResize(glm::uvec2 w_size, glm::uvec2 g_size, uint32_t bpp)
 	bool game_resized = game_size != g_size || color_bpp != bpp;
 	game_size = g_size;
 	color_bpp = bpp;
+	m_color_bpp = bpp;
+	const bool emit_want = emitWanted();
+	if (emit_want != m_emit_attached)
+		game_resized = true;
 
 	static glm::uvec2 window_size = { 0, 0 };
 	bool window_resized = window_size != w_size;
@@ -997,7 +1036,10 @@ void Context::onResize(glm::uvec2 w_size, glm::uvec2 g_size, uint32_t bpp)
 		if (ISGLIDE3X() && m_vlight_supported) {
 			// Game vertex lighting (GlideVertex pargb) of world draws; alpha = coverage.
 			frambuffer_ci.attachments.push_back({ TEXTURE_SLOT_VLIGHT, { 0.0f, 0.0f, 0.0f, 0.0f }, { GL_LINEAR, GL_LINEAR } });
+			if (emit_want) // r = emission of additive world sprites (HDR emissive highlights)
+				frambuffer_ci.attachments.push_back({ TEXTURE_SLOT_EMIT, { 0.0f, 0.0f, 0.0f, 0.0f }, { GL_LINEAR, GL_LINEAR }, { GL_R8, GL_RED } });
 		}
+		m_emit_attached = ISGLIDE3X() && m_vlight_supported && emit_want;
 		m_game_framebuffer = Context::createFrameBuffer(frambuffer_ci);
 
 		if (ISGLIDE3X()) {
@@ -1140,8 +1182,20 @@ uint32_t Context::gameDrawBufferCount(const perf::FrameSettings& st) const
 	// 0 game, 1 map, 2 mask, 3 shadow (always drawn so it is cleared every frame), 4 vlight (only while used)
 	if (count < 5)
 		return count;
+	if (count >= 6)
+		return count; // emission at location 5 needs every attachment bound
 	const bool vlight = st.light && (st.light_vsource || st.light_debug);
 	return vlight ? 5 : 4;
+}
+
+bool Context::vlightActive(const perf::FrameSettings& st) const
+{
+	return m_game_framebuffer && m_game_framebuffer->getAttachmentCount() >= 5 && st.light && (st.light_vsource || st.light_debug);
+}
+
+bool Context::emitWanted() const
+{
+	return ISGLIDE3X() && m_emit_supported && m_hdr && App.hdr.mode && App.hdr.emissive;
 }
 
 void Context::onShaderChange()

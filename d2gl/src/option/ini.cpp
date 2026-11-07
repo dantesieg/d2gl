@@ -345,7 +345,13 @@ void saveIni()
 		"; Tonemap toward peak: 0 = clip, 1 = BT.2390 roll-off.\n"
 		"tonemap=%d\n"
 		"; SDR decoding curve: 0 = gamma 2.2, 1 = gamma 2.4, 2 = sRGB piecewise (lifts blacks).\n"
-		"eotf=%d\n\n\n";
+		"eotf=%d\n"
+		"; HDR highlights for additive sprites (spells, fire, lightning, auras): they go above paper white\n"
+		"; while UI and ground stay at sdr_white. emissive_nits (200-1000) is full-emission brightness,\n"
+		"; emissive_gain (0.5-4.0) scales sprite luma into emission.\n"
+		"emissive=%s\n"
+		"emissive_nits=%.1f\n"
+		"emissive_gain=%.2f\n\n\n";
 
 	sprintf_s(buf, hdr_setting,
 		boolString(App.hdr.enabled),
@@ -358,7 +364,10 @@ void saveIni()
 		App.hdr.highlight.value,
 		App.hdr.knee.value,
 		App.hdr.tonemap.selected,
-		App.hdr.eotf.selected);
+		App.hdr.eotf.selected,
+		boolString(App.hdr.emissive),
+		App.hdr.emissive_nits.value,
+		App.hdr.emissive_gain.value);
 	out_file << buf;
 
 	static const char* other_setting =
@@ -532,6 +541,9 @@ void loadIni()
 		App.hdr.knee.value = getFloat("HDR", "highlight_knee", App.hdr.knee);
 		App.hdr.tonemap.selected = getInt("HDR", "tonemap", App.hdr.tonemap.selected, 0, 1);
 		App.hdr.eotf.selected = getInt("HDR", "eotf", App.hdr.eotf.selected, 0, 2);
+		App.hdr.emissive = getBool("HDR", "emissive", App.hdr.emissive);
+		App.hdr.emissive_nits.value = getFloat("HDR", "emissive_nits", App.hdr.emissive_nits);
+		App.hdr.emissive_gain.value = getFloat("HDR", "emissive_gain", App.hdr.emissive_gain);
 
 		App.gl_ver.x = getInt("Other", "gl_ver_major", App.gl_ver.x, 3, 4);
 		App.gl_ver.y = getInt("Other", "gl_ver_minor", App.gl_ver.y, 0, 6);

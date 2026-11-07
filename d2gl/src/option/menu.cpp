@@ -568,6 +568,15 @@ void Menu::draw()
 				saveInt("HDR", "tonemap", App.hdr.tonemap.selected);
 			drawCombo_m("SDR Curve", App.hdr.eotf, "Gamma 2.2 matches D2 on SDR screens.", false, 17, hdr_eotf)
 				saveInt("HDR", "eotf", App.hdr.eotf.selected);
+			childSeparator("##hdr2");
+			drawCheckbox_m("Emissive Highlights", App.hdr.emissive, "Spells, fire and auras above paper white; UI stays at paper white.", hdr_emissive)
+				saveBool("HDR", "emissive", App.hdr.emissive);
+			ImGui::BeginDisabled(!App.hdr.emissive);
+				drawSlider_m(float, "Emissive Peak (nits)", App.hdr.emissive_nits, "%.0f", "", hdr_emissive_nits)
+					saveFloat("HDR", "emissive_nits", App.hdr.emissive_nits.value);
+				drawSlider_m(float, "Emissive Gain", App.hdr.emissive_gain, "%.2f", "", hdr_emissive_gain)
+					saveFloat("HDR", "emissive_gain", App.hdr.emissive_gain.value);
+			ImGui::EndDisabled();
 			drawCheckbox_m("Calibration Overlay", App.hdr.calibration, "Paper white, peak and near-black patches.", hdr_calibration) {}
 			childEnd();
 			tabEnd();

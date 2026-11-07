@@ -51,6 +51,7 @@ layout(location = 1) out vec4 FragColorMap;
 layout(location = 2) out vec4 FragColorMask;
 layout(location = 3) out vec4 FragColorShadow; // r: shadow/AO darkness, g: occluder (additive)
 layout(location = 4) out vec4 FragLight; // game vertex lighting (world), see dynamic_light_source
+layout(location = 5) out vec4 FragEmit; // r: HDR emission of additive world sprites ([HDR] emissive)
 
 layout(std140) uniform ubo_Colors {
 	vec4 u_Palette[256];
@@ -73,6 +74,7 @@ void main()
 	uint sk = v_Flags.x >> 4u;
 	FragColorShadow = vec4(0.0);
 	FragLight = vec4(0.0);
+	FragEmit = vec4(0.0);
 	if (sk == 3u) {
 		float e = 1.0 - smoothstep(0.15, 1.0, length(v_TexCoord * 2.0 - 1.0));
 		FragColor = vec4(1.0, 1.0, 1.0, 0.0);
@@ -127,6 +129,15 @@ void main()
 		else if (u_BlendIndex == 2)
 			FragLight = vec4(FragColor.rgb * u_SpellGlow, 0.0);
 	}
+
+	// Emission attachment: additive world sprites (spells, fire, lightning, auras) add their luma;
+	// opaque draws write 0 (One_Zero, occludes earlier glow); alpha draws write 0 at their coverage
+	// (SAlpha_OneMinusSAlpha, attenuates); multiply adds 0 (One_One).
+	if (u_BlendIndex == 2) {
+		if (v_Flags.w == 0u || v_Flags.w == 11u)
+			FragEmit = vec4(dot(FragColor.rgb, vec3(0.299, 0.587, 0.114)), 0.0, 0.0, 0.0);
+	} else if (u_BlendIndex == 3 && sk != 4u) // alpha shadows paint no colour
+		FragEmit = vec4(0.0, 0.0, 0.0, FragColor.a);
 
 	if (sk == 1u) {
 		FragColorShadow.r = 1.0 - dot(FragColor.rgb, vec3(0.299, 0.587, 0.114));

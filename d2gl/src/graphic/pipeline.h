@@ -128,6 +128,7 @@ extern const char* g_shader_prefx;
 extern const char* g_shader_postfx;
 extern const char* g_shader_mod;
 extern const char* g_shader_uilayer;
+extern const char* g_shader_emit;
 extern const char* g_shader_light;
 extern const char* g_shader_atmos;
 extern const char* g_shader_shadow;

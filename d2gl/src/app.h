@@ -200,6 +200,9 @@ struct D2GLApp {
 		Select<int> tonemap = { 1, { { "Clip", 0 }, { "BT.2390 roll-off", 1 } } };
 		Select<int> eotf = { 0, { { "Gamma 2.2", 0 }, { "Gamma 2.4", 1 }, { "sRGB piecewise", 2 } } };
 		bool calibration = false;
+		bool emissive = false;                                  // HDR highlights for additive sprites (spells, fire)
+		Range<float> emissive_nits = { 600.0f, 200.0f, 1000.0f }; // brightness of full emission
+		Range<float> emissive_gain = { 1.5f, 0.5f, 4.0f };       // emission = clamp(additive luma * gain)
 		bool shared_texture = true; // GL_EXT_memory_object_win32 zero-copy; false forces the PBO path
 	} hdr;
 
