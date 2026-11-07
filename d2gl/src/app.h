@@ -237,6 +237,8 @@ struct D2GLApp {
 
 	bool hd_cursor = false;
 	bool motion_prediction = false;
+	bool motion_prediction_v2 = false;    // [Feature] tick-synced, smoothed velocity, clean stops
+	bool motion_prediction_exact = false; // [Feature] v2: blend between the last two real positions (no overshoot, +1 tick delay)
 	bool skip_intro = false;
 	bool no_pickup = false;
 	bool show_item_quantity = false;

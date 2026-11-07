@@ -45,6 +45,7 @@
 #include "loot_sparkle.h"
 
 #include <detours/detours.h>
+#include <chrono>
 
 namespace d2gl::modules {
 
@@ -92,19 +93,35 @@ void MotionPrediction::update()
 	int32_t delta = (int32_t)glm::max((int64_t)INT_MIN, glm::min((int64_t)INT_MAX, frame_time_ms));
 
 	m_player_motion.unit = d2::getPlayerUnit();
-	setUnitMotion(&m_player_motion, delta);
 
 	const auto frame = App.context->getFrameCount() - 1;
 	for (auto it = m_units.begin(); it != m_units.end();) {
-		if (it->second.frame != frame)
+		if (it->second.frame != frame || !(it->second.unit = d2::findUnit(it->first)))
 			it = m_units.erase(it);
-		else {
-			if (it->second.unit = d2::findUnit(it->first)) {
-				setUnitMotion(&it->second, delta);
-				it++;
-			} else
-				it = m_units.erase(it);
-		}
+		else
+			it++;
+	}
+
+	if (App.motion_prediction_v2) {
+		// A game tick is seen when any tracked unit's position changed; every unit is then advanced
+		// on the same tick clock, so stops (no change at a tick) and the 90/25 frame rhythm are exact.
+		const double now = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+		bool tick = m_player_motion.unit && unitMoved(&m_player_motion);
+		for (auto it = m_units.begin(); !tick && it != m_units.end(); it++)
+			tick = unitMoved(&it->second);
+		if (tick && now - m_v2_tick_time < 0.020)
+			tick = false; // same game tick still being reported (render faster than 50 Hz)
+		if (tick)
+			m_v2_tick_time = now;
+		const double since = d2::isEscMenuOpen() ? 0.0 : now - m_v2_tick_time;
+		if (m_player_motion.unit)
+			setUnitMotionV2(&m_player_motion, tick, since);
+		for (auto& item : m_units)
+			setUnitMotionV2(&item.second, tick, since);
+	} else {
+		setUnitMotion(&m_player_motion, delta);
+		for (auto& item : m_units)
+			setUnitMotion(&item.second, delta);
 	}
 
 	m_perspective = d2::isPerspective();
@@ -360,6 +377,53 @@ void MotionPrediction::setUnitMotion(UnitMotion* unit_motion, int32_t delta)
 		}
 	}
 
+	unit_motion->offset_update = true;
+}
+
+bool MotionPrediction::unitMoved(UnitMotion* unit_motion)
+{
+	const d2::Path* path = d2::getUnitPath(unit_motion->unit);
+	if (!path || !unit_motion->v2_init)
+		return false;
+	const glm::dvec2 pos = { path->x / 65536.0, path->y / 65536.0 };
+	return pos != unit_motion->v2_cur;
+}
+
+void MotionPrediction::setUnitMotionV2(UnitMotion* unit_motion, bool tick, double since_tick)
+{
+	const d2::Path* path = d2::getUnitPath(unit_motion->unit);
+	if (!path)
+		return;
+	const glm::dvec2 pos = { path->x / 65536.0, path->y / 65536.0 };
+	const double tick_len = 1.0 / 25.0;
+
+	const glm::dvec2 jump = glm::abs(pos - unit_motion->v2_cur);
+	if (!unit_motion->v2_init || glm::max(jump.x, jump.y) > 2.0) { // new unit, teleport, waypoint, knockback: snap
+		unit_motion->v2_prev = unit_motion->v2_cur = pos;
+		unit_motion->v2_vel = { 0.0, 0.0 };
+		unit_motion->v2_init = true;
+	} else if (tick || pos != unit_motion->v2_cur) {
+		const glm::dvec2 step_vel = (pos - unit_motion->v2_cur) / tick_len;
+		if (pos == unit_motion->v2_cur)
+			unit_motion->v2_vel = { 0.0, 0.0 }; // no move at this tick: stopped, no slide
+		else if (unit_motion->v2_vel == glm::dvec2(0.0))
+			unit_motion->v2_vel = step_vel; // starting: no history to smooth with
+		else
+			unit_motion->v2_vel = 0.5 * unit_motion->v2_vel + 0.5 * step_vel; // smooth the rounding jitter
+		unit_motion->v2_prev = unit_motion->v2_cur;
+		unit_motion->v2_cur = pos;
+	}
+
+	const double t = glm::clamp(since_tick, 0.0, tick_len);
+	glm::dvec2 shown;
+	if (App.motion_prediction_exact)
+		shown = glm::mix(unit_motion->v2_prev, unit_motion->v2_cur, t / tick_len); // one tick behind, never overshoots
+	else
+		shown = unit_motion->v2_cur + unit_motion->v2_vel * t;
+
+	// getUnitOffset() works on predicted_pos - last_pos (16.16)
+	unit_motion->last_pos = { (int32_t)(unit_motion->v2_cur.x * 65536.0), (int32_t)(unit_motion->v2_cur.y * 65536.0) };
+	unit_motion->predicted_pos = { (int32_t)(shown.x * 65536.0), (int32_t)(shown.y * 65536.0) };
 	unit_motion->offset_update = true;
 }
 
