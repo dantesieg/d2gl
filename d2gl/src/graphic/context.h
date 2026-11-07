@@ -220,6 +220,8 @@ class Context {
 	// HDR emissive highlights: 6th game attachment (r = additive emission), packed into default-FB alpha
 	bool m_emit_supported = false;
 	bool m_emit_attached = false;
+	bool m_emit_graded = false; // attached emission is R16F (graded emissive)
+	bool emitGradedWanted() const;
 	uint32_t m_color_bpp = 8;
 	std::unique_ptr<Pipeline> m_emit_pipeline;
 	bool emitWanted() const;

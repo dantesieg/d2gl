@@ -585,6 +585,8 @@ void Menu::draw()
 			drawCheckbox_m("Emissive Highlights", App.hdr.emissive, "Spells, fire and auras above paper white; UI stays at paper white.", hdr_emissive)
 				saveBool("HDR", "emissive", App.hdr.emissive);
 			ImGui::BeginDisabled(!App.hdr.emissive);
+				drawCheckbox_m("Graded Emissive", App.hdr.emissive_graded, "Overlapping fire and spell layers add up toward the display peak.", hdr_emissive_graded)
+					saveBool("HDR", "emissive_graded", App.hdr.emissive_graded);
 				drawSlider_m(float, "Emissive Peak (nits)", App.hdr.emissive_nits, "%.0f", "", hdr_emissive_nits)
 					saveFloat("HDR", "emissive_nits", App.hdr.emissive_nits.value);
 				drawSlider_m(float, "Emissive Gain", App.hdr.emissive_gain, "%.2f", "", hdr_emissive_gain)

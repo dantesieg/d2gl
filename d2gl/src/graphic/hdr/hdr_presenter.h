@@ -60,7 +60,7 @@ public:
 	const char* refusal() const { return m_refusal; }
 	float effectivePeak() const { return m_effective_peak; }
 	int lostCount() const { return m_lost_count; }
-	void setEmissive(bool on) { m_emissive = on; } // render thread: GL wrote 1 - emission into alpha this frame
+	void setEmissive(bool on, bool graded = false) { m_emissive = on; m_emissive_graded = graded; } // render thread: GL wrote 1 - emission into alpha this frame
 	bool floatTarget() const { return m_float; }
 	void setCinematic(bool on) { m_cinematic = on; } // render thread: movie / menu / loading frame ([HDR] movie_nits)
 
@@ -126,6 +126,7 @@ private:
 	int m_lost_count = 0;
 	bool m_emissive = false;
 	bool m_cinematic = false;
+	bool m_emissive_graded = false;
 	bool m_float = false; // target is RGBA16F / R16G16B16A16_FLOAT ([HDR] float_pipeline)
 	int targetBpp() const { return m_float ? 8 : 4; }
 	uint32_t m_frame = 0;

@@ -360,6 +360,8 @@ void saveIni()
 		"emissive=%s\n"
 		"emissive_nits=%.1f\n"
 		"emissive_gain=%.2f\n"
+		"; Graded emissive: overlapping fire/spell layers add up past emissive_nits toward the peak.\n"
+		"emissive_graded=%s\n"
 		"; Paper white in nits for movies, menus and loading screens (0 = same as sdr_white, up to 500).\n"
 		"; These also skip brightness, highlight expansion and emissive.\n"
 		"movie_nits=%.1f\n"
@@ -398,6 +400,7 @@ void saveIni()
 		boolString(App.hdr.emissive),
 		App.hdr.emissive_nits.value,
 		App.hdr.emissive_gain.value,
+		boolString(App.hdr.emissive_graded),
 		App.hdr.movie_nits.value,
 		boolString(App.hdr.float_pipeline),
 		boolString(App.hdr.diffuse_shoulder),
@@ -595,6 +598,7 @@ void loadIni()
 		App.hdr.emissive = getBool("HDR", "emissive", App.hdr.emissive);
 		App.hdr.emissive_nits.value = getFloat("HDR", "emissive_nits", App.hdr.emissive_nits);
 		App.hdr.emissive_gain.value = getFloat("HDR", "emissive_gain", App.hdr.emissive_gain);
+		App.hdr.emissive_graded = getBool("HDR", "emissive_graded", App.hdr.emissive_graded);
 		App.hdr.movie_nits.value = getFloat("HDR", "movie_nits", App.hdr.movie_nits);
 		App.hdr.float_pipeline = getBool("HDR", "float_pipeline", App.hdr.float_pipeline);
 		App.hdr.diffuse_shoulder = getBool("HDR", "diffuse_shoulder", App.hdr.diffuse_shoulder);

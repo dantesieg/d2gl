@@ -572,7 +572,7 @@ void Context::renderThread(void* context)
 
 		if (cmd->m_resized)
 			ctx->onResize(cmd->m_window_size, cmd->m_game_size, cmd->m_game_tex_bpp);
-		else if (ctx->m_game_framebuffer && ctx->emitWanted() != ctx->m_emit_attached)
+		else if (ctx->m_game_framebuffer && (ctx->emitWanted() != ctx->m_emit_attached || (ctx->m_emit_attached && ctx->emitGradedWanted() != ctx->m_emit_graded)))
 			ctx->onResize(cmd->m_window_size, cmd->m_game_size, ctx->m_color_bpp); // [HDR] emissive toggled: rebuild the game framebuffer
 
 		if (ctx->m_hdr && !ctx->m_hdr->beginFrame(st.window_w, st.window_h))
@@ -841,6 +841,7 @@ void Context::renderThread(void* context)
 							FrameBuffer::unBind();
 							ctx->setViewport(vp_size, vp_offset);
 							ctx->m_emit_pipeline->setUniform1f("u_Gain", App.hdr.emissive_gain.value);
+							ctx->m_emit_pipeline->setUniform1i("u_Graded", ctx->m_emit_graded ? 1 : 0); // 0: output as before
 							ctx->bindPipeline(ctx->m_emit_pipeline);
 							glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_TRUE);
 							ctx->drawQuad();
@@ -923,7 +924,7 @@ void Context::renderThread(void* context)
 		if (ctx->m_hdr) {
 			FrameBuffer::unBind(); // the menu goes into the HDR target like everything else
 			option::Menu::instance().draw();
-			ctx->m_hdr->setEmissive(ctx->m_emit_attached && !App.hdr.float_mode);
+			ctx->m_hdr->setEmissive(ctx->m_emit_attached && !App.hdr.float_mode, ctx->m_emit_graded);
 			ctx->m_hdr->setCinematic(cmd->m_screen != GameScreen::InGame);
 			if (!ctx->m_hdr->present(App.vsync))
 				ctx->hdrFallbackToWgl("present failed");
@@ -1061,7 +1062,7 @@ void Context::onResize(glm::uvec2 w_size, glm::uvec2 g_size, uint32_t bpp)
 	color_bpp = bpp;
 	m_color_bpp = bpp;
 	const bool emit_want = emitWanted();
-	if (emit_want != m_emit_attached)
+	if (emit_want != m_emit_attached || (emit_want && emitGradedWanted() != m_emit_graded))
 		game_resized = true;
 
 	static glm::uvec2 window_size = { 0, 0 };
@@ -1089,9 +1090,10 @@ void Context::onResize(glm::uvec2 w_size, glm::uvec2 g_size, uint32_t bpp)
 			frambuffer_ci.attachments.push_back({ TEXTURE_SLOT_VLIGHT, { 0.0f, 0.0f, 0.0f, 0.0f }, { GL_LINEAR, GL_LINEAR } });
 			if (emit_want) // r = emission of additive world sprites (HDR emissive highlights)
 				frambuffer_ci.attachments.push_back({ TEXTURE_SLOT_EMIT, { 0.0f, 0.0f, 0.0f, 0.0f }, { GL_LINEAR, GL_LINEAR },
-					App.hdr.float_mode ? std::pair<GLint, GLenum>{ GL_RGBA16F, GL_RGBA } : std::pair<GLint, GLenum>{ GL_R8, GL_RED } }); // float: rgb additive share
+					App.hdr.float_mode ? std::pair<GLint, GLenum>{ GL_RGBA16F, GL_RGBA } : (emitGradedWanted() ? std::pair<GLint, GLenum>{ GL_R16F, GL_RED } : std::pair<GLint, GLenum>{ GL_R8, GL_RED }) }); // float: rgb additive share; graded: unclamped sum
 		}
 		m_emit_attached = ISGLIDE3X() && m_vlight_supported && emit_want;
+		m_emit_graded = m_emit_attached && emitGradedWanted();
 		m_game_framebuffer = Context::createFrameBuffer(frambuffer_ci);
 
 		if (ISGLIDE3X()) {
@@ -1436,6 +1438,11 @@ void Context::hdrBloom(glm::uvec2 game_size)
 	bindFrameBuffer(m_game_framebuffer, false);
 	setViewport(glm::ivec2(game_size));
 	drawQuad();
+}
+
+bool Context::emitGradedWanted() const
+{
+	return App.hdr.emissive_graded && !App.hdr.float_mode;
 }
 
 bool Context::emitWanted() const

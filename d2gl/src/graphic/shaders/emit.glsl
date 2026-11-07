@@ -42,6 +42,7 @@ layout(location = 0) out vec4 FragColor;
 
 uniform sampler2D u_EmitTexture; // 5th game attachment: emission (R8) / additive share (RGBA16F, float pipeline)
 uniform float u_Gain;
+uniform int u_Graded;        // mode 0: 1 = R16F unbounded emission, alpha = 1 / (1 + e) (k = 1: one layer e~1 -> 0.5)
 uniform sampler2D u_Texture; // game colour copy (prefx texture)
 uniform sampler2D u_Expo;    // 1x1 adapted exposure in stops (float pipeline auto exposure)
 uniform int u_Mode;          // 0: emissive alpha pass, 1: exposure + diffuse shoulder, 3: exposure adapt (1x1)
@@ -134,6 +135,11 @@ void main()
 	}
 	if (u_Mode == 7) { // composite onto the game colour (One_One), levels averaged
 		FragColor = vec4(texture(u_Bloom, v_TexCoord).rgb * (u_Intensity / u_Levels), 0.0);
+		return;
+	}
+	if (u_Graded == 1) {
+		float g = max(texture(u_EmitTexture, v_TexCoord).r * u_Gain, 0.0);
+		FragColor = vec4(0.0, 0.0, 0.0, 1.0 / (1.0 + g));
 		return;
 	}
 	float e = clamp(texture(u_EmitTexture, v_TexCoord).r * u_Gain, 0.0, 1.0);

@@ -221,6 +221,7 @@ struct D2GLApp {
 		bool emissive = false;                                  // HDR highlights for additive sprites (spells, fire)
 		Range<float> emissive_nits = { 600.0f, 200.0f, 1000.0f }; // brightness of full emission
 		Range<float> emissive_gain = { 1.5f, 0.5f, 4.0f };       // emission = clamp(additive luma * gain)
+		bool emissive_graded = false; // R16F emission, unbounded; alpha = 1 / (1 + e), decoded in the presenter
 		Range<float> movie_nits = { 0.0f, 0.0f, 500.0f }; // paper white of movies/menus/loading; 0 = sdr_white
 		bool shared_texture = true; // GL_EXT_memory_object_win32 zero-copy; false forces the PBO path
 	} hdr;
