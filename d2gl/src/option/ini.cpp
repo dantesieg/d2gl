@@ -224,6 +224,10 @@ void saveIni()
 		"; Soft unit shadows: blurred shadows multiplied into the world (softness: 0.3-1.5).\n"
 		"soft_shadows=%s\n"
 		"soft_shadows_softness=%.3f\n\n"
+		"; 2D global illumination (radiance cascades): spells, fire and bright lights bounce onto\n"
+		"; nearby ground (world only; strength 0.1-1.5).\n"
+		"radiance_gi=%s\n"
+		"radiance_gi_strength=%.3f\n\n"
 		"; Stretch viewport to window size.\n"
 		"stretched_horizontal=%s\n"
 		"stretched_vertical=%s\n\n\n";
@@ -255,6 +259,8 @@ void saveIni()
 		App.tonemap.exposure.value,
 		boolString(App.soft_shadows.active),
 		App.soft_shadows.softness.value,
+		boolString(App.radiance_gi.active),
+		App.radiance_gi.strength.value,
 		boolString(App.viewport.stretched.x),
 		boolString(App.viewport.stretched.y));
 	out_file << buf;
@@ -497,6 +503,8 @@ void loadIni()
 		App.tonemap.exposure.value = getFloat("Graphic", "tonemap_exposure", App.tonemap.exposure);
 		App.soft_shadows.active = getBool("Graphic", "soft_shadows", App.soft_shadows.active);
 		App.soft_shadows.softness.value = getFloat("Graphic", "soft_shadows_softness", App.soft_shadows.softness);
+		App.radiance_gi.active = getBool("Graphic", "radiance_gi", App.radiance_gi.active);
+		App.radiance_gi.strength.value = getFloat("Graphic", "radiance_gi_strength", App.radiance_gi.strength);
 
 		App.viewport.stretched.x = getBool("Graphic", "stretched_horizontal", App.viewport.stretched.x);
 		App.viewport.stretched.y = getBool("Graphic", "stretched_vertical", App.viewport.stretched.y);

@@ -1,0 +1,164 @@
+/*
+	D2GL: Diablo 2 LoD Glide/DDraw to OpenGL Wrapper.
+	Copyright (C) 2023  Bayaraa
+
+	This program is free software: you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation, either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+// 2D global illumination via radiance cascades (Sannikov), [Graphic] radiance_gi.
+// Runs in the PreFx stage on a 1/4-res scene, so UI is never lit. Passes (v_Flags.x):
+// 0 scene: rgb = emitters (bright saturated world pixels, + the HDR emission attachment when present),
+//          a = occluder (soft-shadow occluder flag, game framebuffer attachment 3 .g)
+// 1 cascade u_Cascade (3..0): probe spacing 2^i, 4^(i+1) directions in a 2^(i+1) block, interval
+//          [(4^i-1)/3, (4^(i+1)-1)/3] * u_Interval texels, merged with cascade i+1 (bilinear, 4 dirs)
+// 2 integrate: average cascade 0's 4 directions per texel -> fluence
+// 3 composite: base + base * gi * k (only brightens; no light = no change)
+
+#ifdef VERTEX
+
+layout(location = 0) in vec2 Position;
+layout(location = 1) in vec2 TexCoord;
+layout(location = 5) in uvec4 Flags;
+
+uniform mat4 u_MVP;
+
+out vec2 v_TexCoord;
+flat out uvec4 v_Flags;
+
+void main()
+{
+	gl_Position = u_MVP * vec4(Position, 0.0, 1.0);
+	v_TexCoord = TexCoord;
+	v_Flags = Flags;
+}
+
+// =============================================================
+#elif FRAGMENT
+
+layout(location = 0) out vec4 FragColor;
+
+uniform sampler2D u_Texture;       // world colour (prefx copy)
+uniform sampler2D u_ShadowTexture; // g = occluder
+uniform sampler2D u_EmitTexture;   // r = HDR emission (u_HasEmit)
+uniform sampler2D u_Scene;         // pass 0 output
+uniform sampler2D u_Upper;         // cascade i+1 (pass 1) / cascade 0 (pass 2)
+uniform sampler2D u_GI;            // pass 2 output
+uniform int u_HasEmit;
+uniform int u_Cascade;
+uniform vec2 u_SceneSize; // low-res size in texels
+uniform float u_Interval; // cascade 0 interval length in texels
+uniform float u_Strength;
+
+in vec2 v_TexCoord;
+flat in uvec4 v_Flags;
+
+vec3 Emission(vec2 uv)
+{
+	vec3 c = texture(u_Texture, uv).rgb;
+	float mx = max(c.r, max(c.g, c.b));
+	float mn = min(c.r, min(c.g, c.b));
+	float sat = (mx - mn) / max(mx, 0.0001);
+	float bright = smoothstep(0.55, 0.92, mx);
+	float warm = clamp((c.r - c.b) * 2.0, 0.0, 1.0);
+	float w = bright * (smoothstep(0.2, 0.55, sat) * mix(0.45, 1.0, warm) + smoothstep(0.9, 1.0, mn) * 0.5);
+	return c * w;
+}
+
+vec4 Scene()
+{
+	vec2 o = 0.25 / u_SceneSize;
+	vec3 e = Emission(v_TexCoord + vec2(-o.x, -o.y));
+	e += Emission(v_TexCoord + vec2(o.x, -o.y));
+	e += Emission(v_TexCoord + vec2(-o.x, o.y));
+	e += Emission(v_TexCoord + vec2(o.x, o.y));
+	e *= 0.25;
+	if (u_HasEmit == 1)
+		e = max(e, texture(u_Texture, v_TexCoord).rgb * texture(u_EmitTexture, v_TexCoord).r);
+	return vec4(e, clamp(texture(u_ShadowTexture, v_TexCoord).g, 0.0, 1.0));
+}
+
+vec4 Cascade()
+{
+	int i = u_Cascade;
+	int S = 1 << i;
+	int B = 2 << i;
+	ivec2 tc = ivec2(gl_FragCoord.xy);
+	ivec2 probe = tc / B;
+	ivec2 dc = tc - probe * B;
+	int id = dc.y * B + dc.x;
+	float ang = (float(id) + 0.5) / float(B * B) * 6.2831853;
+	vec2 dir = vec2(cos(ang), sin(ang));
+	vec2 origin = (vec2(probe) + 0.5) * float(S);
+	float start = u_Interval * (float(1 << (2 * i)) - 1.0) / 3.0;
+	float len = u_Interval * float(1 << (2 * i));
+	int steps = min(int(ceil(len)), 16);
+	float dt = len / float(steps);
+
+	vec3 rad = vec3(0.0);
+	float T = 1.0;
+	for (int k = 0; k < 16; k++) {
+		if (k >= steps || T < 0.01)
+			break;
+		vec2 p = origin + dir * (start + (float(k) + 0.5) * dt);
+		if (p.x < 0.0 || p.y < 0.0 || p.x > u_SceneSize.x || p.y > u_SceneSize.y)
+			break;
+		vec4 s = textureLod(u_Scene, p / u_SceneSize, 0.0);
+		rad += T * s.rgb;
+		T *= 1.0 - clamp(max(s.a, dot(s.rgb, vec3(0.299, 0.587, 0.114)) * 2.0), 0.0, 1.0);
+	}
+
+	if (i < 3 && T >= 0.01) {
+		int S2 = S * 2;
+		int B2 = B * 2;
+		ivec2 np = max(ivec2(u_SceneSize) / S2, ivec2(1));
+		vec2 g = origin / float(S2) - 0.5;
+		ivec2 b = ivec2(floor(g));
+		vec2 f = g - vec2(b);
+		vec3 up = vec3(0.0);
+		for (int j = 0; j < 4; j++) {
+			ivec2 o = ivec2(j & 1, j >> 1);
+			ivec2 pp = clamp(b + o, ivec2(0), np - 1);
+			float w = (o.x == 1 ? f.x : 1.0 - f.x) * (o.y == 1 ? f.y : 1.0 - f.y);
+			vec3 acc = vec3(0.0);
+			for (int k = 0; k < 4; k++) {
+				int id2 = id * 4 + k;
+				acc += texelFetch(u_Upper, pp * B2 + ivec2(id2 % B2, id2 / B2), 0).rgb;
+			}
+			up += acc * 0.25 * w;
+		}
+		rad += T * up;
+	}
+	return vec4(rad, T);
+}
+
+void main()
+{
+	switch (v_Flags.x) {
+		case 0u: FragColor = Scene(); break;
+		case 1u: FragColor = Cascade(); break;
+		case 2u: {
+			ivec2 t = ivec2(gl_FragCoord.xy) * 2;
+			vec3 f = texelFetch(u_Upper, t, 0).rgb + texelFetch(u_Upper, t + ivec2(1, 0), 0).rgb;
+			f += texelFetch(u_Upper, t + ivec2(0, 1), 0).rgb + texelFetch(u_Upper, t + ivec2(1, 1), 0).rgb;
+			FragColor = vec4(f * 0.25, 1.0);
+		} break;
+		case 3u: {
+			vec3 base = texture(u_Texture, v_TexCoord).rgb;
+			vec3 gi = texture(u_GI, v_TexCoord).rgb * u_Strength;
+			FragColor = vec4(clamp(base + base * gi * 2.5 + gi * 0.08, 0.0, 1.0), 1.0);
+		} break;
+	}
+}
+
+#endif

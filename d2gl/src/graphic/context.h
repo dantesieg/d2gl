@@ -61,6 +61,9 @@ namespace d2gl {
 #define TEXTURE_SLOT_SHADOW2 17
 #define TEXTURE_SLOT_VLIGHT 18 // game framebuffer attachment 4 (needs > 18 texture units)
 #define TEXTURE_SLOT_AMBIENT 19 // 1x1 time-smoothed ambient for game vertex lighting
+#define TEXTURE_SLOT_GI_SCENE 21 // radiance GI: 1/4-res emitters + occluders
+#define TEXTURE_SLOT_GI_C0 22    // radiance GI cascades 0..3 (22..25)
+#define TEXTURE_SLOT_GI 26       // radiance GI fluence
 #define TEXTURE_SLOT_EMIT 20 // game framebuffer attachment 5: HDR emission (additive sprites), [HDR] emissive
 
 #define IMAGE_UNIT_BLUR 0
@@ -218,6 +221,13 @@ class Context {
 	uint32_t m_color_bpp = 8;
 	std::unique_ptr<Pipeline> m_emit_pipeline;
 	bool emitWanted() const;
+
+	// 2D radiance-cascade GI ([Graphic] radiance_gi), PreFx stage, allocated on first use
+	bool m_gi_supported = false;
+	std::unique_ptr<Pipeline> m_gi_pipeline;
+	std::unique_ptr<FrameBuffer> m_gi_scene_fb, m_gi_fb, m_gi_casc_fb[4];
+	glm::uvec2 m_gi_size = { 0, 0 }, m_gi_game_size = { 0, 0 };
+	void renderGI(const perf::FrameSettings& st, glm::uvec2 game_size);
 	bool vlightActive(const perf::FrameSettings& st) const;
 	bool m_shadow_fx = false;
 	bool m_shadow_seen = false;

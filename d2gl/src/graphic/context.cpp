@@ -154,6 +154,7 @@ Context::Context()
 		glGetIntegerv(GL_MAX_DRAW_BUFFERS, &max_draw_buffers);
 		m_emit_supported = m_vlight_supported && max_texture_unit > TEXTURE_SLOT_EMIT && max_draw_buffers >= 6;
 	}
+	m_gi_supported = max_texture_unit > TEXTURE_SLOT_GI;
 
 	glDisable(GL_CULL_FACE);
 	glDisable(GL_DEPTH_TEST);
@@ -374,6 +375,20 @@ Context::Context()
 		};
 		m_uilayer_pipeline = Context::createPipeline(uilayer_pipeline_ci);
 		m_uilayer_pipeline->setUniformMat4f("u_MVP", glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f));
+
+		if (m_gi_supported) {
+			PipelineCreateInfo gi_pipeline_ci = { "gi" };
+			gi_pipeline_ci.shader = g_shader_gi;
+			gi_pipeline_ci.bindings = {
+				{ BindingType::Texture, "u_Texture", TEXTURE_SLOT_PREFX, &m_prefx_texture },
+				{ BindingType::FBTexture, "u_ShadowTexture", TEXTURE_SLOT_SHADOW, &m_game_framebuffer, 3 },
+				{ BindingType::FBTexture, "u_Scene", TEXTURE_SLOT_GI_SCENE, &m_gi_scene_fb },
+				{ BindingType::FBTexture, "u_GI", TEXTURE_SLOT_GI, &m_gi_fb },
+			};
+			m_gi_pipeline = Context::createPipeline(gi_pipeline_ci);
+			m_gi_pipeline->setUniformMat4f("u_MVP", glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f));
+			m_gi_pipeline->setUniform1f("u_Interval", 1.0f);
+		}
 
 		if (m_emit_supported) {
 			PipelineCreateInfo emit_pipeline_ci = { "emit" };
@@ -636,6 +651,8 @@ void Context::renderThread(void* context)
 						FrameBuffer::setDrawBuffers(1);
 						ctx->drawQuad(lightfx ? 1 : 3);
 					}
+					if (st.gi && ctx->m_gi_pipeline)
+						ctx->renderGI(st, cmd->m_game_size);
 					if (st.bloom || st.lut) {
 					ctx->m_prefx_texture->fillFromBuffer(ctx->m_game_framebuffer);
 					ctx->bindPipeline(ctx->m_prefx_pipeline);
@@ -1194,6 +1211,70 @@ bool Context::vlightActive(const perf::FrameSettings& st) const
 	return m_game_framebuffer && m_game_framebuffer->getAttachmentCount() >= 5 && st.light && (st.light_vsource || st.light_debug);
 }
 
+void Context::renderGI(const perf::FrameSettings& st, glm::uvec2 game_size)
+{
+	if (m_gi_game_size != game_size || !m_gi_fb) {
+		m_gi_game_size = game_size;
+		// 1/4 game res, multiple of 8 so every cascade's probe grid divides evenly
+		m_gi_size = { std::max((game_size.x / 4 + 7) / 8 * 8, 8u), std::max((game_size.y / 4 + 7) / 8 * 8, 8u) };
+		FrameBufferCreateInfo ci;
+		ci.size = m_gi_size;
+		ci.attachments = { { TEXTURE_SLOT_GI_SCENE, { 0.0f, 0.0f, 0.0f, 0.0f }, { GL_LINEAR, GL_LINEAR }, { GL_RGBA16F, GL_RGBA } } };
+		m_gi_scene_fb = Context::createFrameBuffer(ci);
+		ci.attachments = { { TEXTURE_SLOT_GI, { 0.0f, 0.0f, 0.0f, 0.0f }, { GL_LINEAR, GL_LINEAR }, { GL_RGBA16F, GL_RGBA } } };
+		m_gi_fb = Context::createFrameBuffer(ci);
+		ci.size = m_gi_size * 2u;
+		for (uint32_t i = 0; i < 4; i++) {
+			ci.attachments = { { TEXTURE_SLOT_GI_C0 + i, { 0.0f, 0.0f, 0.0f, 1.0f }, { GL_NEAREST, GL_NEAREST }, { GL_RGBA16F, GL_RGBA } } };
+			m_gi_casc_fb[i] = Context::createFrameBuffer(ci);
+		}
+	}
+
+	const auto& p = m_gi_pipeline;
+	const glm::ivec2 lo(m_gi_size);
+	bindFrameBuffer(m_game_framebuffer, false);
+	FrameBuffer::setDrawBuffers(1);
+	m_prefx_texture->fillFromBuffer(m_game_framebuffer);
+
+	// Uniforms (and manual texture binds) before bindPipeline: setUniform* binds the program.
+	const bool emit = m_emit_attached && m_game_framebuffer->getAttachmentCount() > 5;
+	if (emit)
+		m_game_framebuffer->getTexture(5)->bind();
+	p->setUniform1i("u_HasEmit", emit ? 1 : 0);
+	p->setUniform1i("u_EmitTexture", emit ? TEXTURE_SLOT_EMIT : TEXTURE_SLOT_PREFX);
+	p->setUniformVec2f("u_SceneSize", glm::vec2(lo));
+	p->setUniform1i("u_Upper", TEXTURE_SLOT_GI_SCENE);
+	p->setUniform1f("u_Strength", st.gi_strength);
+	bindPipeline(p);
+	m_game_framebuffer->getTexture(3)->bind();
+	bindFrameBuffer(m_gi_scene_fb, false);
+	setViewport(lo);
+	drawQuad(0);
+	m_gi_scene_fb->getTexture()->bind();
+
+	for (int i = 3; i >= 0; i--) {
+		if (i < 3)
+			m_gi_casc_fb[i + 1]->getTexture()->bind();
+		p->setUniform1i("u_Cascade", i);
+		p->setUniform1i("u_Upper", i < 3 ? TEXTURE_SLOT_GI_C0 + i + 1 : TEXTURE_SLOT_GI_SCENE);
+		bindFrameBuffer(m_gi_casc_fb[i], false);
+		setViewport(lo * 2);
+		drawQuad(1);
+	}
+
+	m_gi_casc_fb[0]->getTexture()->bind();
+	p->setUniform1i("u_Upper", TEXTURE_SLOT_GI_C0);
+	bindFrameBuffer(m_gi_fb, false);
+	setViewport(lo);
+	drawQuad(2);
+
+	m_gi_fb->getTexture()->bind();
+	bindFrameBuffer(m_game_framebuffer, false);
+	FrameBuffer::setDrawBuffers(1);
+	setViewport(game_size);
+	drawQuad(3);
+}
+
 bool Context::emitWanted() const
 {
 	return ISGLIDE3X() && m_emit_supported && m_hdr && App.hdr.mode && App.hdr.emissive;
@@ -1225,7 +1306,7 @@ void Context::onStageChange()
 				flushVertices();
 				m_command_buffer[m_frame_index].pushCommand(CommandType::SoftShadow, m_current_blend_index);
 			}
-			if (ISGLIDE3X() && (App.bloom.active || App.lut.selected || App.dynamic_light.active || App.tonemap.active) && *d2::screen_shift != SCREENPANEL_BOTH) {
+			if (ISGLIDE3X() && (App.bloom.active || App.lut.selected || App.dynamic_light.active || App.tonemap.active || App.radiance_gi.active) && *d2::screen_shift != SCREENPANEL_BOTH) {
 				flushVertices();
 				m_command_buffer[m_frame_index].pushCommand(CommandType::PreFx, m_current_blend_index);
 			}
@@ -1693,6 +1774,8 @@ void Context::captureSettings(perf::FrameSettings& st) const
 	st.level_no = App.game.screen == GameScreen::InGame ? (int32_t)*d2::level_no : -1;
 
 	st.soft_shadows = App.soft_shadows.active;
+	st.gi = App.radiance_gi.active && App.game.screen == GameScreen::InGame;
+	st.gi_strength = App.radiance_gi.strength.value;
 	st.shadow_softness = App.soft_shadows.active ? App.soft_shadows.softness.value : 1.0f;
 
 	st.limiter = m_limiter_settings;

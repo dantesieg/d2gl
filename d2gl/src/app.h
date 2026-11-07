@@ -183,6 +183,11 @@ struct D2GLApp {
 		Range<float> softness = { 0.8f, 0.3f, 1.5f };
 	} soft_shadows;
 
+	struct {
+		bool active = false;
+		Range<float> strength = { 0.5f, 0.1f, 1.5f };
+	} radiance_gi;
+
 	// HDR10 output ([HDR] in the ini). `mode` is decided once at startup from `enabled` (GL context on a
 	// hidden window + DXGI presenter); `enabled` is then live (HDR10 vs SDR swapchain) while mode is on.
 	struct {

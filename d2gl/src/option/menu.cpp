@@ -388,6 +388,14 @@ void Menu::draw()
 					drawDescription("Tonemap exposure.", m_colors[Color::Gray], 12);
 				ImGui::EndDisabled();
 				drawSeparator();
+				drawCheckbox_m("Radiance GI", App.radiance_gi.active, "Spells, fire and bright lights bounce light onto nearby ground (world only).", radiance_gi)
+					saveBool("Graphic", "radiance_gi", App.radiance_gi.active);
+				ImGui::BeginDisabled(!App.radiance_gi.active);
+					drawSlider_m(float, "", App.radiance_gi.strength, "%.3f", "", radiance_gi_strength)
+						saveFloat("Graphic", "radiance_gi_strength", App.radiance_gi.strength.value);
+					drawDescription("Radiance GI strength.", m_colors[Color::Gray], 12);
+				ImGui::EndDisabled();
+				drawSeparator();
 				drawCheckbox_m("Soft Shadows", App.soft_shadows.active, "Unit shadows are blurred with a soft falloff.", soft_shadows)
 					saveBool("Graphic", "soft_shadows", App.soft_shadows.active);
 				ImGui::BeginDisabled(!App.soft_shadows.active);
@@ -551,6 +559,15 @@ void Menu::draw()
 			}
 			drawSlider_m(float, "Brightness (stops)", App.hdr.brightness, "%.2f", "", hdr_brightness)
 				saveFloat("HDR", "brightness", App.hdr.brightness.value);
+			drawSeparator();
+			drawCheckbox_m("Emissive Highlights", App.hdr.emissive, "Spells, fire and auras above paper white; UI stays at paper white.", hdr_emissive)
+				saveBool("HDR", "emissive", App.hdr.emissive);
+			ImGui::BeginDisabled(!App.hdr.emissive);
+				drawSlider_m(float, "Emissive Peak (nits)", App.hdr.emissive_nits, "%.0f", "", hdr_emissive_nits)
+					saveFloat("HDR", "emissive_nits", App.hdr.emissive_nits.value);
+				drawSlider_m(float, "Emissive Gain", App.hdr.emissive_gain, "%.2f", "", hdr_emissive_gain)
+					saveFloat("HDR", "emissive_gain", App.hdr.emissive_gain.value);
+			ImGui::EndDisabled();
 			childSeparator("##hdr1");
 			drawSlider_m(float, "Black Level", App.hdr.black_level, "%.3f", "+ lifts, - crushes shadows.", hdr_black_level)
 				saveFloat("HDR", "black_level", App.hdr.black_level.value);
@@ -568,15 +585,6 @@ void Menu::draw()
 				saveInt("HDR", "tonemap", App.hdr.tonemap.selected);
 			drawCombo_m("SDR Curve", App.hdr.eotf, "Gamma 2.2 matches D2 on SDR screens.", false, 17, hdr_eotf)
 				saveInt("HDR", "eotf", App.hdr.eotf.selected);
-			childSeparator("##hdr2");
-			drawCheckbox_m("Emissive Highlights", App.hdr.emissive, "Spells, fire and auras above paper white; UI stays at paper white.", hdr_emissive)
-				saveBool("HDR", "emissive", App.hdr.emissive);
-			ImGui::BeginDisabled(!App.hdr.emissive);
-				drawSlider_m(float, "Emissive Peak (nits)", App.hdr.emissive_nits, "%.0f", "", hdr_emissive_nits)
-					saveFloat("HDR", "emissive_nits", App.hdr.emissive_nits.value);
-				drawSlider_m(float, "Emissive Gain", App.hdr.emissive_gain, "%.2f", "", hdr_emissive_gain)
-					saveFloat("HDR", "emissive_gain", App.hdr.emissive_gain.value);
-			ImGui::EndDisabled();
 			drawSlider_m(float, "Movie/Menu White (nits)", App.hdr.movie_nits, "%.0f", "0 = Paper White. Movies, menus and loading skip brightness and highlights.", hdr_movie_nits)
 				saveFloat("HDR", "movie_nits", App.hdr.movie_nits.value);
 			drawCheckbox_m("Calibration Overlay", App.hdr.calibration, "Paper white, peak and near-black patches.", hdr_calibration) {}

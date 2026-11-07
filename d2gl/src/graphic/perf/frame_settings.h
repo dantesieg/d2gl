@@ -58,6 +58,8 @@ struct FrameSettings {
 	int32_t level_no = -1; // *d2::level_no while in game, else -1
 
 	bool soft_shadows = false;
+	bool gi = false; // App.radiance_gi.active, in game only
+	float gi_strength = 0.0f;
 	float shadow_softness = 1.0f;
 
 	LimiterSettings limiter;
