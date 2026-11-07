@@ -24,6 +24,7 @@ layout(location = 2) in vec4 Color1;
 layout(location = 3) in vec4 Color2;
 layout(location = 4) in ivec2 TexIds;
 layout(location = 5) in uvec4 Flags;
+layout(location = 7) in uvec4 TexRect;
 
 uniform mat4 u_MVP;
 
@@ -32,6 +33,7 @@ out vec4 v_Color1;
 out vec4 v_Color2;
 flat out ivec2 v_TexIds;
 flat out uvec4 v_Flags;
+flat out uvec4 v_TexRect;
 
 void main()
 {
@@ -41,6 +43,7 @@ void main()
 	v_Color2 = Color2.abgr;
 	v_TexIds = TexIds;
 	v_Flags = Flags;
+	v_TexRect = TexRect;
 }
 
 // =============================================================
@@ -69,6 +72,41 @@ in vec4 v_Color1;
 in vec4 v_Color2;
 flat in ivec2 v_TexIds;
 flat in uvec4 v_Flags;
+flat in uvec4 v_TexRect;
+
+uniform float u_NativeScale; // [Graphic] native_render: screen px per game px (<= 1 = off)
+uniform int u_NativeFilter;  // 0 nearest, 1 sharp (pixel-exact inside, blended only at texel borders), 2 smooth
+
+// native_render: palette sprites are scaled per sprite as they are drawn. Filtering runs on palette
+// colours (4 texelFetch, clamped to the sprite's own atlas rect so neighbours never bleed in);
+// colour-keyed texels drop out of the blend, coverage < 0.5 is discarded (crisp, fringe-free outlines).
+bool nativeSample(out vec4 col)
+{
+	vec2 p = v_TexCoord * 512.0 - 0.5;
+	vec2 i0 = floor(p);
+	vec2 f = p - i0;
+	if (u_NativeFilter == 1)
+		f = clamp((f - 0.5) * u_NativeScale + 0.5, 0.0, 1.0);
+	vec2 lo = vec2(v_TexRect.xy);
+	vec2 hi = lo + vec2(v_TexRect.zw) - 1.0;
+	bool key = (v_Flags.x & 15u) == 1u;
+	vec4 acc = vec4(0.0);
+	float wsum = 0.0;
+	for (int k = 0; k < 4; k++) {
+		vec2 o = vec2(k & 1, k >> 1);
+		float w = (o.x > 0.5 ? f.x : 1.0 - f.x) * (o.y > 0.5 ? f.y : 1.0 - f.y);
+		ivec2 t = ivec2(clamp(i0 + o, lo, hi));
+		float red = texelFetch(u_Texture, ivec3(t, v_TexIds.x), 0).r;
+		if (key && red == 0.0)
+			continue;
+		acc += w * u_Palette[int(red * 255.0 + 0.5)];
+		wsum += w;
+	}
+	if (wsum < 0.5)
+		return false;
+	col = acc / wsum;
+	return true;
+}
 
 void main()
 {
@@ -92,6 +130,14 @@ void main()
 		FragColor = v_Color2;
 	else if (v_Flags.y == 2u) // local = iterated (per-vertex colour)
 		FragColor = v_Color1;
+	else
+	else if (u_NativeScale > 1.0 && u_NativeFilter > 0 && v_TexRect.z > 0u)
+	{
+		vec4 pal;
+		if (!nativeSample(pal))
+			discard;
+		FragColor = v_Color1 * pal;
+	}
 	else
 	{
 		float red = texture(u_Texture, vec3(v_TexCoord, v_TexIds.x)).r;

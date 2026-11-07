@@ -214,6 +214,7 @@ void Wrapper::grTexSource(GrChipID_t tmu, FxU32 start_address, GrTexInfo* info)
 		ctx->setVertexTexNum({ sub_tex_info->tex_num, 0 });
 		ctx->setVertexOffset(sub_tex_info->offset);
 		ctx->setVertexTexShift(sub_tex_info->shift);
+		ctx->setVertexTexRect({ sub_tex_info->offset.x, sub_tex_info->offset.y, (uint16_t)glm::min(width, 512u), (uint16_t)glm::min(height, 512u) });
 	}
 }
 

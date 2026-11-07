@@ -270,7 +270,8 @@ void Upscaler::setupPasses()
 	m_input_texture = Context::createTexture(texture_ci);
 
 	m_passes[0].out_size = App.game.tex_size;
-	glm::uvec2 vwp_size = { (uint32_t)((float)App.game.tex_size.x * App.viewport.scale.x), (uint32_t)((float)App.game.tex_size.y * App.viewport.scale.y) };
+	const glm::vec2 vs = { (float)App.viewport.size.x / App.game.render_size.x, (float)App.viewport.size.y / App.game.render_size.y };
+	glm::uvec2 vwp_size = { (uint32_t)((float)App.game.tex_size.x * vs.x), (uint32_t)((float)App.game.tex_size.y * vs.y) };
 
 	for (size_t i = 0; i < m_passes.size(); i++) {
 		auto& pass = m_passes[i];

@@ -430,7 +430,7 @@ Context::Context()
 		m_game_pipeline->setUniformMat4f("u_MVP", glm::ortho(-1.0f, 1.0f, 1.0f, -1.0f));
 	}
 
-	onResize(App.window.size, App.game.size);
+	onResize(App.window.size, App.game.render_size);
 
 	LARGE_INTEGER qpf;
 	QueryPerformanceFrequency(&qpf);
@@ -1070,7 +1070,7 @@ void Context::onResize(glm::uvec2 w_size, glm::uvec2 g_size, uint32_t bpp)
 	window_size = w_size;
 
 	if (game_resized) {
-		glm::mat4 mvp = glm::ortho(0.0f, (float)game_size.x, (float)game_size.y, 0.0f);
+		glm::mat4 mvp = glm::ortho(0.0f, (float)App.game.size.x, (float)App.game.size.y, 0.0f); // game units, also with native_render
 		modules::HDText::Instance().setMVP(mvp);
 		m_mod_pipeline->setUniformMat4f("u_MVP", mvp);
 
@@ -1098,6 +1098,8 @@ void Context::onResize(glm::uvec2 w_size, glm::uvec2 g_size, uint32_t bpp)
 
 		if (ISGLIDE3X()) {
 			m_game_pipeline->setUniformMat4f("u_MVP", mvp);
+			m_game_pipeline->setUniform1f("u_NativeScale", (float)game_size.x / (float)App.game.size.x);
+			m_game_pipeline->setUniform1i("u_NativeFilter", App.game.native_filter);
 
 			m_bloom_ubo->updateDataVec2f("rel_size", { 4.0f / game_size.x, 4.0f / game_size.y });
 			m_bloom_tex_size = { game_size.x / 4, game_size.y / 4 };
@@ -1659,6 +1661,7 @@ void Context::pushVertex(const GlideVertex* vertex, glm::vec2 fix, glm::ivec2 of
 	m_vertices.ptr->color2 = m_vertex_params.color;
 	m_vertices.ptr->tex_ids = m_vertex_params.tex_ids;
 	m_vertices.ptr->flags = m_vertex_params.flags;
+	m_vertices.ptr->tex_rect = (fix.x == 0.0f && fix.y == 0.0f) ? m_vertex_params.tex_rect : glm::vec<4, uint16_t>(0);
 	if (m_shadow_fx && App.game.draw_stage == DrawStage::World && m_shadow_draw != 2) {
 		// High nibble of flag x tags shadow-buffer writes (see glide.glsl).
 		const uint32_t blend = m_current_blend_index;

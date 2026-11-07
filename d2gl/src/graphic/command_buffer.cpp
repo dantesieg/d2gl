@@ -29,7 +29,7 @@ void CommandBuffer::reset()
 
 	m_screen = App.game.screen;
 	m_window_size = App.window.size;
-	m_game_size = App.game.size;
+	m_game_size = App.game.render_size;
 	m_resized = false;
 }
 
@@ -58,7 +58,7 @@ void CommandBuffer::drawIndexed(uint32_t start, uint32_t count)
 void CommandBuffer::resize()
 {
 	m_resized = true;
-	m_game_size = App.game.size;
+	m_game_size = App.game.render_size;
 	m_game_tex_bpp = App.game.bpp;
 	m_window_size = App.window.size;
 }

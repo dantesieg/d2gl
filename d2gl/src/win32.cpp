@@ -487,10 +487,18 @@ void setWindowMetrics()
 	App.viewport.offset.y = App.window.size.y / 2 - App.viewport.size.y / 2;
 	App.viewport.scale = { (float)App.viewport.size.x / App.game.size.x, (float)App.viewport.size.y / App.game.size.y };
 
+	// native_render: the game framebuffer is the on-screen size, sprites are scaled while drawn (mvp stays in game units)
+	App.game.render_size = App.game.size;
+	if (App.game.native_render) {
+		const glm::uvec2 target = { App.viewport.stretched.x ? App.window.size.x : App.viewport.size.x, App.viewport.stretched.y ? App.window.size.y : App.viewport.size.y };
+		if (target.x > App.game.size.x && target.y > App.game.size.y && target.x <= 4096 && target.y <= 4096)
+			App.game.render_size = target;
+	}
+	const glm::uvec2 rs = App.game.render_size;
 	// clang-format off
-	App.game.tex_size.x = App.game.size.x <= 1024 ? 1024 : App.game.size.x <= 2048 ? 2048 : App.game.size.x <= 4096 ? 4096 : App.game.size.x;
-	App.game.tex_size.y = App.game.size.y <=  512 ?  512 : App.game.size.y <= 1024 ? 1024 : App.game.size.y <= 2048 ? 2048 : App.game.size.y <= 4096 ? 4096 : App.game.size.y;
-	App.game.tex_scale = glm::vec2((float)App.game.size.x / App.game.tex_size.x, (float)App.game.size.y / App.game.tex_size.y);
+	App.game.tex_size.x = rs.x <= 1024 ? 1024 : rs.x <= 2048 ? 2048 : rs.x <= 4096 ? 4096 : rs.x;
+	App.game.tex_size.y = rs.y <=  512 ?  512 : rs.y <= 1024 ? 1024 : rs.y <= 2048 ? 2048 : rs.y <= 4096 ? 4096 : rs.y;
+	App.game.tex_scale = glm::vec2((float)rs.x / App.game.tex_size.x, (float)rs.y / App.game.tex_size.y);
 	// clang-format off
 
 	App.cursor.scale = { (float)App.viewport.size.x / App.game.size.x, (float)App.viewport.size.y / App.game.size.y };

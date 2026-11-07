@@ -418,6 +418,11 @@ void Menu::draw()
 				saveBool("Graphic", "stretched_vertical", App.viewport.stretched.y);
 			}
 			drawDescription("Stretch viewport to window size.", m_colors[Color::Gray], 14);
+			drawSeparator();
+			drawCheckbox_m("Native Render", App.game.native_render, "Draw every sprite straight at screen resolution instead of upscaling the finished frame. Restart to apply.", native_render)
+			{
+				saveBool("Graphic", "native_render", App.game.native_render);
+			}
 			childEnd();
 			tabEnd();
 		}

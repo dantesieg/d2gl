@@ -102,6 +102,9 @@ struct D2GLApp {
 		DrawStage draw_stage = DrawStage::World;
 		glm::uvec2 tex_size = { 1024, 512 };
 		glm::vec2 tex_scale = { 1.0f, 1.0f };
+		glm::uvec2 render_size = { 640, 480 }; // game framebuffer size: = size, or the screen size with native_render
+		bool native_render = false;            // [Graphic] native_render: draw sprites straight at screen resolution
+		int native_filter = 1;                 // [Graphic] native_render_filter: 0 nearest, 1 sharp, 2 smooth
 	} game;
 
 	struct {

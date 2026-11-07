@@ -27,10 +27,11 @@ struct Vertex {
 	uint32_t color2;
 	glm::vec<2, uint16_t> tex_ids;
 	glm::vec<4, uint8_t> flags;
+	glm::vec<4, uint16_t> tex_rect; // native_render: sub-texture texel rect (x, y, w, h) in its atlas layer, w = 0 unknown
 
 	static void enableAttribArray()
 	{
-		for (uint32_t i = 0; i <= 6; i++)
+		for (uint32_t i = 0; i <= 7; i++)
 			glEnableVertexAttribArray(i);
 	}
 
@@ -43,6 +44,8 @@ struct Vertex {
 		glVertexAttribPointer(3, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Vertex), (const void*)offsetof(Vertex, color2));
 		glVertexAttribIPointer(4, 2, GL_UNSIGNED_SHORT, sizeof(Vertex), (const void*)offsetof(Vertex, tex_ids));
 		glVertexAttribIPointer(5, 4, GL_UNSIGNED_BYTE, sizeof(Vertex), (const void*)offsetof(Vertex, flags));
+		glEnableVertexAttribArray(7);
+		glVertexAttribIPointer(7, 4, GL_UNSIGNED_SHORT, sizeof(Vertex), (const void*)offsetof(Vertex, tex_rect));
 	}
 };
 
@@ -65,6 +68,8 @@ struct VertexMod {
 		glVertexAttribIPointer(4, 2, GL_UNSIGNED_SHORT, sizeof(VertexMod), (const void*)offsetof(VertexMod, tex_ids));
 		glVertexAttribIPointer(5, 4, GL_UNSIGNED_BYTE, sizeof(VertexMod), (const void*)offsetof(VertexMod, flags));
 		glVertexAttribPointer(6, 2, GL_HALF_FLOAT, GL_FALSE, sizeof(VertexMod), (const void*)offsetof(VertexMod, extra));
+		glDisableVertexAttribArray(7);
+		glVertexAttribI4ui(7, 0, 0, 0, 0);
 	}
 };
 

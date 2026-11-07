@@ -88,6 +88,7 @@ struct VertexParams {
 	glm::vec<2, uint16_t> tex_ids = { 0, 0 };
 	glm::vec<2, uint16_t> offsets = { 0, 0 };
 	glm::vec<4, uint8_t> flags = { 0, 0, 0, 0 };
+	glm::vec<4, uint16_t> tex_rect = { 0, 0, 0, 0 };
 };
 
 struct SharpenData {
@@ -291,6 +292,7 @@ public:
 	inline void setVertexTexShift(uint8_t shift) { m_vertex_params.tex_shift = shift; }
 	inline void setVertexTexNum(glm::vec<2, uint16_t> tex_ids) { m_vertex_params.tex_ids = tex_ids; }
 	inline void setVertexOffset(glm::vec<2, uint16_t> offsets) { m_vertex_params.offsets = offsets; }
+	inline void setVertexTexRect(glm::vec<4, uint16_t> rect) { m_vertex_params.tex_rect = rect; }
 	inline void setVertexFlagX(uint8_t flag) { m_vertex_params.flags.x = flag; }
 	inline void setVertexFlagY(uint8_t flag) { m_vertex_params.flags.y = flag; }
 	inline void setVertexFlagZ(uint8_t flag) { m_vertex_params.flags.z = flag; }
