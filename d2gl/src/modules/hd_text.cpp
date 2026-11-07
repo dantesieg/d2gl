@@ -380,7 +380,7 @@ bool HDText::drawFramedText(const wchar_t* str, int x, int y, uint32_t color, ui
 	App.context->toggleDelayPush(true);
 	m_object_bg->setPosition(pos);
 	m_object_bg->setSize(box_size);
-	m_object_bg->setColor(m_bg_color, 1);
+	m_object_bg->setColor(bgColor(), 1);
 	m_object_bg->setExtra(box_size);
 	App.context->pushObject(m_object_bg);
 
@@ -407,7 +407,7 @@ bool HDText::drawRectangledText(const wchar_t* str, int x, int y, uint32_t rect_
 	int line_count = 0;
 	auto font = getFont(m_text_size);
 	const auto text_color = g_text_colors.at(getColor(color));
-	uint32_t bg_color = m_bg_color;
+	uint32_t bg_color = bgColor();
 	glm::vec2 padding, back_pos, text_pos, size;
 
 	if (rect_transparency == 2) {
@@ -905,7 +905,7 @@ void HDText::drawMonsterHealthBar(d2::UnitAny* unit)
 	if (hp_percent < 1.0f) {
 		m_object_bg->setPosition({ bar_pos.x + bar_size.x * hp_percent, bar_pos.y });
 		m_object_bg->setSize({ bar_size.x * (1.0f - hp_percent), bar_size.y });
-		m_object_bg->setColor(m_bg_color, 1);
+		m_object_bg->setColor(bgColor(), 1);
 		App.context->pushObject(m_object_bg);
 	}
 
@@ -982,7 +982,7 @@ void HDText::drawPlayerHealthBar(d2::UnitAny* unit)
 	if (hp_percent < 1.0f) {
 		m_object_bg->setPosition({ bar_pos.x + bar_size.x * hp_percent, bar_pos.y });
 		m_object_bg->setSize({ bar_size.x * (1.0f - hp_percent), bar_size.y });
-		m_object_bg->setColor(m_bg_color, 1);
+		m_object_bg->setColor(bgColor(), 1);
 		App.context->pushObject(m_object_bg);
 	}
 

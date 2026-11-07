@@ -426,6 +426,8 @@ void Menu::draw()
 			ImGui::BeginDisabled(!App.hd_text.active || ISHDTEXT());
 				drawSlider_m(float, "", App.hd_text.scale, "%.3f", "Global scale for HD text.", hd_text_scale)
 					saveFloat("Feature", "hd_text_scale", App.hd_text.scale.value);
+				drawSlider_m(int, "", App.hd_text.bg_opacity, "%d%%", "Hover/tooltip box opacity.", hd_text_bg_opacity)
+					saveInt("Feature", "hd_text_bg_opacity", App.hd_text.bg_opacity.value);
 				if (App.hd_text.active)
 					modules::HDText::Instance().updateFontSize();
 			ImGui::EndDisabled();
@@ -447,6 +449,8 @@ void Menu::draw()
 						saveInt("Feature", "mini_map_width", App.mini_map.width.value);
 					drawSlider_m(int, "", App.mini_map.height, "%d", "Minimap height.", mini_map_height_val)
 						saveInt("Feature", "mini_map_height", App.mini_map.height.value);
+					drawSlider_m(int, "", App.mini_map.opacity, "%d%%", "Minimap opacity.", mini_map_opacity_val)
+						saveInt("Feature", "mini_map_opacity", App.mini_map.opacity.value);
 					if (App.mini_map.active)
 						modules::MiniMap::Instance().resize();
 				ImGui::EndDisabled();

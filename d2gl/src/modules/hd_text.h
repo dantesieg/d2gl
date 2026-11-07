@@ -62,7 +62,7 @@ class HDText {
 
 	HoveredUnit m_hovered_unit;
 
-	const uint32_t m_bg_color = 0x000000CC;
+	static uint32_t bgColor() { return (uint32_t)(App.hd_text.bg_opacity.value * 255 / 100); } // black, alpha from hd_text_bg_opacity (80% = 0xCC)
 	const uint32_t m_border_color = 0x222222DD;
 	const uint32_t m_alt_bg_color = 0x00000099;
 	const uint32_t m_alt_bg_hovered = 0x213F98DD;

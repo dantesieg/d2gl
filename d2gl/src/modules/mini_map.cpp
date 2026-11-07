@@ -59,8 +59,8 @@ void MiniMap::draw()
 
 	if (*d2::screen_shift == SCREENPANEL_NONE) {
 		if (!d2::isEscMenuOpen() && !*d2::automap_on) {
-			m_bg->setFlags(2, 3, 100);
-			m_map->setFlags(5, 0, 100);
+			m_bg->setFlags(2, 3, (uint8_t)App.mini_map.opacity.value);
+			m_map->setFlags(5, 0, (uint8_t)App.mini_map.opacity.value);
 			App.context->pushObject(m_bg);
 			App.context->pushObject(m_map);
 		}

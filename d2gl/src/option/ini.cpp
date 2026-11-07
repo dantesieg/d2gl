@@ -78,8 +78,8 @@ float getFloat(LPCSTR section, LPCSTR key, Range<float> val)
 
 std::string getString(LPCSTR section, LPCSTR key, const std::string& def)
 {
-	char value[200] = { 0 };
-	if (getValue(section, key, value, 200)) {
+	char value[2048] = { 0 };
+	if (getValue(section, key, value, sizeof(value))) {
 		return std::string(value);
 	}
 	return def;
@@ -118,7 +118,7 @@ bool saveString(LPCSTR section, LPCSTR key, const std::string& val)
 
 void saveIni()
 {
-	char buf[3400] = { 0 };
+	static char buf[16384]; buf[0] = 0;   // was 3400: long load_dlls lines overflowed sprintf_s
 	std::ofstream out_file;
 	out_file.open(App.ini_file);
 
@@ -265,7 +265,9 @@ void saveIni()
 		"hd_cursor=%s\n\n"
 		"; HD in game text.\n"
 		"hd_text=%s\n"
-		"hd_text_scale=%.3f\n\n"
+		"hd_text_scale=%.3f\n"
+		"; HD text hover/tooltip box opacity in percent (0-100).\n"
+		"hd_text_bg_opacity=%d\n\n"
 		//"; HD life & mana orbs.\n"
 		//"hd_orbs=%s\n"
 		//"hd_orbs_centered=%s\n\n"
@@ -273,7 +275,9 @@ void saveIni()
 		"mini_map=%s\n"
 		"mini_map_text_over=%s\n"
 		"mini_map_width=%d\n"
-		"mini_map_height=%d\n\n"
+		"mini_map_height=%d\n"
+		"; Minimap opacity in percent (10-100).\n"
+		"mini_map_opacity=%d\n\n"
 		"; D2DX's Motion Prediction.\n"
 		"motion_prediction=%s\n\n"
 		"; Loot sparkle: short sparkle when a valuable item drops (glide only).\n"
@@ -297,12 +301,14 @@ void saveIni()
 		boolString(App.hd_cursor),
 		boolString(App.hd_text.active),
 		App.hd_text.scale.value,
+		App.hd_text.bg_opacity.value,
 		// boolString(App.hd_orbs.active),
 		// boolString(App.hd_orbs.centered),
 		boolString(App.mini_map.active),
 		boolString(App.mini_map.text_over),
 		App.mini_map.width.value,
 		App.mini_map.height.value,
+		App.mini_map.opacity.value,
 		boolString(App.motion_prediction),
 		boolString(App.loot_sparkle.active),
 		App.loot_sparkle.min_quality.selected,
@@ -493,6 +499,8 @@ void loadIni()
 		App.mini_map.text_over = getBool("Feature", "mini_map_text_over", App.mini_map.text_over);
 		App.mini_map.width.value = getInt("Feature", "mini_map_width", App.mini_map.width.value, App.mini_map.width.min, App.mini_map.width.max);
 		App.mini_map.height.value = getInt("Feature", "mini_map_height", App.mini_map.height.value, App.mini_map.height.min, App.mini_map.height.max);
+		App.mini_map.opacity.value = getInt("Feature", "mini_map_opacity", App.mini_map.opacity.value, App.mini_map.opacity.min, App.mini_map.opacity.max);
+		App.hd_text.bg_opacity.value = getInt("Feature", "hd_text_bg_opacity", App.hd_text.bg_opacity.value, App.hd_text.bg_opacity.min, App.hd_text.bg_opacity.max);
 
 		App.motion_prediction = getBool("Feature", "motion_prediction", App.motion_prediction);
 

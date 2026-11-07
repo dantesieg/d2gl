@@ -205,7 +205,8 @@ struct D2GLApp {
 
 	struct {
 		bool active = false;
-		Range<float> scale = { 1.0f, 0.8f, 1.2f };
+		Range<float> scale = { 1.0f, 0.8f, 1.5f };
+		Range<int> bg_opacity = { 80, 0, 100 }; // % for hover/tooltip boxes (was fixed 0xCC)
 	} hd_text;
 
 	bool hd_cursor = false;
@@ -227,6 +228,7 @@ struct D2GLApp {
 		bool text_over = true;
 		Range<int> width = { 200, 200, 300 };
 		Range<int> height = { 140, 100, 200 };
+		Range<int> opacity = { 100, 10, 100 }; // %
 	} mini_map;
 
 #ifdef _DEBUG
