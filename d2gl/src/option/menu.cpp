@@ -73,17 +73,17 @@ Menu::Menu()
 	style.Colors[ImGuiCol_Button] = ImColor(25, 25, 25);
 	style.Colors[ImGuiCol_ButtonHovered] = ImColor(35, 35, 35);
 	style.Colors[ImGuiCol_ButtonActive] = ImColor(45, 45, 45);
-	style.Colors[ImGuiCol_ScrollbarBg] = ImColor(10, 10, 10);
-	style.Colors[ImGuiCol_ScrollbarGrab] = ImColor(25, 25, 25);
-	style.Colors[ImGuiCol_ScrollbarGrabHovered] = ImColor(35, 35, 35);
-	style.Colors[ImGuiCol_ScrollbarGrabActive] = ImColor(45, 45, 45);
+	style.Colors[ImGuiCol_ScrollbarBg] = ImColor(20, 20, 20);
+	style.Colors[ImGuiCol_ScrollbarGrab] = ImColor(90, 90, 90);
+	style.Colors[ImGuiCol_ScrollbarGrabHovered] = ImColor(120, 120, 120);
+	style.Colors[ImGuiCol_ScrollbarGrabActive] = ImColor(150, 150, 150);
 	style.Colors[ImGuiCol_Tab] = ImColor(30, 30, 30, 150);
 	style.Colors[ImGuiCol_TabActive] = ImColor(40, 40, 40);
 	style.Colors[ImGuiCol_TabHovered] = ImColor(40, 40, 40, 200);
 	style.Colors[ImGuiCol_TabUnfocused] = ImColor(30, 30, 30, 150);
 	style.Colors[ImGuiCol_TabUnfocusedActive] = ImColor(40, 40, 40);
 
-	style.ScrollbarSize = 10.0f;
+	style.ScrollbarSize = 18.0f;   // visible and grabbable on the Deck touchscreen/trackpad
 	style.ScrollbarRounding = 0.0f;
 	style.WindowTitleAlign.x = 0.5f;
 	style.WindowPadding = { 16.0f, 16.0f };
@@ -165,7 +165,7 @@ void Menu::draw()
 		ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse;
 	static ImGuiCond window_pos_cond = ImGuiCond_Appearing;
 
-	ImGui::SetNextWindowSize({ 680.0f, 540.0f }, ImGuiCond_Always);
+	ImGui::SetNextWindowSize({ 680.0f, glm::min(720.0f, max_size.y) }, ImGuiCond_Always);   // taller where the screen allows (Deck: 780 px)
 	ImGui::SetNextWindowSizeConstraints({ 10.0f, 10.0f }, max_size);
 	ImGui::SetNextWindowPos(window_pos, window_pos_cond, ImVec2(0.5f, 0.5f));
 	ImGui::SetNextWindowBgAlpha(0.90f);
