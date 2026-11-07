@@ -536,6 +536,14 @@ void Menu::draw()
 				drawDescription("Restart the game to apply.", m_colors[Color::Orange], 14);
 			else
 				drawDescription(hdr_p && hdr_p->floatTarget() ? "Scene in RGBA16F: light above paper white." : "Scene in RGBA8 (SDR range).", m_colors[Color::Gray], 12);
+			ImGui::BeginDisabled(!App.hdr.float_pipeline);
+				drawCheckbox_m("Diffuse Shoulder", App.hdr.diffuse_shoulder, "Lit ground and walls soft-clip to paper white; spells and fire still go above.", hdr_diffuse_shoulder)
+					saveBool("HDR", "diffuse_shoulder", App.hdr.diffuse_shoulder);
+				ImGui::BeginDisabled(!App.hdr.diffuse_shoulder);
+					drawSlider_m(float, "Shoulder Knee", App.hdr.shoulder_knee, "%.2f", "", hdr_shoulder_knee)
+						saveFloat("HDR", "shoulder_knee", App.hdr.shoulder_knee.value);
+				ImGui::EndDisabled();
+			ImGui::EndDisabled();
 			{
 				char line[160] = { 0 };
 				if (hdr_p) {

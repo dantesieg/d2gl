@@ -363,7 +363,11 @@ void saveIni()
 		"movie_nits=%.1f\n"
 		"; Float pipeline (needs hdr=true and a restart): world rendered to RGBA16F so spells, fire and\n"
 		"; lights go above paper white, one HDR tonemap at the end; the SDR [Graphic] tonemap is skipped.\n"
-		"float_pipeline=%s\n\n\n";
+		"float_pipeline=%s\n"
+		"; Float pipeline: soft-clip lit ground/walls to paper white (shoulder from the knee, 0.6-0.95);\n"
+		"; spells, fire and other additive light still go above it.\n"
+		"diffuse_shoulder=%s\n"
+		"shoulder_knee=%.3f\n\n\n";
 
 	sprintf_s(buf, hdr_setting,
 		boolString(App.hdr.enabled),
@@ -381,7 +385,9 @@ void saveIni()
 		App.hdr.emissive_nits.value,
 		App.hdr.emissive_gain.value,
 		App.hdr.movie_nits.value,
-		boolString(App.hdr.float_pipeline));
+		boolString(App.hdr.float_pipeline),
+		boolString(App.hdr.diffuse_shoulder),
+		App.hdr.shoulder_knee.value);
 	out_file << buf;
 
 	static const char* other_setting =
@@ -562,6 +568,8 @@ void loadIni()
 		App.hdr.emissive_gain.value = getFloat("HDR", "emissive_gain", App.hdr.emissive_gain);
 		App.hdr.movie_nits.value = getFloat("HDR", "movie_nits", App.hdr.movie_nits);
 		App.hdr.float_pipeline = getBool("HDR", "float_pipeline", App.hdr.float_pipeline);
+		App.hdr.diffuse_shoulder = getBool("HDR", "diffuse_shoulder", App.hdr.diffuse_shoulder);
+		App.hdr.shoulder_knee.value = getFloat("HDR", "shoulder_knee", App.hdr.shoulder_knee);
 
 		App.gl_ver.x = getInt("Other", "gl_ver_major", App.gl_ver.x, 3, 4);
 		App.gl_ver.y = getInt("Other", "gl_ver_minor", App.gl_ver.y, 0, 6);

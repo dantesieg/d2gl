@@ -207,6 +207,8 @@ struct D2GLApp {
 		bool calibration = false;
 		bool float_pipeline = false; // [HDR] float_pipeline: RGBA16F scene buffers + transfer (restart)
 		bool float_mode = false;     // decided once at startup: mode && float_pipeline
+		bool diffuse_shoulder = true; // float pipeline: soft-clip non-additive colour to paper white
+		Range<float> shoulder_knee = { 0.8f, 0.6f, 0.95f };
 		bool emissive = false;                                  // HDR highlights for additive sprites (spells, fire)
 		Range<float> emissive_nits = { 600.0f, 200.0f, 1000.0f }; // brightness of full emission
 		Range<float> emissive_gain = { 1.5f, 0.5f, 4.0f };       // emission = clamp(additive luma * gain)

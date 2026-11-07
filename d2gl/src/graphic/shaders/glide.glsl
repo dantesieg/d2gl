@@ -61,6 +61,7 @@ layout(std140) uniform ubo_Colors {
 uniform sampler2DArray u_Texture;
 uniform int u_BlendIndex; // pipeline blend index: 0 opaque, 1 multiply, 2 additive, 3 alpha
 uniform float u_SpellGlow; // additive draws feed the light buffer at this strength
+uniform float u_EmitRGB; // [HDR] float_pipeline + diffuse_shoulder: FragEmit = rgb share of additive light in FragColor
 uniform float u_AddScale; // [HDR] float_pipeline: additive world draws scaled above 1.0 (0/1 = off)
 
 in vec2 v_TexCoord;
@@ -82,6 +83,8 @@ void main()
 		FragColorMap = vec4(0.0);
 		FragColorMask = vec4(0.0);
 		FragColorShadow = vec4(e * v_Color2.a, 0.0, 0.0, 0.0);
+		if (u_EmitRGB > 0.5 && u_BlendIndex == 1)
+			FragEmit = vec4(1.0); // multiply by 1 keeps the additive share
 		return;
 	}
 
@@ -154,6 +157,20 @@ void main()
 		FragColorShadow.g = 1.0;
 	else if (sk == 5u)
 		FragColorShadow.g = FragColor.a;
+
+	// Float pipeline diffuse shoulder: FragEmit tracks exactly the additive share of FragColor, so the
+	// PreFx shoulder can split colour = diffuse + additive. Its blends mirror the colour blends:
+	// opaque replaces (0), alpha attenuates (rgb 0, a = coverage), additive adds, multiply multiplies.
+	if (u_EmitRGB > 0.5) {
+		if (u_BlendIndex == 2)
+			FragEmit = (v_Flags.w == 0u || v_Flags.w == 11u) ? vec4(FragColor.rgb, 0.0) : vec4(0.0);
+		else if (u_BlendIndex == 1)
+			FragEmit = vec4(FragColor.rgb, 1.0);
+		else if (u_BlendIndex == 3)
+			FragEmit = vec4(0.0, 0.0, 0.0, FragColor.a);
+		else
+			FragEmit = vec4(0.0);
+	}
 }
 
 #endif

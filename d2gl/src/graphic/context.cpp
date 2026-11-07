@@ -275,7 +275,9 @@ Context::Context()
 			game_pipeline_ci.attachment_blends.push_back({ blend.second.second, BlendType::SAlpha_OneMinusSAlpha, BlendType::SAlpha_OneMinusSAlpha, BlendType::One_One, blend.second.first == 0 ? BlendType::One_Zero : BlendType::One_One });
 			// emission: opaque replaces (occludes), alpha attenuates by coverage, additive/multiply add (multiply adds 0)
 			if (m_emit_supported)
-				game_pipeline_ci.attachment_blends.back().push_back(blend.second.first == 0 ? BlendType::One_Zero : (blend.second.first == 3 ? BlendType::SAlpha_OneMinusSAlpha : BlendType::One_One));
+				game_pipeline_ci.attachment_blends.back().push_back(blend.second.first == 0 ? BlendType::One_Zero : (blend.second.first == 3 ? BlendType::SAlpha_OneMinusSAlpha :
+					// float pipeline: the attachment is the additive share of the colour, so multiply must multiply it too
+					(blend.second.first == 1 && App.hdr.float_mode ? BlendType::Zero_SColor : BlendType::One_One)));
 		}
 		m_game_pipeline = Context::createPipeline(game_pipeline_ci);
 
@@ -404,6 +406,7 @@ Context::Context()
 			emit_pipeline_ci.shader = g_shader_emit;
 			emit_pipeline_ci.bindings = {
 				{ BindingType::FBTexture, "u_EmitTexture", TEXTURE_SLOT_EMIT, &m_game_framebuffer, 5 },
+				{ BindingType::Texture, "u_Texture", TEXTURE_SLOT_PREFX, &m_prefx_texture },
 			};
 			m_emit_pipeline = Context::createPipeline(emit_pipeline_ci);
 			m_emit_pipeline->setUniformMat4f("u_MVP", glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f));
@@ -612,6 +615,8 @@ void Context::renderThread(void* context)
 					ctx->m_game_pipeline->setUniform1f("u_SpellGlow", st.spell_glow);
 					if (App.hdr.float_mode)
 						ctx->m_game_pipeline->setUniform1f("u_AddScale", ctx->m_add_scale);
+					if (App.hdr.float_mode)
+						ctx->m_game_pipeline->setUniform1f("u_EmitRGB", ctx->m_emit_attached ? 1.0f : 0.0f);
 					ctx->bindPipeline(ctx->m_game_pipeline, command->index);
 					break;
 				case CommandType::UIStage:
@@ -714,6 +719,18 @@ void Context::renderThread(void* context)
 						ctx->m_prefx_texture->fillFromBuffer(ctx->m_game_framebuffer);
 						ctx->m_atmos_pipeline->setUniform1f("u_Exposure", st.tonemap_exposure);
 						ctx->drawQuad(1);
+					}
+
+					if (App.hdr.float_mode && ctx->m_emit_attached && ctx->m_emit_pipeline) {
+						// Diffuse shoulder: colour - additive share (attachment 5) soft-clipped to 1.0, additive kept.
+						ctx->bindFrameBuffer(ctx->m_game_framebuffer, false);
+						FrameBuffer::setDrawBuffers(1);
+						ctx->setViewport(cmd->m_game_size);
+						ctx->m_prefx_texture->fillFromBuffer(ctx->m_game_framebuffer);
+						ctx->m_emit_pipeline->setUniform1i("u_Mode", 1);
+						ctx->m_emit_pipeline->setUniform1f("u_Knee", App.hdr.shoulder_knee.value);
+						ctx->bindPipeline(ctx->m_emit_pipeline);
+						ctx->drawQuad();
 					}
 
 					ctx->bindPipeline(ctx->m_game_pipeline, command->index);
@@ -823,7 +840,7 @@ void Context::renderThread(void* context)
 
 						// [HDR] emissive: default-FB alpha = 1 - emission (1 = no boost), so the UI, HD text and
 						// menus drawn after this blend alpha back toward 1 and are never boosted.
-						if (ISGLIDE3X() && ctx->m_emit_attached && ctx->m_emit_pipeline) {
+						if (ISGLIDE3X() && ctx->m_emit_attached && ctx->m_emit_pipeline && !App.hdr.float_mode) {
 							FrameBuffer::unBind();
 							ctx->setViewport(vp_size, vp_offset);
 							ctx->m_emit_pipeline->setUniform1f("u_Gain", App.hdr.emissive_gain.value);
@@ -909,7 +926,7 @@ void Context::renderThread(void* context)
 		if (ctx->m_hdr) {
 			FrameBuffer::unBind(); // the menu goes into the HDR target like everything else
 			option::Menu::instance().draw();
-			ctx->m_hdr->setEmissive(ctx->m_emit_attached);
+			ctx->m_hdr->setEmissive(ctx->m_emit_attached && !App.hdr.float_mode);
 			ctx->m_hdr->setCinematic(cmd->m_screen != GameScreen::InGame);
 			if (!ctx->m_hdr->present(App.vsync))
 				ctx->hdrFallbackToWgl("present failed");
@@ -1074,7 +1091,8 @@ void Context::onResize(glm::uvec2 w_size, glm::uvec2 g_size, uint32_t bpp)
 			// Game vertex lighting (GlideVertex pargb) of world draws; alpha = coverage.
 			frambuffer_ci.attachments.push_back({ TEXTURE_SLOT_VLIGHT, { 0.0f, 0.0f, 0.0f, 0.0f }, { GL_LINEAR, GL_LINEAR } });
 			if (emit_want) // r = emission of additive world sprites (HDR emissive highlights)
-				frambuffer_ci.attachments.push_back({ TEXTURE_SLOT_EMIT, { 0.0f, 0.0f, 0.0f, 0.0f }, { GL_LINEAR, GL_LINEAR }, { GL_R8, GL_RED } });
+				frambuffer_ci.attachments.push_back({ TEXTURE_SLOT_EMIT, { 0.0f, 0.0f, 0.0f, 0.0f }, { GL_LINEAR, GL_LINEAR },
+					App.hdr.float_mode ? std::pair<GLint, GLenum>{ GL_RGBA16F, GL_RGBA } : std::pair<GLint, GLenum>{ GL_R8, GL_RED } }); // float: rgb additive share
 		}
 		m_emit_attached = ISGLIDE3X() && m_vlight_supported && emit_want;
 		m_game_framebuffer = Context::createFrameBuffer(frambuffer_ci);
@@ -1307,8 +1325,8 @@ std::pair<GLint, GLenum> Context::sceneFormat()
 
 bool Context::emitWanted() const
 {
-	// float pipeline: additive light lands in the float colour directly, no emission attachment
-	return ISGLIDE3X() && m_emit_supported && m_hdr && App.hdr.mode && App.hdr.emissive && !App.hdr.float_mode;
+	// float pipeline: the attachment carries the additive share of the colour for the diffuse shoulder
+	return ISGLIDE3X() && m_emit_supported && m_hdr && App.hdr.mode && (App.hdr.float_mode ? App.hdr.diffuse_shoulder : App.hdr.emissive);
 }
 
 void Context::onShaderChange()
