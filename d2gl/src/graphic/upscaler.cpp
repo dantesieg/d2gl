@@ -385,6 +385,25 @@ void Upscaler::setupPasses()
 void Upscaler::process(const std::unique_ptr<FrameBuffer>& in_fbo, const glm::ivec2& vp_size, const glm::ivec2& vp_offset, const std::unique_ptr<FrameBuffer>& out_fbo)
 {
 	Context* ctx = App.context.get();
+
+	// native_render: the frame is already at the output size, a preset would only resample 1:1.
+	const glm::ivec2 out_size = out_fbo ? glm::ivec2(App.viewport.size) : vp_size;
+	if (App.game.native_render && glm::ivec2(App.game.render_size) == out_size) {
+		if (out_fbo)
+			ctx->bindFrameBuffer(out_fbo, false);
+		else
+			ctx->bindDefaultFrameBuffer();
+		const glm::ivec2 dst = out_fbo ? glm::ivec2(0) : vp_offset;
+		GLint draw_fb = 0;
+		glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &draw_fb);
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, in_fbo->getId());
+		glReadBuffer(GL_COLOR_ATTACHMENT0);
+		glBlitFramebuffer(0, 0, out_size.x, out_size.y, dst.x, dst.y, dst.x + out_size.x, dst.y + out_size.y, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, draw_fb);
+		ctx->setViewport(out_size, dst);
+		return;
+	}
+
 	m_input_texture->fillFromBuffer(in_fbo);
 
 	for (size_t i = 0; i < m_passes.size(); i++) {

@@ -30,6 +30,8 @@ void CommandBuffer::reset()
 	m_screen = App.game.screen;
 	m_window_size = App.window.size;
 	m_game_size = App.game.render_size;
+	m_logical_size = App.game.size;
+	m_bound_blend = UINT32_MAX;
 	m_resized = false;
 }
 
@@ -41,6 +43,8 @@ inline void CommandBuffer::next()
 
 void CommandBuffer::pushCommand(CommandType type, uint32_t index)
 {
+	// Any other command may bind another pipeline on the render thread.
+	m_bound_blend = type == CommandType::SetBlendState ? index : UINT32_MAX;
 	m_command->type = type;
 	m_command->index = index;
 	next();
@@ -59,6 +63,7 @@ void CommandBuffer::resize()
 {
 	m_resized = true;
 	m_game_size = App.game.render_size;
+	m_logical_size = App.game.size;
 	m_game_tex_bpp = App.game.bpp;
 	m_window_size = App.window.size;
 }

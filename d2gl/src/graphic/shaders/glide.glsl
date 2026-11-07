@@ -74,7 +74,7 @@ flat in ivec2 v_TexIds;
 flat in uvec4 v_Flags;
 flat in uvec4 v_TexRect;
 
-uniform float u_NativeScale; // [Graphic] native_render: screen px per game px (<= 1 = off)
+uniform vec2 u_NativeScale; // [Graphic] native_render: screen px per game px per axis (<= 1 = off)
 uniform int u_NativeFilter;  // 0 nearest, 1 sharp (pixel-exact inside, blended only at texel borders), 2 smooth
 
 // native_render: palette sprites are scaled per sprite as they are drawn. Filtering runs on palette
@@ -130,7 +130,7 @@ void main()
 		FragColor = v_Color2;
 	else if (v_Flags.y == 2u) // local = iterated (per-vertex colour)
 		FragColor = v_Color1;
-	else if (u_NativeScale > 1.0 && u_NativeFilter > 0 && v_TexRect.z > 0u)
+	else if (max(u_NativeScale.x, u_NativeScale.y) > 1.0 && u_NativeFilter > 0 && v_TexRect.z > 0u)
 	{
 		vec4 pal;
 		if (!nativeSample(pal))

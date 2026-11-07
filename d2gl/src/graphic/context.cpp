@@ -430,7 +430,7 @@ Context::Context()
 		m_game_pipeline->setUniformMat4f("u_MVP", glm::ortho(-1.0f, 1.0f, 1.0f, -1.0f));
 	}
 
-	onResize(App.window.size, App.game.render_size);
+	onResize(App.window.size, App.game.render_size, App.game.size);
 
 	LARGE_INTEGER qpf;
 	QueryPerformanceFrequency(&qpf);
@@ -571,9 +571,9 @@ void Context::renderThread(void* context)
 			gpu_timer.begin(game_timing.frame);
 
 		if (cmd->m_resized)
-			ctx->onResize(cmd->m_window_size, cmd->m_game_size, cmd->m_game_tex_bpp);
+			ctx->onResize(cmd->m_window_size, cmd->m_game_size, cmd->m_logical_size, cmd->m_game_tex_bpp);
 		else if (ctx->m_game_framebuffer && (ctx->emitWanted() != ctx->m_emit_attached || (ctx->m_emit_attached && ctx->emitGradedWanted() != ctx->m_emit_graded)))
-			ctx->onResize(cmd->m_window_size, cmd->m_game_size, ctx->m_color_bpp); // [HDR] emissive toggled: rebuild the game framebuffer
+			ctx->onResize(cmd->m_window_size, cmd->m_game_size, cmd->m_logical_size, ctx->m_color_bpp); // [HDR] emissive toggled: rebuild the game framebuffer
 
 		if (ctx->m_hdr && !ctx->m_hdr->beginFrame(st.window_w, st.window_h))
 			ctx->hdrFallbackToWgl("frame setup failed");
@@ -616,12 +616,23 @@ void Context::renderThread(void* context)
 				case CommandType::SetBlendState:
 					// Uniform first: Pipeline::bind() inside setUniform resets the blend state to 0.
 					ctx->m_game_pipeline->setUniform1i("u_BlendIndex", command->index);
-					ctx->m_game_pipeline->setUniform1f("u_SpellGlow", st.spell_glow);
-					ctx->m_game_pipeline->setUniform1i("u_NativeFilter", App.game.native_filter.selected);
-					if (App.hdr.float_mode)
-						ctx->m_game_pipeline->setUniform1f("u_AddScale", ctx->m_add_scale);
-					if (App.hdr.float_mode)
-						ctx->m_game_pipeline->setUniform1f("u_EmitRGB", ctx->m_emit_attached ? 1.0f : 0.0f);
+					{
+						// Per-frame values: only re-upload when they change (this runs per blend switch).
+						static const Pipeline* last_pipe = nullptr;
+						static float last_glow = -1.0f, last_emit = -1.0f;
+						static int last_filter = -1;
+						const bool same_pipe = last_pipe == ctx->m_game_pipeline.get();
+						last_pipe = ctx->m_game_pipeline.get();
+						if (!same_pipe || last_glow != st.spell_glow)
+							ctx->m_game_pipeline->setUniform1f("u_SpellGlow", last_glow = st.spell_glow);
+						if (!same_pipe || last_filter != App.game.native_filter.selected)
+							ctx->m_game_pipeline->setUniform1i("u_NativeFilter", last_filter = App.game.native_filter.selected);
+						if (App.hdr.float_mode)
+							ctx->m_game_pipeline->setUniform1f("u_AddScale", ctx->m_add_scale);
+						const float emit = ctx->m_emit_attached ? 1.0f : 0.0f;
+						if (App.hdr.float_mode && (!same_pipe || last_emit != emit))
+							ctx->m_game_pipeline->setUniform1f("u_EmitRGB", last_emit = emit);
+					}
 					ctx->bindPipeline(ctx->m_game_pipeline, command->index);
 					break;
 				case CommandType::UIStage:
@@ -1054,14 +1065,14 @@ void Context::hdrFallbackToWgl(const char* why)
 	App.hdr.float_mode = false; // existing float buffers stay; the WGL framebuffer clips them to SDR
 }
 
-void Context::onResize(glm::uvec2 w_size, glm::uvec2 g_size, uint32_t bpp)
+void Context::onResize(glm::uvec2 w_size, glm::uvec2 g_size, glm::uvec2 l_size, uint32_t bpp)
 {
 	static glm::uvec2 game_size = { 0, 0 };
 	static uint32_t color_bpp = 8;
 	static glm::uvec2 logical_size = { 0, 0 }; // native_render: g_size stays the screen size while the game size changes (menu 800x600 -> game)
-	bool game_resized = game_size != g_size || color_bpp != bpp || logical_size != App.game.size;
+	bool game_resized = game_size != g_size || color_bpp != bpp || logical_size != l_size;
 	game_size = g_size;
-	logical_size = App.game.size;
+	logical_size = l_size;
 	color_bpp = bpp;
 	m_color_bpp = bpp;
 	const bool emit_want = emitWanted();
@@ -1073,7 +1084,7 @@ void Context::onResize(glm::uvec2 w_size, glm::uvec2 g_size, uint32_t bpp)
 	window_size = w_size;
 
 	if (game_resized) {
-		glm::mat4 mvp = glm::ortho(0.0f, (float)App.game.size.x, (float)App.game.size.y, 0.0f); // game units, also with native_render
+		glm::mat4 mvp = glm::ortho(0.0f, (float)logical_size.x, (float)logical_size.y, 0.0f); // game units, also with native_render
 		modules::HDText::Instance().setMVP(mvp);
 		m_mod_pipeline->setUniformMat4f("u_MVP", mvp);
 
@@ -1101,7 +1112,7 @@ void Context::onResize(glm::uvec2 w_size, glm::uvec2 g_size, uint32_t bpp)
 
 		if (ISGLIDE3X()) {
 			m_game_pipeline->setUniformMat4f("u_MVP", mvp);
-			m_game_pipeline->setUniform1f("u_NativeScale", (float)game_size.x / (float)App.game.size.x);
+			m_game_pipeline->setUniformVec2f("u_NativeScale", { (float)game_size.x / (float)logical_size.x, (float)game_size.y / (float)logical_size.y });
 
 			m_bloom_ubo->updateDataVec2f("rel_size", { 4.0f / game_size.x, 4.0f / game_size.y });
 			m_bloom_tex_size = { game_size.x / 4, game_size.y / 4 };
@@ -1531,8 +1542,11 @@ void Context::onStageChange()
 
 void Context::setBlendState(uint32_t index)
 {
+	const uint32_t blend = g_blend_types.at(index).first;
+	if (!m_blend_locked && blend == m_current_blend_index && m_command_buffer[m_frame_index].blendBound(blend))
+		return; // already bound, keep batching
 	flushVertices();
-	m_current_blend_index = g_blend_types.at(index).first;
+	m_current_blend_index = blend;
 	if (!m_blend_locked)
 		m_command_buffer[m_frame_index].pushCommand(CommandType::SetBlendState, m_current_blend_index);
 }
@@ -1663,7 +1677,7 @@ void Context::pushVertex(const GlideVertex* vertex, glm::vec2 fix, glm::ivec2 of
 	m_vertices.ptr->color2 = m_vertex_params.color;
 	m_vertices.ptr->tex_ids = m_vertex_params.tex_ids;
 	m_vertices.ptr->flags = m_vertex_params.flags;
-	m_vertices.ptr->tex_rect = (fix.x == 0.0f && fix.y == 0.0f) ? m_vertex_params.tex_rect : glm::vec<4, uint16_t>(0);
+	m_vertices.ptr->tex_rect = m_vertex_params.tex_rect;
 	if (m_shadow_fx && App.game.draw_stage == DrawStage::World && m_shadow_draw != 2) {
 		// High nibble of flag x tags shadow-buffer writes (see glide.glsl).
 		const uint32_t blend = m_current_blend_index;

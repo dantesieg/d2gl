@@ -261,7 +261,7 @@ public:
 	static std::pair<GLint, GLenum> sceneFormat(); // RGBA16F with [HDR] float_pipeline, else RGBA8
 	void hdrFallbackToWgl(const char* why); // render thread
 
-	void onResize(glm::uvec2 w_size, glm::uvec2 g_size, uint32_t bpp = 8);
+	void onResize(glm::uvec2 w_size, glm::uvec2 g_size, glm::uvec2 l_size, uint32_t bpp = 8);
 	void onShaderChange();
 	void onStageChange();
 	void setBlendState(uint32_t index);

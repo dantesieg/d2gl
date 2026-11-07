@@ -97,6 +97,8 @@ class CommandBuffer {
 	bool m_resized = false;
 	glm::uvec2 m_window_size = { 0, 0 };
 	glm::uvec2 m_game_size = { 0, 0 };
+	glm::uvec2 m_logical_size = { 0, 0 }; // App.game.size snapshot (mvp units); differs from m_game_size with native_render
+	uint32_t m_bound_blend = UINT32_MAX;  // blend state bound by the last command, UINT32_MAX = unknown
 	uint32_t m_game_tex_bpp = 8;
 
 	uint8_t* m_tex_buffer = nullptr;
@@ -121,6 +123,7 @@ public:
 	void next();
 
 	void pushCommand(CommandType type, uint32_t index = 0);
+	inline bool blendBound(uint32_t index) const { return m_bound_blend == index; }
 	void drawIndexed(uint32_t start, uint32_t count);
 	void resize();
 

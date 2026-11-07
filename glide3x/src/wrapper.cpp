@@ -215,7 +215,8 @@ void Wrapper::grTexSource(GrChipID_t tmu, FxU32 start_address, GrTexInfo* info)
 		ctx->setVertexOffset(sub_tex_info->offset);
 		ctx->setVertexTexShift(sub_tex_info->shift);
 		ctx->setVertexTexRect({ sub_tex_info->offset.x, sub_tex_info->offset.y, (uint16_t)glm::min(width, 512u), (uint16_t)glm::min(height, 512u) });
-	}
+	} else
+		ctx->setVertexTexRect({ 0, 0, 0, 0 }); // unknown texture: no native filtering
 }
 
 void Wrapper::grTexDownloadMipMap(GrChipID_t tmu, FxU32 start_address, GrTexInfo* info)
