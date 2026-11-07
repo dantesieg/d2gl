@@ -105,8 +105,21 @@ void MotionPrediction::update()
 	if (App.motion_prediction_v2) {
 		// Each unit is timed by its own position updates (units do not all update on the same frame).
 		const double now = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
-		if (m_player_motion.unit)
+		if (m_player_motion.unit) {
 			setUnitMotionV2(&m_player_motion, now);
+			static FILE* mlog = nullptr;
+			static bool mlog_tried = false;
+			if (!mlog_tried) {
+				mlog_tried = true;
+				if (GetFileAttributesA("d2gl_motion.on") != INVALID_FILE_ATTRIBUTES)
+					fopen_s(&mlog, "d2gl_motion.csv", "w");
+			}
+			if (mlog) {
+				const d2::Path* path = d2::getUnitPath(m_player_motion.unit);
+				const auto off = getUnitOffset(&m_player_motion);
+				fprintf(mlog, "%.5f,%u,%u,%.5f,%.5f,%d,%d,%.4f\n", now, path ? path->x : 0, path ? path->y : 0, m_player_motion.v2_shown.x, m_player_motion.v2_shown.y, off.x, off.y, m_player_motion.v2_interval);
+			}
+		}
 		for (auto& item : m_units)
 			setUnitMotionV2(&item.second, now);
 	} else {
