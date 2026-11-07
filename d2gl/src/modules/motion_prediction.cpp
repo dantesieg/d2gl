@@ -91,6 +91,8 @@ void MotionPrediction::update()
 	const auto frame_time_ms = (int64_t)(App.context->getAvgFrameTime() * (65536.0 / 1000.0));
 	int32_t delta = (int32_t)glm::max((int64_t)INT_MIN, glm::min((int64_t)INT_MAX, frame_time_ms));
 
+	updateTickInfo();
+
 	m_player_motion.unit = d2::getPlayerUnit();
 	setUnitMotion(&m_player_motion, delta);
 
@@ -307,6 +309,40 @@ void MotionPrediction::altItemsTextMotion()
 	*y2 -= m_global_offset.y;
 }
 
+void MotionPrediction::updateTickInfo()
+{
+	typedef uint32_t(__stdcall * TickInfoFn)(double*, double*);
+	static TickInfoFn tick_info = nullptr;
+
+	m_ticks = false;
+	if (!App.motion_prediction_ticks)
+		return;
+	if (!tick_info) { // resolved lazily: d2modern.dll may load after us or be absent
+		if (HMODULE mod = GetModuleHandleA("d2modern.dll"))
+			tick_info = (TickInfoFn)GetProcAddress(mod, "d2m_tick_info");
+		if (!tick_info)
+			return;
+	}
+
+	double last = 0.0, interval = 0.0;
+	if (!tick_info(&last, &interval) || !(interval >= 0.005 && interval <= 0.2) || last <= 0.0)
+		return;
+
+	static double qpf = 0.0;
+	if (qpf == 0.0) {
+		LARGE_INTEGER f;
+		QueryPerformanceFrequency(&f);
+		qpf = (double)f.QuadPart;
+	}
+	LARGE_INTEGER now;
+	QueryPerformanceCounter(&now);
+
+	m_now = (double)now.QuadPart / qpf;
+	m_tick_last = last;
+	m_tick_interval = interval;
+	m_ticks = true;
+}
+
 void MotionPrediction::setUnitMotion(UnitMotion* unit_motion, int32_t delta)
 {
 	const d2::Path* path = d2::getUnitPath(unit_motion->unit);
@@ -331,19 +367,33 @@ void MotionPrediction::setUnitMotion(UnitMotion* unit_motion, int32_t delta)
 
 	unit_motion->dt_last_pos_change += delta;
 
-	if (dx != 0 || dy != 0 || unit_motion->dt_last_pos_change >= (65536 / 25)) {
+	// motion_prediction_ticks: a unit is re-sampled once per real game tick (its position only moves
+	// on ticks), velocity is the move over the measured tick interval, and prediction runs until one
+	// interval after the real tick time. The per-frame step stays on the average frame time (delta).
+	const bool new_tick = m_ticks && unit_motion->tick_seen != m_tick_last;
+	const bool resample = m_ticks ? (new_tick || dx != 0 || dy != 0) : (dx != 0 || dy != 0 || unit_motion->dt_last_pos_change >= (65536 / 25));
+
+	if (resample) {
 		unit_motion->corrected_pos.x = ((int64_t)unit_pos.x + unit_motion->last_pos.x) >> 1;
 		unit_motion->corrected_pos.y = ((int64_t)unit_pos.y + unit_motion->last_pos.y) >> 1;
 
-		unit_motion->velocity.x = 25 * dx;
-		unit_motion->velocity.y = 25 * dy;
+		if (m_ticks) {
+			const double rate = 1.0 / m_tick_interval;
+			unit_motion->velocity.x = (int32_t)(rate * dx);
+			unit_motion->velocity.y = (int32_t)(rate * dy);
+			unit_motion->tick_seen = m_tick_last;
+		} else {
+			unit_motion->velocity.x = 25 * dx;
+			unit_motion->velocity.y = 25 * dy;
+		}
 
 		unit_motion->last_pos = unit_pos;
 		unit_motion->dt_last_pos_change = 0;
 	}
 
 	if (unit_motion->velocity.x != 0 || unit_motion->velocity.y != 0) {
-		if (unit_motion->dt_last_pos_change < (65536 / 25)) {
+		const bool predicting = m_ticks ? (m_now - m_tick_last < m_tick_interval) : (unit_motion->dt_last_pos_change < (65536 / 25));
+		if (predicting) {
 			glm::ivec2 step = { (int32_t)(((int64_t)delta * unit_motion->velocity.x) >> 16), (int32_t)(((int64_t)delta * unit_motion->velocity.y) >> 16) };
 
 			const int32_t correction = 7000;

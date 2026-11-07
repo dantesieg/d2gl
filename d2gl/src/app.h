@@ -240,6 +240,7 @@ struct D2GLApp {
 
 	bool hd_cursor = false;
 	bool motion_prediction = false;
+	bool motion_prediction_ticks = false; // [Feature] motion_prediction_ticks: real tick times from d2modern.dll
 	bool skip_intro = false;
 	bool no_pickup = false;
 	bool show_item_quantity = false;

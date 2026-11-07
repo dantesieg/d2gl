@@ -489,6 +489,10 @@ void Menu::draw()
 					modules::MotionPrediction::Instance().toggle(App.motion_prediction);
 					saveBool("Feature", "motion_prediction", App.motion_prediction);
 				}
+				ImGui::BeginDisabled(!App.motion_prediction);
+					drawCheckbox_m("Real Tick Timing", App.motion_prediction_ticks, "Motion prediction uses the real game tick times from d2modern.dll (falls back to the fixed 25 Hz guess without it).", motion_prediction_ticks)
+						saveBool("Feature", "motion_prediction_ticks", App.motion_prediction_ticks);
+				ImGui::EndDisabled();
 			ImGui::EndDisabled();
 			drawSeparator();
 			ImGui::BeginDisabled(!ISGLIDE3X());

@@ -34,6 +34,7 @@ struct UnitMotion {
 	glm::ivec2 corrected_pos = { 0, 0 };
 	glm::ivec2 velocity = { 0, 0 };
 	int64_t dt_last_pos_change = 0;
+	double tick_seen = 0.0; // motion_prediction_ticks: last d2modern tick this unit was updated on
 };
 
 struct ParticleMotion {
@@ -53,6 +54,13 @@ class MotionPrediction {
 	std::unordered_map<uint32_t, UnitMotion> m_units;
 	UnitMotion m_player_motion;
 	bool m_perspective = false;
+
+	// motion_prediction_ticks: real tick timing from d2modern.dll (valid when m_ticks)
+	bool m_ticks = false;
+	double m_tick_last = 0.0;     // QPC seconds of the last game tick
+	double m_tick_interval = 0.0; // measured tick interval, seconds
+	double m_now = 0.0;           // QPC seconds this frame
+	void updateTickInfo();
 
 	D2DrawFn m_text_fn = D2DrawFn::None;
 	D2DrawFn m_draw_fn = D2DrawFn::None;
