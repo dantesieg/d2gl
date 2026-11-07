@@ -1057,8 +1057,10 @@ void Context::onResize(glm::uvec2 w_size, glm::uvec2 g_size, uint32_t bpp)
 {
 	static glm::uvec2 game_size = { 0, 0 };
 	static uint32_t color_bpp = 8;
-	bool game_resized = game_size != g_size || color_bpp != bpp;
+	static glm::uvec2 logical_size = { 0, 0 }; // native_render: g_size stays the screen size while the game size changes (menu 800x600 -> game)
+	bool game_resized = game_size != g_size || color_bpp != bpp || logical_size != App.game.size;
 	game_size = g_size;
+	logical_size = App.game.size;
 	color_bpp = bpp;
 	m_color_bpp = bpp;
 	const bool emit_want = emitWanted();
