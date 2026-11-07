@@ -102,7 +102,8 @@ static int64_t nowMs()
 	return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 }
 
-static constexpr int64_t SPARKLE_MS = 1100;
+// [Feature] loot_sparkle_duration (default 1.1 s = the original 1100 ms)
+static int64_t sparkleMs() { return (int64_t)std::llround(glm::clamp(App.loot_sparkle.duration.value, 0.5f, 10.0f) * 1000.0); }
 
 void LootSparkle::toggle(bool active)
 {
@@ -269,6 +270,7 @@ void LootSparkle::draw()
 	std::vector<glm::vec2> pos;
 	std::vector<uint32_t> col;
 	const int64_t now = nowMs();
+	const int64_t SPARKLE_MS = sparkleMs();
 
 	// One ray = triangle (as a degenerate quad): bright at the centre, black at the tip.
 	auto ray = [&](glm::vec2 c, glm::vec2 dir, float len, float w, uint32_t bright) {

@@ -299,7 +299,9 @@ void saveIni()
 		"loot_sparkle=%s\n"
 		"loot_sparkle_min_quality=%d\n"
 		"; Loot sparkle in strong item-class colours (unique gold, set green, rune orange, rare yellow, magic blue).\n"
-		"loot_sparkle_colors=%s\n\n"
+		"loot_sparkle_colors=%s\n"
+		"; Loot sparkle lifetime in seconds (0.5-10).\n"
+		"loot_sparkle_duration=%.2f\n\n"
 		"; Minion ring: soft green ring under your summons (glide only, 1.14d).\n"
 		"minion_ring=%s\n\n"
 		"; Skip the Intro videos.\n"
@@ -330,6 +332,7 @@ void saveIni()
 		boolString(App.loot_sparkle.active),
 		App.loot_sparkle.min_quality.selected,
 		boolString(App.loot_sparkle.colors),
+		App.loot_sparkle.duration.value,
 		boolString(App.minion_ring),
 		boolString(App.skip_intro),
 		boolString(App.no_pickup),
@@ -593,6 +596,7 @@ void loadIni()
 
 		App.loot_sparkle.min_quality.selected = getInt("Feature", "loot_sparkle_min_quality", App.loot_sparkle.min_quality.selected, 0, 3);
 		App.loot_sparkle.colors = getBool("Feature", "loot_sparkle_colors", App.loot_sparkle.colors);
+		App.loot_sparkle.duration.value = getFloat("Feature", "loot_sparkle_duration", App.loot_sparkle.duration);
 		App.minion_ring = getBool("Feature", "minion_ring", App.minion_ring);
 		App.skip_intro = getBool("Feature", "skip_intro", App.skip_intro);
 		App.no_pickup = getBool("Feature", "no_pickup", App.no_pickup);

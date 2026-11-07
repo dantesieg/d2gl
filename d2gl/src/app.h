@@ -172,6 +172,7 @@ struct D2GLApp {
 		bool active = false;
 		Select<int> min_quality = { 1, { { "Magic", 0 }, { "Rare / Rune", 1 }, { "Set", 2 }, { "Unique", 3 } } };
 		bool colors = false; // [Feature] loot_sparkle_colors: strong per-class colours
+		Range<float> duration = { 1.1f, 0.5f, 10.0f }; // [Feature] loot_sparkle_duration, seconds
 	} loot_sparkle;
 
 	bool minion_ring = false;
