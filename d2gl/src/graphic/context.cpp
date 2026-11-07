@@ -875,6 +875,7 @@ void Context::renderThread(void* context)
 			FrameBuffer::unBind(); // the menu goes into the HDR target like everything else
 			option::Menu::instance().draw();
 			ctx->m_hdr->setEmissive(ctx->m_emit_attached);
+			ctx->m_hdr->setCinematic(cmd->m_screen != GameScreen::InGame);
 			if (!ctx->m_hdr->present(App.vsync))
 				ctx->hdrFallbackToWgl("present failed");
 		} else {

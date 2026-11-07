@@ -351,7 +351,10 @@ void saveIni()
 		"; emissive_gain (0.5-4.0) scales sprite luma into emission.\n"
 		"emissive=%s\n"
 		"emissive_nits=%.1f\n"
-		"emissive_gain=%.2f\n\n\n";
+		"emissive_gain=%.2f\n"
+		"; Paper white in nits for movies, menus and loading screens (0 = same as sdr_white, up to 500).\n"
+		"; These also skip brightness, highlight expansion and emissive.\n"
+		"movie_nits=%.1f\n\n\n";
 
 	sprintf_s(buf, hdr_setting,
 		boolString(App.hdr.enabled),
@@ -367,7 +370,8 @@ void saveIni()
 		App.hdr.eotf.selected,
 		boolString(App.hdr.emissive),
 		App.hdr.emissive_nits.value,
-		App.hdr.emissive_gain.value);
+		App.hdr.emissive_gain.value,
+		App.hdr.movie_nits.value);
 	out_file << buf;
 
 	static const char* other_setting =
@@ -544,6 +548,7 @@ void loadIni()
 		App.hdr.emissive = getBool("HDR", "emissive", App.hdr.emissive);
 		App.hdr.emissive_nits.value = getFloat("HDR", "emissive_nits", App.hdr.emissive_nits);
 		App.hdr.emissive_gain.value = getFloat("HDR", "emissive_gain", App.hdr.emissive_gain);
+		App.hdr.movie_nits.value = getFloat("HDR", "movie_nits", App.hdr.movie_nits);
 
 		App.gl_ver.x = getInt("Other", "gl_ver_major", App.gl_ver.x, 3, 4);
 		App.gl_ver.y = getInt("Other", "gl_ver_minor", App.gl_ver.y, 0, 6);

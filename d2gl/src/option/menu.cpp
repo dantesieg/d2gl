@@ -577,6 +577,8 @@ void Menu::draw()
 				drawSlider_m(float, "Emissive Gain", App.hdr.emissive_gain, "%.2f", "", hdr_emissive_gain)
 					saveFloat("HDR", "emissive_gain", App.hdr.emissive_gain.value);
 			ImGui::EndDisabled();
+			drawSlider_m(float, "Movie/Menu White (nits)", App.hdr.movie_nits, "%.0f", "0 = Paper White. Movies, menus and loading skip brightness and highlights.", hdr_movie_nits)
+				saveFloat("HDR", "movie_nits", App.hdr.movie_nits.value);
 			drawCheckbox_m("Calibration Overlay", App.hdr.calibration, "Paper white, peak and near-black patches.", hdr_calibration) {}
 			childEnd();
 			tabEnd();

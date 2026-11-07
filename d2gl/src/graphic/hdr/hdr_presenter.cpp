@@ -766,7 +766,15 @@ bool Presenter::present(bool vsync)
 	}
 
 	// Encode + present.
-	const Params p = currentParams();
+	Params p = currentParams();
+	if (m_cinematic) {
+		// Movies, menus and loading screens: own paper white, no game brightness / highlight expansion
+		// (emissive is zeroed below). Peak, tonemap, curve, contrast, saturation and black level stay.
+		if (App.hdr.movie_nits.value > 0.0f)
+			p.sdr_white_nits = App.hdr.movie_nits.value;
+		p.brightness_stops = 0.0f;
+		p.highlight_strength = 0.0f;
+	}
 	if (m_hdr_presenting && m_sc4 && (!m_metadata_set || m_metadata_peak != p.peak_nits)) {
 		auto c = [](double v) { return (UINT16)(v / 0.00002 + 0.5); };
 		DXGI_HDR_METADATA_HDR10 md = {};
@@ -781,7 +789,7 @@ bool Presenter::present(bool vsync)
 		m_metadata_set = SUCCEEDED(HR(m_sc4->SetHDRMetaData(DXGI_HDR_METADATA_TYPE_HDR10, sizeof(md), &md)));
 		m_metadata_peak = p.peak_nits;
 	}
-	const float emit_scale = m_emissive ? std::max(App.hdr.emissive_nits.value / std::max(p.sdr_white_nits, 1.0f) - 1.0f, 0.0f) : 0.0f;
+	const float emit_scale = (m_emissive && !m_cinematic) ? std::max(App.hdr.emissive_nits.value / std::max(p.sdr_white_nits, 1.0f) - 1.0f, 0.0f) : 0.0f;
 	const ShaderConstants k = makeConstants(p, m_hdr_presenting ? 1 : 0, App.hdr.calibration, true, (float)m_w, (float)m_h, emit_scale);
 	D3D11_MAPPED_SUBRESOURCE m;
 	if (SUCCEEDED(m_ctx->Map(m_cb, 0, D3D11_MAP_WRITE_DISCARD, 0, &m))) {
