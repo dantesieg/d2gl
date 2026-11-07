@@ -230,7 +230,11 @@ void saveIni()
 		"radiance_gi_strength=%.3f\n\n"
 		"; Stretch viewport to window size.\n"
 		"stretched_horizontal=%s\n"
-		"stretched_vertical=%s\n\n\n";
+		"stretched_vertical=%s\n\n"
+		"; Draw every sprite straight at screen resolution instead of upscaling the finished frame (restart).\n"
+		"native_render=%s\n"
+		"; Native render sprite filter: 0 nearest, 1 sharp, 2 smooth.\n"
+		"native_render_filter=%d\n\n\n";
 
 	sprintf_s(buf, graphic_setting,
 		App.shader.preset.c_str(),
@@ -262,7 +266,9 @@ void saveIni()
 		boolString(App.radiance_gi.active),
 		App.radiance_gi.strength.value,
 		boolString(App.viewport.stretched.x),
-		boolString(App.viewport.stretched.y));
+		boolString(App.viewport.stretched.y),
+		boolString(App.game.native_render),
+		App.game.native_filter.selected);
 	out_file << buf;
 
 	static const char* feature_setting =
