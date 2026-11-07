@@ -489,15 +489,6 @@ void Menu::draw()
 					modules::MotionPrediction::Instance().toggle(App.motion_prediction);
 					saveBool("Feature", "motion_prediction", App.motion_prediction);
 				}
-				ImGui::BeginDisabled(!App.motion_prediction);
-					drawCheckbox_m("Prediction v2", App.motion_prediction_v2, "Smooth path through the real positions, ~1 game update behind: no overshoot, no shake.", motion_prediction_v2)
-						saveBool("Feature", "motion_prediction_v2", App.motion_prediction_v2);
-					ImGui::SameLine(170.0f);
-					ImGui::BeginDisabled(!App.motion_prediction_v2);
-						drawCheckbox_m("Exact", App.motion_prediction_exact, "Extra smoothing buffer (more delay).", motion_prediction_exact)
-							saveBool("Feature", "motion_prediction_exact", App.motion_prediction_exact);
-					ImGui::EndDisabled();
-				ImGui::EndDisabled();
 			ImGui::EndDisabled();
 			drawSeparator();
 			ImGui::BeginDisabled(!ISGLIDE3X());

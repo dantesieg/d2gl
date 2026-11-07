@@ -560,8 +560,6 @@ void loadIni()
 		App.hd_text.bg_opacity.value = getInt("Feature", "hd_text_bg_opacity", App.hd_text.bg_opacity.value, App.hd_text.bg_opacity.min, App.hd_text.bg_opacity.max);
 
 		App.motion_prediction = getBool("Feature", "motion_prediction", App.motion_prediction);
-		App.motion_prediction_v2 = getBool("Feature", "motion_prediction_v2", App.motion_prediction_v2);
-		App.motion_prediction_exact = getBool("Feature", "motion_prediction_exact", App.motion_prediction_exact);
 
 		App.loot_sparkle.active = getBool("Feature", "loot_sparkle", App.loot_sparkle.active);
 

@@ -45,7 +45,6 @@
 #include "loot_sparkle.h"
 
 #include <detours/detours.h>
-#include <chrono>
 
 namespace d2gl::modules {
 
@@ -93,50 +92,19 @@ void MotionPrediction::update()
 	int32_t delta = (int32_t)glm::max((int64_t)INT_MIN, glm::min((int64_t)INT_MAX, frame_time_ms));
 
 	m_player_motion.unit = d2::getPlayerUnit();
+	setUnitMotion(&m_player_motion, delta);
 
 	const auto frame = App.context->getFrameCount() - 1;
 	for (auto it = m_units.begin(); it != m_units.end();) {
-		if (it->second.frame != frame || !(it->second.unit = d2::findUnit(it->first)))
+		if (it->second.frame != frame)
 			it = m_units.erase(it);
-		else
-			it++;
-	}
-
-	if (App.motion_prediction_v2) {
-		// Each unit is timed by its own position updates (units do not all update on the same frame).
-		const double real = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
-		// Frames finish at uneven times (vsync off) but reach the screen evenly: an even clock (average
-		// frame time per frame, gently pulled to real time) keeps the on-screen steps equal.
-		static double clock = 0.0;
-		const double avg = App.context->getAvgFrameTime() / 1000.0;
-		if (clock == 0.0 || std::abs(real - clock) > 0.1 || avg <= 0.0 || avg > 0.05)
-			clock = real;
 		else {
-			clock += avg;
-			clock += 0.05 * (real - clock);
+			if (it->second.unit = d2::findUnit(it->first)) {
+				setUnitMotion(&it->second, delta);
+				it++;
+			} else
+				it = m_units.erase(it);
 		}
-		const double now = clock;
-		if (m_player_motion.unit) {
-			setUnitMotionV2(&m_player_motion, now);
-			static FILE* mlog = nullptr;
-			static bool mlog_tried = false;
-			if (!mlog_tried) {
-				mlog_tried = true;
-				if (GetFileAttributesA("d2gl_motion.on") != INVALID_FILE_ATTRIBUTES)
-					fopen_s(&mlog, "d2gl_motion.csv", "w");
-			}
-			if (mlog) {
-				const d2::Path* path = d2::getUnitPath(m_player_motion.unit);
-				const auto off = getUnitOffset(&m_player_motion);
-				fprintf(mlog, "%.5f,%u,%u,%.5f,%.5f,%d,%d,%.4f\n", now, path ? path->x : 0, path ? path->y : 0, m_player_motion.v2_shown.x, m_player_motion.v2_shown.y, off.x, off.y, m_player_motion.v2_interval);
-			}
-		}
-		for (auto& item : m_units)
-			setUnitMotionV2(&item.second, now);
-	} else {
-		setUnitMotion(&m_player_motion, delta);
-		for (auto& item : m_units)
-			setUnitMotion(&item.second, delta);
 	}
 
 	m_perspective = d2::isPerspective();
@@ -393,61 +361,6 @@ void MotionPrediction::setUnitMotion(UnitMotion* unit_motion, int32_t delta)
 	}
 
 	unit_motion->offset_update = true;
-}
-
-void MotionPrediction::setUnitMotionV2(UnitMotion* um, double now)
-{
-	// Interpolation, not prediction: the real positions are recorded with smoothed timestamps and the
-	// unit is drawn on the path through them about one update interval in the past. Never overshoots
-	// (no slide-back on stop), never corrects (no shake). Costs ~1 game update of visual delay.
-	const d2::Path* path = d2::getUnitPath(um->unit);
-	if (!path)
-		return;
-	const glm::dvec2 pos = { path->x / 65536.0, path->y / 65536.0 };
-
-	const glm::dvec2 jump = glm::abs(pos - um->v2_cur);
-	if (!um->v2_init || glm::max(jump.x, jump.y) > 2.0) { // new unit, teleport, waypoint, knockback: snap
-		um->v2_cur = um->v2_shown = pos;
-		um->v2_hist_n = 1;
-		um->v2_hist_t[0] = now;
-		um->v2_hist_p[0] = pos;
-		um->v2_interval = 0.04;
-		um->v2_init = true;
-	} else if (pos != um->v2_cur) {
-		const double last_t = um->v2_hist_t[(um->v2_hist_n - 1) & 3];
-		const double gap = now - last_t;
-		double t = now;
-		if (gap < 2.0 * um->v2_interval) { // regular stream: keep a steady rhythm, absorb frame-time jitter
-			um->v2_interval = glm::clamp(0.9 * um->v2_interval + 0.1 * gap, 0.02, 0.08);
-			const double expected = last_t + um->v2_interval;
-			t = expected + 0.25 * (now - expected);
-		}
-		um->v2_hist_t[um->v2_hist_n & 3] = t;
-		um->v2_hist_p[um->v2_hist_n & 3] = pos;
-		um->v2_hist_n++;
-		um->v2_cur = pos;
-	}
-
-	const double rt = now - (um->v2_interval * (App.motion_prediction_exact ? 1.5 : 1.0) + 0.008);
-	const int n = glm::min(um->v2_hist_n, 4);
-	glm::dvec2 shown = um->v2_hist_p[(um->v2_hist_n - 1) & 3]; // newest (also: stopped -> arrive and rest)
-	for (int k = 1; k < n; k++) {
-		const int ib = (um->v2_hist_n - k) & 3, ia = (um->v2_hist_n - k - 1) & 3;
-		const double ta = um->v2_hist_t[ia], tb = um->v2_hist_t[ib];
-		if (rt >= tb)
-			break;
-		if (rt >= ta) {
-			shown = glm::mix(um->v2_hist_p[ia], um->v2_hist_p[ib], tb > ta ? (rt - ta) / (tb - ta) : 1.0);
-			break;
-		}
-		shown = um->v2_hist_p[ia]; // older than the history: hold the oldest
-	}
-	um->v2_shown = shown;
-
-	// getUnitOffset() works on predicted_pos - last_pos (16.16)
-	um->last_pos = { (int32_t)(um->v2_cur.x * 65536.0), (int32_t)(um->v2_cur.y * 65536.0) };
-	um->predicted_pos = { (int32_t)(shown.x * 65536.0), (int32_t)(shown.y * 65536.0) };
-	um->offset_update = true;
 }
 
 glm::ivec2 MotionPrediction::getUnitOffset(UnitMotion* unit_motion)
