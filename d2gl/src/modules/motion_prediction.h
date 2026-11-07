@@ -45,6 +45,9 @@ struct UnitMotion {
 	double v2_change_time = 0.0;        // when the position last changed (s)
 	double v2_err_time = 0.0;
 	double v2_interval = 0.04;          // measured time between this unit's updates (s)
+	double v2_hist_t[4] = {};           // recent real positions and their smoothed times
+	glm::dvec2 v2_hist_p[4] = {};
+	int v2_hist_n = 0;
 };
 
 struct ParticleMotion {

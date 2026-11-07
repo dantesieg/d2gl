@@ -386,54 +386,51 @@ void MotionPrediction::setUnitMotion(UnitMotion* unit_motion, int32_t delta)
 
 void MotionPrediction::setUnitMotionV2(UnitMotion* um, double now)
 {
+	// Interpolation, not prediction: the real positions are recorded with smoothed timestamps and the
+	// unit is drawn on the path through them about one update interval in the past. Never overshoots
+	// (no slide-back on stop), never corrects (no shake). Costs ~1 game update of visual delay.
 	const d2::Path* path = d2::getUnitPath(um->unit);
 	if (!path)
 		return;
 	const glm::dvec2 pos = { path->x / 65536.0, path->y / 65536.0 };
-	const bool exact = App.motion_prediction_exact;
-	auto eval = [&](double at) {
-		const double tt = glm::clamp(at - um->v2_change_time, 0.0, um->v2_interval);
-		const glm::dvec2 b = exact ? glm::mix(um->v2_prev, um->v2_cur, um->v2_interval > 0.0 ? tt / um->v2_interval : 1.0) : um->v2_cur + um->v2_vel * tt;
-		return b + um->v2_err * exp(-(at - um->v2_err_time) / 0.035);
-	};
-	const glm::dvec2 shown_before = um->v2_init ? eval(now) : pos; // the old motion carried on to this frame
 
 	const glm::dvec2 jump = glm::abs(pos - um->v2_cur);
 	if (!um->v2_init || glm::max(jump.x, jump.y) > 2.0) { // new unit, teleport, waypoint, knockback: snap
-		um->v2_prev = um->v2_cur = um->v2_shown = pos;
-		um->v2_vel = um->v2_err = { 0.0, 0.0 };
-		um->v2_change_time = um->v2_err_time = now;
+		um->v2_cur = um->v2_shown = pos;
+		um->v2_hist_n = 1;
+		um->v2_hist_t[0] = now;
+		um->v2_hist_p[0] = pos;
 		um->v2_interval = 0.04;
 		um->v2_init = true;
-		return;
-	}
-
-	bool changed = false;
-	if (pos != um->v2_cur) {
-		const double dt = glm::clamp(now - um->v2_change_time, 1.0 / 120.0, 0.08);
-		um->v2_interval = (now - um->v2_change_time) < 0.1 ? 0.5 * um->v2_interval + 0.5 * dt : um->v2_interval;
-		const glm::dvec2 step_vel = (pos - um->v2_cur) / dt;
-		um->v2_vel = um->v2_vel == glm::dvec2(0.0) ? step_vel : 0.5 * um->v2_vel + 0.5 * step_vel; // smooth rounding jitter
-		um->v2_prev = um->v2_cur;
+	} else if (pos != um->v2_cur) {
+		const double last_t = um->v2_hist_t[(um->v2_hist_n - 1) & 3];
+		const double gap = now - last_t;
+		double t = now;
+		if (gap < 2.0 * um->v2_interval) { // regular stream: keep a steady rhythm, absorb frame-time jitter
+			um->v2_interval = glm::clamp(0.9 * um->v2_interval + 0.1 * gap, 0.02, 0.08);
+			const double expected = last_t + um->v2_interval;
+			t = expected + 0.25 * (now - expected);
+		}
+		um->v2_hist_t[um->v2_hist_n & 3] = t;
+		um->v2_hist_p[um->v2_hist_n & 3] = pos;
+		um->v2_hist_n++;
 		um->v2_cur = pos;
-		um->v2_change_time = now;
-		changed = true;
-	} else if (um->v2_vel != glm::dvec2(0.0) && now - um->v2_change_time > 1.5 * um->v2_interval) {
-		um->v2_vel = { 0.0, 0.0 }; // no update for 1.5 intervals: stopped, no slide
-		um->v2_prev = um->v2_cur;
-		changed = true;
 	}
 
-	const double t = glm::clamp(now - um->v2_change_time, 0.0, um->v2_interval);
-	glm::dvec2 base = exact ? glm::mix(um->v2_prev, um->v2_cur, um->v2_interval > 0.0 ? t / um->v2_interval : 1.0) : um->v2_cur + um->v2_vel * t;
-
-	if (changed) { // keep drawing from where we were; the correction fades out
-		um->v2_err = shown_before - base;
-		um->v2_err_time = now;
-		if (glm::max(glm::abs(um->v2_err.x), glm::abs(um->v2_err.y)) > 1.0)
-			um->v2_err = { 0.0, 0.0 };
+	const double rt = now - (um->v2_interval * (App.motion_prediction_exact ? 1.5 : 1.0) + 0.008);
+	const int n = glm::min(um->v2_hist_n, 4);
+	glm::dvec2 shown = um->v2_hist_p[(um->v2_hist_n - 1) & 3]; // newest (also: stopped -> arrive and rest)
+	for (int k = 1; k < n; k++) {
+		const int ib = (um->v2_hist_n - k) & 3, ia = (um->v2_hist_n - k - 1) & 3;
+		const double ta = um->v2_hist_t[ia], tb = um->v2_hist_t[ib];
+		if (rt >= tb)
+			break;
+		if (rt >= ta) {
+			shown = glm::mix(um->v2_hist_p[ia], um->v2_hist_p[ib], tb > ta ? (rt - ta) / (tb - ta) : 1.0);
+			break;
+		}
+		shown = um->v2_hist_p[ia]; // older than the history: hold the oldest
 	}
-	const glm::dvec2 shown = base + um->v2_err * exp(-(now - um->v2_err_time) / 0.035);
 	um->v2_shown = shown;
 
 	// getUnitOffset() works on predicted_pos - last_pos (16.16)
