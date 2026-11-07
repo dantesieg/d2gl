@@ -367,7 +367,13 @@ void saveIni()
 		"; Float pipeline: soft-clip lit ground/walls to paper white (shoulder from the knee, 0.6-0.95);\n"
 		"; spells, fire and other additive light still go above it.\n"
 		"diffuse_shoulder=%s\n"
-		"shoulder_knee=%.3f\n\n\n";
+		"shoulder_knee=%.3f\n"
+		"; Float pipeline eye adaptation: the world (not spells or UI) is exposed toward a target\n"
+		"; brightness; strength 0-1 (share of full normalisation), min/max in stops (-3-0 / 0-3).\n"
+		"auto_exposure=%s\n"
+		"auto_exposure_strength=%.3f\n"
+		"auto_exposure_min=%.3f\n"
+		"auto_exposure_max=%.3f\n\n\n";
 
 	sprintf_s(buf, hdr_setting,
 		boolString(App.hdr.enabled),
@@ -387,7 +393,11 @@ void saveIni()
 		App.hdr.movie_nits.value,
 		boolString(App.hdr.float_pipeline),
 		boolString(App.hdr.diffuse_shoulder),
-		App.hdr.shoulder_knee.value);
+		App.hdr.shoulder_knee.value,
+		boolString(App.hdr.auto_exposure),
+		App.hdr.auto_exposure_strength.value,
+		App.hdr.auto_exposure_min.value,
+		App.hdr.auto_exposure_max.value);
 	out_file << buf;
 
 	static const char* other_setting =
@@ -570,6 +580,10 @@ void loadIni()
 		App.hdr.float_pipeline = getBool("HDR", "float_pipeline", App.hdr.float_pipeline);
 		App.hdr.diffuse_shoulder = getBool("HDR", "diffuse_shoulder", App.hdr.diffuse_shoulder);
 		App.hdr.shoulder_knee.value = getFloat("HDR", "shoulder_knee", App.hdr.shoulder_knee);
+		App.hdr.auto_exposure = getBool("HDR", "auto_exposure", App.hdr.auto_exposure);
+		App.hdr.auto_exposure_strength.value = getFloat("HDR", "auto_exposure_strength", App.hdr.auto_exposure_strength);
+		App.hdr.auto_exposure_min.value = getFloat("HDR", "auto_exposure_min", App.hdr.auto_exposure_min);
+		App.hdr.auto_exposure_max.value = getFloat("HDR", "auto_exposure_max", App.hdr.auto_exposure_max);
 
 		App.gl_ver.x = getInt("Other", "gl_ver_major", App.gl_ver.x, 3, 4);
 		App.gl_ver.y = getInt("Other", "gl_ver_minor", App.gl_ver.y, 0, 6);

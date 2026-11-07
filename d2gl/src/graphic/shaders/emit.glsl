@@ -40,27 +40,64 @@ void main()
 
 layout(location = 0) out vec4 FragColor;
 
-uniform sampler2D u_EmitTexture;
+uniform sampler2D u_EmitTexture; // 5th game attachment: emission (R8) / additive share (RGBA16F, float pipeline)
 uniform float u_Gain;
-uniform sampler2D u_Texture; // mode 1: game colour copy (prefx texture)
-uniform int u_Mode;          // 0: emissive alpha pass, 1: float-pipeline diffuse shoulder
-uniform float u_Knee;
+uniform sampler2D u_Texture; // game colour copy (prefx texture)
+uniform sampler2D u_Expo;    // 1x1 adapted exposure in stops (float pipeline auto exposure)
+uniform int u_Mode;          // 0: emissive alpha pass, 1: exposure + diffuse shoulder, 3: exposure adapt (1x1)
+uniform float u_Knee;        // shoulder knee, >= 1.0 = shoulder off
+uniform int u_ExpoOn;
+uniform float u_Key;         // target linear luminance of the diffuse log-average
+uniform float u_Strength;    // 0..1 share of full normalisation
+uniform vec2 u_ExpoRange;    // min, max stops
+uniform vec2 u_Rate;         // per-frame blend weight: x darkening, y brightening
+uniform int u_Reset;
 
 in vec2 v_TexCoord;
 
 void main()
 {
 	if (u_Mode == 1) {
-		// colour = diffuse + additive; soft-clip diffuse to paper white (C1 shoulder from u_Knee,
-		// asymptote 1.0, on the max channel so hue is kept), additive light stays above 1.0.
+		// colour = diffuse + additive. Exposure scales both (signal domain: 2^(stops/2.2));
+		// diffuse is soft-clipped to paper white (C1 shoulder from u_Knee, asymptote 1.0, on the
+		// max channel so hue is kept); additive light stays above 1.0.
 		vec3 add = max(texture(u_EmitTexture, v_TexCoord).rgb, 0.0);
 		vec3 d = max(texture(u_Texture, v_TexCoord).rgb - add, 0.0);
+		if (u_ExpoOn == 1) {
+			float f = exp2(texture(u_Expo, vec2(0.5)).r / 2.2);
+			d *= f;
+			add *= f;
+		}
 		float m = max(d.r, max(d.g, d.b));
 		if (m > u_Knee) {
 			float w = 1.0 - u_Knee;
 			d *= (u_Knee + w * (1.0 - exp(-(m - u_Knee) / w))) / m;
 		}
 		FragColor = vec4(d + add, 1.0);
+		return;
+	}
+	if (u_Mode == 3) {
+		// Log-average linear luminance of the diffuse world (additive light excluded so spell
+		// flashes do not pump); near-black void is skipped. 24x16 samples, 1x1 target.
+		float sum = 0.0;
+		float n = 0.0;
+		for (int y = 0; y < 16; y++) {
+			for (int x = 0; x < 24; x++) {
+				vec2 uv = (vec2(x, y) + 0.5) / vec2(24.0, 16.0);
+				vec3 d = max(textureLod(u_Texture, uv, 0.0).rgb - max(textureLod(u_EmitTexture, uv, 0.0).rgb, 0.0), 0.0);
+				float l = dot(d, vec3(0.2126, 0.7152, 0.0722));
+				if (l > 0.02) {
+					sum += log2(pow(l, 2.2));
+					n += 1.0;
+				}
+			}
+		}
+		float target = 0.0;
+		if (n > 0.0)
+			target = clamp(u_Strength * (log2(u_Key) - sum / n), u_ExpoRange.x, u_ExpoRange.y);
+		float prev = texture(u_Expo, vec2(0.5)).r;
+		float r = target < prev ? u_Rate.x : u_Rate.y;
+		FragColor = vec4(u_Reset == 1 ? target : mix(prev, target, r), 0.0, 0.0, 1.0);
 		return;
 	}
 	float e = clamp(texture(u_EmitTexture, v_TexCoord).r * u_Gain, 0.0, 1.0);

@@ -64,6 +64,7 @@ namespace d2gl {
 #define TEXTURE_SLOT_GI_SCENE 21 // radiance GI: 1/4-res emitters + occluders
 #define TEXTURE_SLOT_GI_C0 22    // radiance GI cascades 0..3 (22..25)
 #define TEXTURE_SLOT_GI 26       // radiance GI fluence
+#define TEXTURE_SLOT_EXPO 29 // float pipeline: 1x1 adapted exposure (ping-pong)
 #define TEXTURE_SLOT_EMIT 20 // game framebuffer attachment 5: HDR emission (additive sprites), [HDR] emissive
 
 #define IMAGE_UNIT_BLUR 0
@@ -222,6 +223,12 @@ class Context {
 	std::unique_ptr<Pipeline> m_emit_pipeline;
 	bool emitWanted() const;
 	float m_add_scale = 1.0f; // render thread: current u_AddScale (float pipeline)
+	bool m_expo_supported = false;
+	std::unique_ptr<FrameBuffer> m_expo_fb[2];
+	int m_expo_cur = 0;
+	int m_expo_level = -2;
+	int64_t m_expo_qpc = 0;
+	void hdrSceneFx(const perf::FrameSettings& st, glm::uvec2 game_size); // float pipeline: exposure + shoulder
 
 	// 2D radiance-cascade GI ([Graphic] radiance_gi), PreFx stage, allocated on first use
 	bool m_gi_supported = false;

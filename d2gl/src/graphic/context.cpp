@@ -156,6 +156,7 @@ Context::Context()
 		m_emit_supported = m_vlight_supported && max_texture_unit > TEXTURE_SLOT_EMIT && max_draw_buffers >= 6;
 	}
 	m_gi_supported = max_texture_unit > TEXTURE_SLOT_GI;
+	m_expo_supported = max_texture_unit > TEXTURE_SLOT_EXPO;
 
 	glDisable(GL_CULL_FACE);
 	glDisable(GL_DEPTH_TEST);
@@ -721,17 +722,8 @@ void Context::renderThread(void* context)
 						ctx->drawQuad(1);
 					}
 
-					if (App.hdr.float_mode && ctx->m_emit_attached && ctx->m_emit_pipeline) {
-						// Diffuse shoulder: colour - additive share (attachment 5) soft-clipped to 1.0, additive kept.
-						ctx->bindFrameBuffer(ctx->m_game_framebuffer, false);
-						FrameBuffer::setDrawBuffers(1);
-						ctx->setViewport(cmd->m_game_size);
-						ctx->m_prefx_texture->fillFromBuffer(ctx->m_game_framebuffer);
-						ctx->m_emit_pipeline->setUniform1i("u_Mode", 1);
-						ctx->m_emit_pipeline->setUniform1f("u_Knee", App.hdr.shoulder_knee.value);
-						ctx->bindPipeline(ctx->m_emit_pipeline);
-						ctx->drawQuad();
-					}
+					if (App.hdr.float_mode && ctx->m_emit_attached && ctx->m_emit_pipeline && (App.hdr.diffuse_shoulder || App.hdr.auto_exposure))
+						ctx->hdrSceneFx(st, cmd->m_game_size);
 
 					ctx->bindPipeline(ctx->m_game_pipeline, command->index);
 					FrameBuffer::setDrawBuffers(ctx->gameDrawBufferCount(st));
@@ -1323,10 +1315,67 @@ std::pair<GLint, GLenum> Context::sceneFormat()
 	return { GL_RGBA8, GL_RGBA };
 }
 
+// Float pipeline, end of PreFx (world only, before UI): auto exposure adapt (1x1), then one pass
+// that exposes colour and soft-clips its diffuse share (colour - additive share, attachment 5).
+void Context::hdrSceneFx(const perf::FrameSettings& st, glm::uvec2 game_size)
+{
+	const auto& p = m_emit_pipeline;
+	const glm::ivec2 gs(game_size);
+	bindFrameBuffer(m_game_framebuffer, false);
+	FrameBuffer::setDrawBuffers(1);
+	m_prefx_texture->fillFromBuffer(m_game_framebuffer);
+
+	const bool ae = App.hdr.auto_exposure && m_expo_supported;
+	if (ae) {
+		bool reset = false;
+		if (!m_expo_fb[0]) {
+			FrameBufferCreateInfo ci;
+			ci.size = { 1, 1 };
+			ci.attachments = { { TEXTURE_SLOT_EXPO, { 0.0f, 0.0f, 0.0f, 1.0f }, { GL_NEAREST, GL_NEAREST }, { GL_RGBA16F, GL_RGBA } } };
+			m_expo_fb[0] = Context::createFrameBuffer(ci);
+			m_expo_fb[1] = Context::createFrameBuffer(ci);
+			reset = true;
+		}
+		LARGE_INTEGER now, freq;
+		QueryPerformanceCounter(&now);
+		QueryPerformanceFrequency(&freq);
+		float dt = m_expo_qpc ? (float)((double)(now.QuadPart - m_expo_qpc) / (double)freq.QuadPart) : 0.0f;
+		m_expo_qpc = now.QuadPart;
+		if (dt <= 0.0f || dt > 0.25f) // first frame, or after a pause/loading: no time jump
+			dt = 1.0f / 60.0f;
+		if (st.level_no != m_expo_level) { // new area: adapt at once
+			m_expo_level = st.level_no;
+			reset = true;
+		}
+		const int prev = m_expo_cur, cur = m_expo_cur ^ 1;
+		m_expo_fb[prev]->getTexture()->bind();
+		p->setUniform1i("u_Mode", 3);
+		p->setUniform1f("u_Key", 0.08f);
+		p->setUniform1f("u_Strength", App.hdr.auto_exposure_strength.value);
+		p->setUniformVec2f("u_ExpoRange", { App.hdr.auto_exposure_min.value, App.hdr.auto_exposure_max.value });
+		p->setUniformVec2f("u_Rate", { 1.0f - std::exp(-dt / 1.5f), 1.0f - std::exp(-dt / 3.0f) }); // darken ~1.5 s, brighten ~3 s
+		p->setUniform1i("u_Reset", reset ? 1 : 0);
+		bindPipeline(p);
+		bindFrameBuffer(m_expo_fb[cur], false);
+		setViewport({ 1, 1 });
+		drawQuad();
+		m_expo_cur = cur;
+		m_expo_fb[cur]->getTexture()->bind();
+		bindFrameBuffer(m_game_framebuffer, false);
+	}
+
+	p->setUniform1i("u_Mode", 1);
+	p->setUniform1i("u_ExpoOn", ae ? 1 : 0);
+	p->setUniform1f("u_Knee", App.hdr.diffuse_shoulder ? App.hdr.shoulder_knee.value : 1.0e9f);
+	bindPipeline(p);
+	setViewport(gs);
+	drawQuad();
+}
+
 bool Context::emitWanted() const
 {
 	// float pipeline: the attachment carries the additive share of the colour for the diffuse shoulder
-	return ISGLIDE3X() && m_emit_supported && m_hdr && App.hdr.mode && (App.hdr.float_mode ? App.hdr.diffuse_shoulder : App.hdr.emissive);
+	return ISGLIDE3X() && m_emit_supported && m_hdr && App.hdr.mode && (App.hdr.float_mode ? (App.hdr.diffuse_shoulder || App.hdr.auto_exposure) : App.hdr.emissive);
 }
 
 void Context::onShaderChange()
@@ -1359,7 +1408,7 @@ void Context::onStageChange()
 				flushVertices();
 				m_command_buffer[m_frame_index].pushCommand(CommandType::SoftShadow, m_current_blend_index);
 			}
-			if (ISGLIDE3X() && (App.bloom.active || App.lut.selected || App.dynamic_light.active || App.tonemap.active || App.radiance_gi.active) && *d2::screen_shift != SCREENPANEL_BOTH) {
+			if (ISGLIDE3X() && (App.bloom.active || App.lut.selected || App.dynamic_light.active || App.tonemap.active || App.radiance_gi.active || (App.hdr.float_mode && App.hdr.auto_exposure)) && *d2::screen_shift != SCREENPANEL_BOTH) {
 				flushVertices();
 				m_command_buffer[m_frame_index].pushCommand(CommandType::PreFx, m_current_blend_index);
 			}

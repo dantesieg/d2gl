@@ -580,6 +580,18 @@ void Menu::draw()
 					saveFloat("HDR", "emissive_gain", App.hdr.emissive_gain.value);
 			ImGui::EndDisabled();
 			childSeparator("##hdr1");
+			ImGui::BeginDisabled(!App.hdr.float_pipeline);
+				drawCheckbox_m("Auto Exposure", App.hdr.auto_exposure, "Eye adaptation on the world (float pipeline); spells and UI do not affect it.", hdr_auto_exposure)
+					saveBool("HDR", "auto_exposure", App.hdr.auto_exposure);
+				ImGui::BeginDisabled(!App.hdr.auto_exposure);
+					drawSlider_m(float, "Exposure Strength", App.hdr.auto_exposure_strength, "%.2f", "", hdr_ae_strength)
+						saveFloat("HDR", "auto_exposure_strength", App.hdr.auto_exposure_strength.value);
+					drawSlider_m(float, "Exposure Min (stops)", App.hdr.auto_exposure_min, "%.2f", "", hdr_ae_min)
+						saveFloat("HDR", "auto_exposure_min", App.hdr.auto_exposure_min.value);
+					drawSlider_m(float, "Exposure Max (stops)", App.hdr.auto_exposure_max, "%.2f", "", hdr_ae_max)
+						saveFloat("HDR", "auto_exposure_max", App.hdr.auto_exposure_max.value);
+				ImGui::EndDisabled();
+			ImGui::EndDisabled();
 			drawSlider_m(float, "Brightness (stops)", App.hdr.brightness, "%.2f", "", hdr_brightness)
 				saveFloat("HDR", "brightness", App.hdr.brightness.value);
 			drawSlider_m(float, "Black Level", App.hdr.black_level, "%.3f", "+ lifts, - crushes shadows.", hdr_black_level)

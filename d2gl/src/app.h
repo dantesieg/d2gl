@@ -209,6 +209,10 @@ struct D2GLApp {
 		bool float_mode = false;     // decided once at startup: mode && float_pipeline
 		bool diffuse_shoulder = true; // float pipeline: soft-clip non-additive colour to paper white
 		Range<float> shoulder_knee = { 0.8f, 0.6f, 0.95f };
+		bool auto_exposure = true; // float pipeline: eye adaptation on the diffuse world
+		Range<float> auto_exposure_strength = { 0.6f, 0.0f, 1.0f };
+		Range<float> auto_exposure_min = { -1.5f, -3.0f, 0.0f }; // stops
+		Range<float> auto_exposure_max = { 1.0f, 0.0f, 3.0f };
 		bool emissive = false;                                  // HDR highlights for additive sprites (spells, fire)
 		Range<float> emissive_nits = { 600.0f, 200.0f, 1000.0f }; // brightness of full emission
 		Range<float> emissive_gain = { 1.5f, 0.5f, 4.0f };       // emission = clamp(additive luma * gain)
