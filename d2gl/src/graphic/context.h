@@ -64,6 +64,7 @@ namespace d2gl {
 #define TEXTURE_SLOT_GI_SCENE 21 // radiance GI: 1/4-res emitters + occluders
 #define TEXTURE_SLOT_GI_C0 22    // radiance GI cascades 0..3 (22..25)
 #define TEXTURE_SLOT_GI 26       // radiance GI fluence
+#define TEXTURE_SLOT_HDRBLOOM 30 // float pipeline: HDR bloom levels (bound one at a time)
 #define TEXTURE_SLOT_EXPO 29 // float pipeline: 1x1 adapted exposure (ping-pong)
 #define TEXTURE_SLOT_EMIT 20 // game framebuffer attachment 5: HDR emission (additive sprites), [HDR] emissive
 
@@ -228,6 +229,10 @@ class Context {
 	int m_expo_cur = 0;
 	int m_expo_level = -2;
 	int64_t m_expo_qpc = 0;
+	bool m_hdrbloom_supported = false;
+	std::vector<std::unique_ptr<FrameBuffer>> m_hdrbloom_fb;
+	glm::uvec2 m_hdrbloom_game_size = { 0, 0 };
+	void hdrBloom(glm::uvec2 game_size);
 	void hdrSceneFx(const perf::FrameSettings& st, glm::uvec2 game_size); // float pipeline: exposure + shoulder
 
 	// 2D radiance-cascade GI ([Graphic] radiance_gi), PreFx stage, allocated on first use

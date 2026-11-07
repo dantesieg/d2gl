@@ -591,6 +591,14 @@ void Menu::draw()
 					drawSlider_m(float, "Exposure Max (stops)", App.hdr.auto_exposure_max, "%.2f", "", hdr_ae_max)
 						saveFloat("HDR", "auto_exposure_max", App.hdr.auto_exposure_max.value);
 				ImGui::EndDisabled();
+				drawCheckbox_m("HDR Bloom", App.hdr.hdr_bloom, "Glow around light above paper white only (float pipeline).", hdr_bloom)
+					saveBool("HDR", "hdr_bloom", App.hdr.hdr_bloom);
+				ImGui::BeginDisabled(!App.hdr.hdr_bloom);
+					drawSlider_m(float, "Bloom Intensity", App.hdr.hdr_bloom_intensity, "%.2f", "", hdr_bloom_intensity)
+						saveFloat("HDR", "hdr_bloom_intensity", App.hdr.hdr_bloom_intensity.value);
+					drawSlider_m(int, "Bloom Radius", App.hdr.hdr_bloom_radius, "%d", "", hdr_bloom_radius)
+						saveInt("HDR", "hdr_bloom_radius", App.hdr.hdr_bloom_radius.value);
+				ImGui::EndDisabled();
 			ImGui::EndDisabled();
 			drawSlider_m(float, "Brightness (stops)", App.hdr.brightness, "%.2f", "", hdr_brightness)
 				saveFloat("HDR", "brightness", App.hdr.brightness.value);

@@ -157,6 +157,7 @@ Context::Context()
 	}
 	m_gi_supported = max_texture_unit > TEXTURE_SLOT_GI;
 	m_expo_supported = max_texture_unit > TEXTURE_SLOT_EXPO;
+	m_hdrbloom_supported = max_texture_unit > TEXTURE_SLOT_HDRBLOOM;
 
 	glDisable(GL_CULL_FACE);
 	glDisable(GL_DEPTH_TEST);
@@ -409,7 +410,9 @@ Context::Context()
 				{ BindingType::FBTexture, "u_EmitTexture", TEXTURE_SLOT_EMIT, &m_game_framebuffer, 5 },
 				{ BindingType::Texture, "u_Texture", TEXTURE_SLOT_PREFX, &m_prefx_texture },
 			};
+			emit_pipeline_ci.attachment_blends = { { BlendType::NoBlend }, { BlendType::One_One } }; // 1: HDR bloom up/composite
 			m_emit_pipeline = Context::createPipeline(emit_pipeline_ci);
+			m_emit_pipeline->setUniform1i("u_Bloom", TEXTURE_SLOT_HDRBLOOM);
 			m_emit_pipeline->setUniformMat4f("u_MVP", glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f));
 		}
 	} else {
@@ -724,6 +727,8 @@ void Context::renderThread(void* context)
 
 					if (App.hdr.float_mode && ctx->m_emit_attached && ctx->m_emit_pipeline && (App.hdr.diffuse_shoulder || App.hdr.auto_exposure))
 						ctx->hdrSceneFx(st, cmd->m_game_size);
+					if (App.hdr.float_mode && ctx->m_emit_attached && ctx->m_emit_pipeline && App.hdr.hdr_bloom && ctx->m_hdrbloom_supported)
+						ctx->hdrBloom(cmd->m_game_size);
 
 					ctx->bindPipeline(ctx->m_game_pipeline, command->index);
 					FrameBuffer::setDrawBuffers(ctx->gameDrawBufferCount(st));
@@ -1372,10 +1377,71 @@ void Context::hdrSceneFx(const perf::FrameSettings& st, glm::uvec2 game_size)
 	drawQuad();
 }
 
+// Float pipeline HDR bloom (end of PreFx, before UI): prefilter > 1.0 at half res, dual-filter
+// down/up over hdr_bloom_radius RGBA16F levels, added onto the game colour.
+void Context::hdrBloom(glm::uvec2 game_size)
+{
+	const int levels = std::clamp(App.hdr.hdr_bloom_radius.value, 2, 6);
+	if (m_hdrbloom_game_size != game_size || (int)m_hdrbloom_fb.size() != levels) {
+		m_hdrbloom_game_size = game_size;
+		m_hdrbloom_fb.clear();
+		glm::uvec2 size = game_size;
+		for (int i = 0; i < levels; i++) {
+			size = glm::max(size / 2u, glm::uvec2(1));
+			FrameBufferCreateInfo ci;
+			ci.size = size;
+			ci.attachments = { { TEXTURE_SLOT_HDRBLOOM, { 0.0f, 0.0f, 0.0f, 1.0f }, { GL_LINEAR, GL_LINEAR }, { GL_RGBA16F, GL_RGBA } } };
+			m_hdrbloom_fb.push_back(Context::createFrameBuffer(ci));
+		}
+	}
+	const auto& p = m_emit_pipeline;
+	const auto texel = [](const std::unique_ptr<FrameBuffer>& fb) { return glm::vec2(1.0f / fb->getWidth(), 1.0f / fb->getHeight()); };
+	const auto size = [](const std::unique_ptr<FrameBuffer>& fb) { return glm::ivec2(fb->getWidth(), fb->getHeight()); };
+
+	bindFrameBuffer(m_game_framebuffer, false);
+	FrameBuffer::setDrawBuffers(1);
+	m_prefx_texture->fillFromBuffer(m_game_framebuffer);
+
+	p->setUniform1i("u_Mode", 4);
+	p->setUniformVec2f("u_SrcTexel", { 1.0f / game_size.x, 1.0f / game_size.y });
+	bindPipeline(p, 0);
+	bindFrameBuffer(m_hdrbloom_fb[0], false);
+	setViewport(size(m_hdrbloom_fb[0]));
+	drawQuad();
+
+	for (int i = 1; i < levels; i++) {
+		m_hdrbloom_fb[i - 1]->getTexture()->bind();
+		p->setUniform1i("u_Mode", 5);
+		p->setUniformVec2f("u_SrcTexel", texel(m_hdrbloom_fb[i - 1]));
+		bindPipeline(p, 0);
+		bindFrameBuffer(m_hdrbloom_fb[i], false);
+		setViewport(size(m_hdrbloom_fb[i]));
+		drawQuad();
+	}
+	for (int i = levels - 2; i >= 0; i--) {
+		m_hdrbloom_fb[i + 1]->getTexture()->bind();
+		p->setUniform1i("u_Mode", 6);
+		p->setUniformVec2f("u_SrcTexel", texel(m_hdrbloom_fb[i + 1]));
+		bindPipeline(p, 1);
+		bindFrameBuffer(m_hdrbloom_fb[i], false);
+		setViewport(size(m_hdrbloom_fb[i]));
+		drawQuad();
+	}
+
+	m_hdrbloom_fb[0]->getTexture()->bind();
+	p->setUniform1i("u_Mode", 7);
+	p->setUniform1f("u_Intensity", App.hdr.hdr_bloom_intensity.value);
+	p->setUniform1f("u_Levels", (float)levels);
+	bindPipeline(p, 1);
+	bindFrameBuffer(m_game_framebuffer, false);
+	setViewport(glm::ivec2(game_size));
+	drawQuad();
+}
+
 bool Context::emitWanted() const
 {
 	// float pipeline: the attachment carries the additive share of the colour for the diffuse shoulder
-	return ISGLIDE3X() && m_emit_supported && m_hdr && App.hdr.mode && (App.hdr.float_mode ? (App.hdr.diffuse_shoulder || App.hdr.auto_exposure) : App.hdr.emissive);
+	return ISGLIDE3X() && m_emit_supported && m_hdr && App.hdr.mode && (App.hdr.float_mode ? (App.hdr.diffuse_shoulder || App.hdr.auto_exposure || App.hdr.hdr_bloom) : App.hdr.emissive);
 }
 
 void Context::onShaderChange()
@@ -1408,7 +1474,7 @@ void Context::onStageChange()
 				flushVertices();
 				m_command_buffer[m_frame_index].pushCommand(CommandType::SoftShadow, m_current_blend_index);
 			}
-			if (ISGLIDE3X() && (App.bloom.active || App.lut.selected || App.dynamic_light.active || App.tonemap.active || App.radiance_gi.active || (App.hdr.float_mode && App.hdr.auto_exposure)) && *d2::screen_shift != SCREENPANEL_BOTH) {
+			if (ISGLIDE3X() && (App.bloom.active || App.lut.selected || App.dynamic_light.active || App.tonemap.active || App.radiance_gi.active || (App.hdr.float_mode && (App.hdr.auto_exposure || App.hdr.hdr_bloom))) && *d2::screen_shift != SCREENPANEL_BOTH) {
 				flushVertices();
 				m_command_buffer[m_frame_index].pushCommand(CommandType::PreFx, m_current_blend_index);
 			}

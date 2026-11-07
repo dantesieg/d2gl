@@ -52,6 +52,10 @@ uniform float u_Strength;    // 0..1 share of full normalisation
 uniform vec2 u_ExpoRange;    // min, max stops
 uniform vec2 u_Rate;         // per-frame blend weight: x darkening, y brightening
 uniform int u_Reset;
+uniform sampler2D u_Bloom;   // HDR bloom level (modes 5-7)
+uniform vec2 u_SrcTexel;     // 1 / source size
+uniform float u_Intensity;
+uniform float u_Levels;
 
 in vec2 v_TexCoord;
 
@@ -98,6 +102,38 @@ void main()
 		float prev = texture(u_Expo, vec2(0.5)).r;
 		float r = target < prev ? u_Rate.x : u_Rate.y;
 		FragColor = vec4(u_Reset == 1 ? target : mix(prev, target, r), 0.0, 0.0, 1.0);
+		return;
+	}
+	// HDR bloom (float pipeline, pre-UI): only energy above paper white, dual-filter (Kawase) chain.
+	if (u_Mode == 4) { // prefilter: 4x4 box from the full-res colour copy, keep what is above 1.0 (hue kept)
+		vec2 h = u_SrcTexel;
+		vec3 c = texture(u_Texture, v_TexCoord + vec2(-h.x, -h.y)).rgb + texture(u_Texture, v_TexCoord + vec2(h.x, -h.y)).rgb;
+		c += texture(u_Texture, v_TexCoord + vec2(-h.x, h.y)).rgb + texture(u_Texture, v_TexCoord + vec2(h.x, h.y)).rgb;
+		c *= 0.25;
+		float m = max(c.r, max(c.g, c.b));
+		c *= min(max(m - 1.0, 0.0), 16.0) / max(m, 0.0001);
+		FragColor = vec4(c, 1.0);
+		return;
+	}
+	if (u_Mode == 5) { // dual-filter down
+		vec2 h = u_SrcTexel * 0.5;
+		vec3 c = texture(u_Bloom, v_TexCoord).rgb * 4.0;
+		c += texture(u_Bloom, v_TexCoord - h).rgb + texture(u_Bloom, v_TexCoord + h).rgb;
+		c += texture(u_Bloom, v_TexCoord + vec2(h.x, -h.y)).rgb + texture(u_Bloom, v_TexCoord - vec2(h.x, -h.y)).rgb;
+		FragColor = vec4(c * 0.125, 1.0);
+		return;
+	}
+	if (u_Mode == 6) { // dual-filter up (tent), added onto the level below (One_One)
+		vec2 h = u_SrcTexel * 0.5;
+		vec3 c = texture(u_Bloom, v_TexCoord + vec2(-h.x * 2.0, 0.0)).rgb + texture(u_Bloom, v_TexCoord + vec2(h.x * 2.0, 0.0)).rgb;
+		c += texture(u_Bloom, v_TexCoord + vec2(0.0, h.y * 2.0)).rgb + texture(u_Bloom, v_TexCoord + vec2(0.0, -h.y * 2.0)).rgb;
+		c += (texture(u_Bloom, v_TexCoord + vec2(-h.x, h.y)).rgb + texture(u_Bloom, v_TexCoord + vec2(h.x, h.y)).rgb) * 2.0;
+		c += (texture(u_Bloom, v_TexCoord + vec2(h.x, -h.y)).rgb + texture(u_Bloom, v_TexCoord + vec2(-h.x, -h.y)).rgb) * 2.0;
+		FragColor = vec4(c / 12.0, 1.0);
+		return;
+	}
+	if (u_Mode == 7) { // composite onto the game colour (One_One), levels averaged
+		FragColor = vec4(texture(u_Bloom, v_TexCoord).rgb * (u_Intensity / u_Levels), 0.0);
 		return;
 	}
 	float e = clamp(texture(u_EmitTexture, v_TexCoord).r * u_Gain, 0.0, 1.0);
