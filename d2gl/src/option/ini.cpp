@@ -335,6 +335,8 @@ void saveIni()
 		"hdr=%s\n"
 		"; Paper/UI white in nits (80-500).\n"
 		"sdr_white=%.1f\n"
+		"; true = paper white follows the Deck's SDR content brightness slider (launcher exports D2GL_SDR_WHITE_NITS).\n"
+		"sdr_white_system=%s\n"
 		"; Peak brightness in nits (400-2000); 0 = auto (display MaxLuminance).\n"
 		"peak_nits=%.1f\n"
 		"; Overall brightness in stops (-2.0 to 2.0).\n"
@@ -383,6 +385,7 @@ void saveIni()
 	sprintf_s(buf, hdr_setting,
 		boolString(App.hdr.enabled),
 		App.hdr.sdr_white.value,
+		boolString(App.hdr.sdr_white_system),
 		App.hdr.peak_auto ? 0.0f : App.hdr.peak.value,
 		App.hdr.brightness.value,
 		App.hdr.black_level.value,
@@ -566,6 +569,14 @@ void loadIni()
 		App.hdr.enabled = getBool("HDR", "hdr", App.hdr.enabled);
 		App.hdr.shared_texture = getBool("HDR", "shared_texture", App.hdr.shared_texture);
 		App.hdr.sdr_white.value = getFloat("HDR", "sdr_white", App.hdr.sdr_white);
+		App.hdr.sdr_white_system = getBool("HDR", "sdr_white_system", App.hdr.sdr_white_system);
+		{
+			char ev[32] = { 0 };
+			if (GetEnvironmentVariableA("D2GL_SDR_WHITE_NITS", ev, sizeof(ev)) > 0) {
+				const float v = (float)atof(ev);
+				App.hdr.sdr_white_system_nits = (v >= 80.0f && v <= 1000.0f) ? v : 0.0f;
+			}
+		}
 		{
 			char peak[32] = { 0 };
 			if (getValue("HDR", "peak_nits", peak, sizeof(peak)) && atof(peak) > 0.0) {

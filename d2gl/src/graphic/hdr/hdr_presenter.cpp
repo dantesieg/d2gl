@@ -59,7 +59,7 @@ const char* Presenter::transportName() const
 Params Presenter::currentParams()
 {
 	Params p;
-	p.sdr_white_nits = App.hdr.sdr_white.value;
+	p.sdr_white_nits = (App.hdr.sdr_white_system && App.hdr.sdr_white_system_nits > 0.0f) ? App.hdr.sdr_white_system_nits : App.hdr.sdr_white.value;
 	float peak = App.hdr.peak.value;
 	if (App.hdr.peak_auto && m_display.max_lum > 0.0f)
 		peak = std::clamp(m_display.max_lum, App.hdr.peak.min, App.hdr.peak.max);

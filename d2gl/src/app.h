@@ -194,6 +194,8 @@ struct D2GLApp {
 		bool enabled = false;
 		bool mode = false;
 		Range<float> sdr_white = { 200.0f, 80.0f, 500.0f };
+		bool sdr_white_system = false;    // paper white = gamescope "SDR content brightness" (env D2GL_SDR_WHITE_NITS, set by the launcher)
+		float sdr_white_system_nits = 0.0f; // 0 = not available
 		bool peak_auto = true; // from IDXGIOutput6::GetDesc1 MaxLuminance, clamped to peak.min/max
 		Range<float> peak = { 1000.0f, 400.0f, 2000.0f };
 		Range<float> brightness = { 0.0f, -2.0f, 2.0f };   // stops

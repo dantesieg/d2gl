@@ -558,8 +558,19 @@ void Menu::draw()
 					drawDescription("HDR path inactive (SDR WGL presentation).", m_colors[Color::Gray], 12);
 			}
 			drawSeparator();
+			{
+				char sys_label[64];
+				if (App.hdr.sdr_white_system_nits > 0.0f)
+					sprintf_s(sys_label, "Paper White = System (%.0f nits)", App.hdr.sdr_white_system_nits);
+				else
+					sprintf_s(sys_label, "Paper White = System (n/a)");
+				drawCheckbox_m(sys_label, App.hdr.sdr_white_system, "Follows the Deck's SDR content brightness slider (read at game start).", hdr_sdr_white_system)
+					saveBool("HDR", "sdr_white_system", App.hdr.sdr_white_system);
+			}
+			ImGui::BeginDisabled(App.hdr.sdr_white_system && App.hdr.sdr_white_system_nits > 0.0f);
 			drawSlider_m(float, "Paper White (nits)", App.hdr.sdr_white, "%.0f", "Brightness of SDR white / UI.", hdr_sdr_white)
 				saveFloat("HDR", "sdr_white", App.hdr.sdr_white.value);
+			ImGui::EndDisabled();
 			drawCheckbox_m("Auto Peak", App.hdr.peak_auto, "", hdr_peak_auto)
 				saveFloat("HDR", "peak_nits", App.hdr.peak_auto ? 0.0f : App.hdr.peak.value);
 			ImGui::BeginDisabled(App.hdr.peak_auto);
