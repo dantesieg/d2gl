@@ -557,9 +557,6 @@ void Menu::draw()
 				sprintf_s(line, "Using %.0f nits.", hdr_p->effectivePeak());
 				drawDescription(line, m_colors[Color::Gray], 12);
 			}
-			drawSlider_m(float, "Brightness (stops)", App.hdr.brightness, "%.2f", "", hdr_brightness)
-				saveFloat("HDR", "brightness", App.hdr.brightness.value);
-			drawSeparator();
 			drawCheckbox_m("Emissive Highlights", App.hdr.emissive, "Spells, fire and auras above paper white; UI stays at paper white.", hdr_emissive)
 				saveBool("HDR", "emissive", App.hdr.emissive);
 			ImGui::BeginDisabled(!App.hdr.emissive);
@@ -569,6 +566,8 @@ void Menu::draw()
 					saveFloat("HDR", "emissive_gain", App.hdr.emissive_gain.value);
 			ImGui::EndDisabled();
 			childSeparator("##hdr1");
+			drawSlider_m(float, "Brightness (stops)", App.hdr.brightness, "%.2f", "", hdr_brightness)
+				saveFloat("HDR", "brightness", App.hdr.brightness.value);
 			drawSlider_m(float, "Black Level", App.hdr.black_level, "%.3f", "+ lifts, - crushes shadows.", hdr_black_level)
 				saveFloat("HDR", "black_level", App.hdr.black_level.value);
 			drawSlider_m(float, "Contrast", App.hdr.contrast, "%.2f", "", hdr_contrast)
