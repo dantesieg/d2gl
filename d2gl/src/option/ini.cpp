@@ -360,7 +360,10 @@ void saveIni()
 		"emissive_gain=%.2f\n"
 		"; Paper white in nits for movies, menus and loading screens (0 = same as sdr_white, up to 500).\n"
 		"; These also skip brightness, highlight expansion and emissive.\n"
-		"movie_nits=%.1f\n\n\n";
+		"movie_nits=%.1f\n"
+		"; Float pipeline (needs hdr=true and a restart): world rendered to RGBA16F so spells, fire and\n"
+		"; lights go above paper white, one HDR tonemap at the end; the SDR [Graphic] tonemap is skipped.\n"
+		"float_pipeline=%s\n\n\n";
 
 	sprintf_s(buf, hdr_setting,
 		boolString(App.hdr.enabled),
@@ -377,7 +380,8 @@ void saveIni()
 		boolString(App.hdr.emissive),
 		App.hdr.emissive_nits.value,
 		App.hdr.emissive_gain.value,
-		App.hdr.movie_nits.value);
+		App.hdr.movie_nits.value,
+		boolString(App.hdr.float_pipeline));
 	out_file << buf;
 
 	static const char* other_setting =
@@ -557,6 +561,7 @@ void loadIni()
 		App.hdr.emissive_nits.value = getFloat("HDR", "emissive_nits", App.hdr.emissive_nits);
 		App.hdr.emissive_gain.value = getFloat("HDR", "emissive_gain", App.hdr.emissive_gain);
 		App.hdr.movie_nits.value = getFloat("HDR", "movie_nits", App.hdr.movie_nits);
+		App.hdr.float_pipeline = getBool("HDR", "float_pipeline", App.hdr.float_pipeline);
 
 		App.gl_ver.x = getInt("Other", "gl_ver_major", App.gl_ver.x, 3, 4);
 		App.gl_ver.y = getInt("Other", "gl_ver_minor", App.gl_ver.y, 0, 6);

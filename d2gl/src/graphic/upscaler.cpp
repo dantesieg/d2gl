@@ -265,6 +265,8 @@ void Upscaler::setupPasses()
 	texture_ci.slot = TEXTURE_SLOT_DEFAULT;
 	if (m_passes[0].linear_filter)
 		texture_ci.filter = { GL_LINEAR, GL_LINEAR };
+	if (ISGLIDE3X())
+		texture_ci.format = Context::sceneFormat(); // [HDR] float_pipeline: keep light above 1.0
 	m_input_texture = Context::createTexture(texture_ci);
 
 	m_passes[0].out_size = App.game.tex_size;
@@ -292,7 +294,10 @@ void Upscaler::setupPasses()
 			GLint filter = next.linear_filter ? GL_LINEAR : GL_NEAREST;
 			FrameBufferCreateInfo frambuffer_ci;
 			frambuffer_ci.size = pass.out_size;
-			frambuffer_ci.attachments = { { i + 1, {}, { filter, filter }, pass.format } };
+			auto format = pass.format;
+			if (App.hdr.float_mode && ISGLIDE3X() && (format.first == GL_RGBA8 || format.first == GL_SRGB8_ALPHA8))
+				format = { GL_RGBA16F, GL_RGBA }; // float pipeline: 8-bit preset passes would clip HDR
+			frambuffer_ci.attachments = { { i + 1, {}, { filter, filter }, format } };
 			pass.frame_buffer = Context::createFrameBuffer(frambuffer_ci);
 			if (!pass.frame_buffer->isComplete()) {
 				complete = false;

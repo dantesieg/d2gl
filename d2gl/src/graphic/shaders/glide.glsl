@@ -61,6 +61,7 @@ layout(std140) uniform ubo_Colors {
 uniform sampler2DArray u_Texture;
 uniform int u_BlendIndex; // pipeline blend index: 0 opaque, 1 multiply, 2 additive, 3 alpha
 uniform float u_SpellGlow; // additive draws feed the light buffer at this strength
+uniform float u_AddScale; // [HDR] float_pipeline: additive world draws scaled above 1.0 (0/1 = off)
 
 in vec2 v_TexCoord;
 in vec4 v_Color1;
@@ -138,6 +139,10 @@ void main()
 			FragEmit = vec4(dot(FragColor.rgb, vec3(0.299, 0.587, 0.114)), 0.0, 0.0, 0.0);
 	} else if (u_BlendIndex == 3 && sk != 4u) // alpha shadows paint no colour
 		FragEmit = vec4(0.0, 0.0, 0.0, FragColor.a);
+
+	// Float pipeline: additive world light (spells, fire) lands above 1.0 in the float game buffer.
+	if (u_AddScale > 1.0 && u_BlendIndex == 2 && (v_Flags.w == 0u || v_Flags.w == 11u))
+		FragColor.rgb *= u_AddScale;
 
 	if (sk == 1u) {
 		FragColorShadow.r = 1.0 - dot(FragColor.rgb, vec3(0.299, 0.587, 0.114));

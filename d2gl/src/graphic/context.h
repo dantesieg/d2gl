@@ -221,6 +221,8 @@ class Context {
 	uint32_t m_color_bpp = 8;
 	std::unique_ptr<Pipeline> m_emit_pipeline;
 	bool emitWanted() const;
+	float m_add_scale = 1.0f; // render thread: current u_AddScale (float pipeline)
+	inline static std::pair<GLint, GLenum> sceneFormat() { return App.hdr.float_mode ? std::pair<GLint, GLenum>{ GL_RGBA16F, GL_RGBA } : std::pair<GLint, GLenum>{ GL_RGBA8, GL_RGBA }; }
 
 	// 2D radiance-cascade GI ([Graphic] radiance_gi), PreFx stage, allocated on first use
 	bool m_gi_supported = false;

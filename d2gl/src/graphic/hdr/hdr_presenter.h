@@ -61,6 +61,7 @@ public:
 	float effectivePeak() const { return m_effective_peak; }
 	int lostCount() const { return m_lost_count; }
 	void setEmissive(bool on) { m_emissive = on; } // render thread: GL wrote 1 - emission into alpha this frame
+	bool floatTarget() const { return m_float; }
 	void setCinematic(bool on) { m_cinematic = on; } // render thread: movie / menu / loading frame ([HDR] movie_nits)
 
 private:
@@ -125,6 +126,8 @@ private:
 	int m_lost_count = 0;
 	bool m_emissive = false;
 	bool m_cinematic = false;
+	bool m_float = false; // target is RGBA16F / R16G16B16A16_FLOAT ([HDR] float_pipeline)
+	int targetBpp() const { return m_float ? 8 : 4; }
 	uint32_t m_frame = 0;
 	char m_adapter_name[128] = "?";
 	char m_refusal[128] = "";

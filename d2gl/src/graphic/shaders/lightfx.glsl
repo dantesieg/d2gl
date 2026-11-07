@@ -60,6 +60,7 @@ uniform float u_Shafts;            // 0 = off
 uniform int u_Source;              // 1 = game vertex light (real colours, no warm tint)
 uniform sampler2D u_VLightTexture; // game vertex light (full res)
 uniform float u_Haze;              // light depth haze, 0 = off
+uniform float u_Float; // 1 = [HDR] float_pipeline: scene colour may exceed 1.0
 
 in vec2 v_TexCoord;
 flat in uvec4 v_Flags;
@@ -128,7 +129,7 @@ void main()
 		vec3 lit = base + base * light * 2.5 * shade + light * 0.18;
 		if (u_Shafts > 0.0)
 			lit += texture(u_LightTexture1, v_TexCoord).rgb * u_Shafts * u_Intensity * (0.15 + base * 0.85);
-		FragColor = vec4(DepthHaze(clamp(lit, 0.0, 1.0)), 1.0);
+		FragColor = vec4(DepthHaze(u_Float > 0.5 ? max(lit, 0.0) : clamp(lit, 0.0, 1.0)), 1.0);
 	}
 
 	FragColorMap = vec4(0.0);

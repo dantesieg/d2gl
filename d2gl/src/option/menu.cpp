@@ -530,6 +530,12 @@ void Menu::draw()
 				drawDescription("Restart the game to apply.", m_colors[Color::Orange], 14);
 			else
 				drawDescription("Off presents SDR; on/off of the HDR path itself needs a restart.", m_colors[Color::Gray], 12);
+			drawCheckbox_m("Float Pipeline", App.hdr.float_pipeline, "", hdr_float_pipeline)
+				saveBool("HDR", "float_pipeline", App.hdr.float_pipeline);
+			if (App.hdr.float_pipeline != App.hdr.float_mode && App.hdr.mode)
+				drawDescription("Restart the game to apply.", m_colors[Color::Orange], 14);
+			else
+				drawDescription(hdr_p && hdr_p->floatTarget() ? "Scene in RGBA16F: light above paper white." : "Scene in RGBA8 (SDR range).", m_colors[Color::Gray], 12);
 			{
 				char line[160] = { 0 };
 				if (hdr_p) {

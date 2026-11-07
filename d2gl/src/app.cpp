@@ -100,6 +100,7 @@ void dllAttach(HMODULE hmodule)
 
 	option::loadIni();
 	App.hdr.mode = App.hdr.enabled; // decided once: GL on a hidden window + DXGI presenter
+	App.hdr.float_mode = App.hdr.mode && App.hdr.float_pipeline;
 	if (App.hdr.mode)
 		hdr::Presenter::preInit(); // before anything can load dxgi/d3d11 (DXVK reads DXVK_HDR at factory creation)
 	helpers::loadDlls(App.dlls_early);

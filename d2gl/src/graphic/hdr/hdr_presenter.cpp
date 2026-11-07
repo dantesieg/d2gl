@@ -404,14 +404,25 @@ bool Presenter::createTarget()
 	td.Height = (UINT)m_h;
 	td.MipLevels = 1;
 	td.ArraySize = 1;
-	td.Format = DXGI_FORMAT_R8G8B8A8_UNORM; // the final composite is RGBA8 SDR signal
+	// the final composite is the SDR signal: RGBA8, or RGBA16F (values above 1.0) with [HDR] float_pipeline
+	m_float = App.hdr.float_mode;
+	td.Format = m_float ? DXGI_FORMAT_R16G16B16A16_FLOAT : DXGI_FORMAT_R8G8B8A8_UNORM;
 	td.SampleDesc.Count = 1;
 
 	glGenTextures(1, &m_tex);
 	glGenFramebuffers(1, &m_fbo);
 
-	if (App.hdr.shared_texture && !m_interop_available && createShared())
-		return true;
+	if (App.hdr.shared_texture && !m_interop_available) {
+		if (createShared())
+			return true;
+		if (m_float) {
+			error_log("HDR: float (R16G16B16A16_FLOAT) shared texture failed, retrying RGBA8 (float pipeline output clipped to 1.0)");
+			m_float = false;
+			td.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+			if (createShared())
+				return true;
+		}
+	}
 
 	if (m_interop_available) {
 		td.Usage = D3D11_USAGE_DEFAULT;
@@ -444,7 +455,7 @@ bool Presenter::createTarget()
 
 	// CPU copy path: plain GL texture + PBO ring, dynamic D3D11 upload texture.
 	glBindTexture(GL_TEXTURE_2D, m_tex);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, m_w, m_h, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+	glTexImage2D(GL_TEXTURE_2D, 0, m_float ? GL_RGBA16F : GL_RGBA8, m_w, m_h, 0, GL_RGBA, m_float ? GL_HALF_FLOAT : GL_UNSIGNED_BYTE, nullptr);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glBindTexture(GL_TEXTURE_2D, 0);
@@ -457,7 +468,7 @@ bool Presenter::createTarget()
 	glGenBuffers(RING, m_pbo);
 	for (int i = 0; i < RING; i++) {
 		glBindBuffer(GL_PIXEL_PACK_BUFFER, m_pbo[i]);
-		glBufferData(GL_PIXEL_PACK_BUFFER, (GLsizeiptr)m_w * m_h * 4, nullptr, GL_STREAM_READ);
+		glBufferData(GL_PIXEL_PACK_BUFFER, (GLsizeiptr)m_w * m_h * targetBpp(), nullptr, GL_STREAM_READ);
 	}
 	glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
 	m_ring_head = m_ring_count = 0;
@@ -468,6 +479,7 @@ bool Presenter::createTarget()
 	if (FAILED(HR(m_dev->CreateTexture2D(&td, nullptr, &m_in_tex))) || FAILED(HR(m_dev->CreateShaderResourceView(m_in_tex, nullptr, &m_in_srv))))
 		return false;
 	m_transport = Transport::CpuCopy;
+	trace_log("HDR: CPU copy path, %s", m_float ? "RGBA16F" : "RGBA8");
 	return true;
 }
 
@@ -485,7 +497,7 @@ bool Presenter::createShared()
 	td.Height = (UINT)m_h;
 	td.MipLevels = 1;
 	td.ArraySize = 1;
-	td.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	td.Format = m_float ? DXGI_FORMAT_R16G16B16A16_FLOAT : DXGI_FORMAT_R8G8B8A8_UNORM;
 	td.SampleDesc.Count = 1;
 	td.Usage = D3D11_USAGE_DEFAULT;
 	td.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
@@ -516,7 +528,7 @@ bool Presenter::createShared()
 				glCreateMemoryObjectsEXT(1, &m_sh_mem[i]);
 				const GLint dedicated = ded;
 				glMemoryObjectParameterivEXT(m_sh_mem[i], GL_DEDICATED_MEMORY_OBJECT_EXT, &dedicated);
-				glImportMemoryWin32HandleEXT(m_sh_mem[i], (GLuint64)m_w * m_h * 4, type, h);
+				glImportMemoryWin32HandleEXT(m_sh_mem[i], (GLuint64)m_w * m_h * targetBpp(), type, h);
 				e = glGetError();
 				trace_log("HDR: import type=0x%X dedicated=%d -> 0x%X", type, ded, e);
 				if (e == GL_NO_ERROR)
@@ -532,7 +544,7 @@ bool Presenter::createShared()
 		}
 		glGenTextures(1, &m_sh_gltex[i]);
 		glBindTexture(GL_TEXTURE_2D, m_sh_gltex[i]);
-		glTexStorageMem2DEXT(GL_TEXTURE_2D, 1, GL_RGBA8, m_w, m_h, m_sh_mem[i], 0);
+		glTexStorageMem2DEXT(GL_TEXTURE_2D, 1, m_float ? GL_RGBA16F : GL_RGBA8, m_w, m_h, m_sh_mem[i], 0);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 		glBindTexture(GL_TEXTURE_2D, 0);
@@ -558,7 +570,7 @@ bool Presenter::createShared()
 	m_sh_cur = 0;
 	glBindFramebuffer(GL_FRAMEBUFFER, m_fbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_sh_gltex[0], 0);
-	m_transport = Transport::SharedTex;
+	m_transport = Transport::SharedTex; trace_log("HDR: shared texture %s", m_float ? "R16G16B16A16_FLOAT" : "R8G8B8A8_UNORM");
 	return true;
 }
 
@@ -732,7 +744,7 @@ bool Presenter::present(bool vsync)
 		glBindFramebuffer(GL_READ_FRAMEBUFFER, m_fbo);
 		glBindBuffer(GL_PIXEL_PACK_BUFFER, m_pbo[m_ring_head]);
 		glPixelStorei(GL_PACK_ALIGNMENT, 4);
-		glReadPixels(0, 0, m_w, m_h, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+		glReadPixels(0, 0, m_w, m_h, GL_RGBA, m_float ? GL_HALF_FLOAT : GL_UNSIGNED_BYTE, nullptr);
 		if (m_fence[m_ring_head])
 			glDeleteSync(m_fence[m_ring_head]);
 		m_fence[m_ring_head] = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
@@ -748,10 +760,10 @@ bool Presenter::present(bool vsync)
 			r = glClientWaitSync(m_fence[slot], GL_SYNC_FLUSH_COMMANDS_BIT, 100000000ull);
 		if (r == GL_ALREADY_SIGNALED || r == GL_CONDITION_SATISFIED) {
 			glBindBuffer(GL_PIXEL_PACK_BUFFER, m_pbo[slot]);
-			const void* src = glMapBufferRange(GL_PIXEL_PACK_BUFFER, 0, (GLsizeiptr)m_w * m_h * 4, GL_MAP_READ_BIT);
+			const void* src = glMapBufferRange(GL_PIXEL_PACK_BUFFER, 0, (GLsizeiptr)m_w * m_h * targetBpp(), GL_MAP_READ_BIT);
 			D3D11_MAPPED_SUBRESOURCE m;
 			if (src && SUCCEEDED(m_ctx->Map(m_in_tex, 0, D3D11_MAP_WRITE_DISCARD, 0, &m))) {
-				const size_t row = (size_t)m_w * 4;
+				const size_t row = (size_t)m_w * targetBpp();
 				for (int y = 0; y < m_h; y++)
 					memcpy((uint8_t*)m.pData + (size_t)y * m.RowPitch, (const uint8_t*)src + (size_t)y * row, row);
 				m_ctx->Unmap(m_in_tex, 0);
@@ -775,6 +787,8 @@ bool Presenter::present(bool vsync)
 		p.brightness_stops = 0.0f;
 		p.highlight_strength = 0.0f;
 	}
+	if (m_float)
+		p.highlight_strength = 0.0f; // float pipeline: real light above 1.0 replaces highlight expansion
 	if (m_hdr_presenting && m_sc4 && (!m_metadata_set || m_metadata_peak != p.peak_nits)) {
 		auto c = [](double v) { return (UINT16)(v / 0.00002 + 0.5); };
 		DXGI_HDR_METADATA_HDR10 md = {};

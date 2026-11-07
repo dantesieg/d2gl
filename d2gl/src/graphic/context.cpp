@@ -65,6 +65,7 @@ Context::Context()
 		} else {
 			error_log("HDR: hidden GL window failed (%lu), HDR disabled", GetLastError());
 			App.hdr.mode = false;
+			App.hdr.float_mode = false;
 		}
 	}
 
@@ -215,6 +216,8 @@ Context::Context()
 		{ BindingType::Texture, "u_Texture1", TEXTURE_SLOT_POSTFX2, &m_postfx_texture },
 	};
 	m_postfx_pipeline = Context::createPipeline(postfx_pipeline_ci);
+	if (App.hdr.float_mode)
+		m_postfx_pipeline->setUniform1f("u_Float", 1.0f);
 	m_postfx_pipeline->setUniformMat4f("u_MVP", glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f));
 
 	if (App.gl_caps.compute_shader) {
@@ -315,6 +318,8 @@ Context::Context()
 			{ BindingType::Texture, "u_LUTTexture", m_lut_texture->getSlot(), &m_lut_texture },
 		};
 		m_prefx_pipeline = Context::createPipeline(prefx_pipeline_ci);
+		if (App.hdr.float_mode)
+			m_prefx_pipeline->setUniform1f("u_Float", 1.0f);
 		m_prefx_pipeline->setUniformMat4f("u_MVP", glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f));
 
 		PipelineCreateInfo light_pipeline_ci = { "light" };
@@ -329,6 +334,8 @@ Context::Context()
 			light_pipeline_ci.bindings.push_back({ BindingType::FBTexture, "u_AmbientTexture", TEXTURE_SLOT_AMBIENT, &m_ambient_framebuffer });
 		}
 		m_light_pipeline = Context::createPipeline(light_pipeline_ci);
+		if (App.hdr.float_mode)
+			m_light_pipeline->setUniform1f("u_Float", 1.0f);
 		m_light_pipeline->setUniformMat4f("u_MVP", glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f));
 
 		if (m_vlight_supported) {
@@ -347,6 +354,8 @@ Context::Context()
 		light_pipeline_ci.name = "lightfx";
 		light_pipeline_ci.shader = g_shader_lightfx;
 		m_lightfx_pipeline = Context::createPipeline(light_pipeline_ci);
+		if (App.hdr.float_mode)
+			m_lightfx_pipeline->setUniform1f("u_Float", 1.0f);
 		m_lightfx_pipeline->setUniformMat4f("u_MVP", glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f));
 
 		PipelineCreateInfo atmos_pipeline_ci = { "atmos" };
@@ -601,6 +610,14 @@ void Context::renderThread(void* context)
 					// Uniform first: Pipeline::bind() inside setUniform resets the blend state to 0.
 					ctx->m_game_pipeline->setUniform1i("u_BlendIndex", command->index);
 					ctx->m_game_pipeline->setUniform1f("u_SpellGlow", st.spell_glow);
+					if (App.hdr.float_mode)
+						ctx->m_game_pipeline->setUniform1f("u_AddScale", ctx->m_add_scale);
+					ctx->bindPipeline(ctx->m_game_pipeline, command->index);
+					break;
+				case CommandType::UIStage:
+					// Float pipeline: UI draws (panels, text, minimap) must stay <= 1.0 (paper white).
+					ctx->m_add_scale = 1.0f;
+					ctx->m_game_pipeline->setUniform1f("u_AddScale", 1.0f);
 					ctx->bindPipeline(ctx->m_game_pipeline, command->index);
 					break;
 				case CommandType::DrawIndexed:
@@ -733,6 +750,7 @@ void Context::renderThread(void* context)
 					break;
 				case CommandType::Begin:
 					ctx->m_world_ready = false;
+					ctx->m_add_scale = cmd->m_screen == GameScreen::InGame ? st.add_scale : 1.0f;
 					if (cmd->m_screen == GameScreen::Movie) {
 						ctx->bindDefaultFrameBuffer();
 						ctx->setViewport({ st.window_w, st.window_h });
@@ -1017,6 +1035,7 @@ void Context::hdrFallbackToWgl(const char* why)
 		error_log("HDR: wglMakeCurrent on the game window failed (%lu)", GetLastError());
 	wglSwapIntervalEXT(App.vsync);
 	App.hdr.mode = false;
+	App.hdr.float_mode = false; // existing float buffers stay; the WGL framebuffer clips them to SDR
 }
 
 void Context::onResize(glm::uvec2 w_size, glm::uvec2 g_size, uint32_t bpp)
@@ -1044,7 +1063,7 @@ void Context::onResize(glm::uvec2 w_size, glm::uvec2 g_size, uint32_t bpp)
 		frambuffer_ci.size = game_size;
 		if (ISGLIDE3X())
 			frambuffer_ci.attachments = {
-				{ TEXTURE_SLOT_GAME, { 0.0f, 0.0f, 0.0f, 1.0f }, { GL_LINEAR, GL_LINEAR } },
+				{ TEXTURE_SLOT_GAME, { 0.0f, 0.0f, 0.0f, 1.0f }, { GL_LINEAR, GL_LINEAR }, sceneFormat() },
 				{ TEXTURE_SLOT_MAP, { 0.0f, 0.0f, 0.0f, 0.0f } },
 				{ TEXTURE_SLOT_MASK, { 0.0f, 0.0f, 0.0f, 0.0f }, { GL_LINEAR, GL_LINEAR }, { GL_R8, GL_RED } },
 				{ TEXTURE_SLOT_SHADOW, { 0.0f, 0.0f, 0.0f, 0.0f }, { GL_LINEAR, GL_LINEAR } },
@@ -1069,7 +1088,7 @@ void Context::onResize(glm::uvec2 w_size, glm::uvec2 g_size, uint32_t bpp)
 
 			FrameBufferCreateInfo bloom_frambuffer_ci;
 			bloom_frambuffer_ci.size = m_bloom_tex_size;
-			bloom_frambuffer_ci.attachments = { { TEXTURE_SLOT_BLOOM1, {}, { GL_LINEAR, GL_LINEAR } } };
+			bloom_frambuffer_ci.attachments = { { TEXTURE_SLOT_BLOOM1, {}, { GL_LINEAR, GL_LINEAR }, sceneFormat() } };
 			m_bloom_framebuffer = Context::createFrameBuffer(bloom_frambuffer_ci);
 			if (App.gl_caps.compute_shader)
 				m_bloom_framebuffer->getTexture()->bindImage(IMAGE_UNIT_BLUR);
@@ -1078,6 +1097,7 @@ void Context::onResize(glm::uvec2 w_size, glm::uvec2 g_size, uint32_t bpp)
 			bloom_texture_ci.size = m_bloom_tex_size;
 			bloom_texture_ci.slot = TEXTURE_SLOT_BLOOM2;
 			bloom_texture_ci.filter = { GL_LINEAR, GL_LINEAR };
+			bloom_texture_ci.format = sceneFormat();
 			m_bloom_texture = Context::createTexture(bloom_texture_ci);
 
 			m_light_tex_size = { game_size.x / 8, game_size.y / 8 };
@@ -1107,11 +1127,12 @@ void Context::onResize(glm::uvec2 w_size, glm::uvec2 g_size, uint32_t bpp)
 			TextureCreateInfo prefx_texture_ci;
 			prefx_texture_ci.size = game_size;
 			prefx_texture_ci.slot = TEXTURE_SLOT_PREFX;
+			prefx_texture_ci.format = sceneFormat();
 			m_prefx_texture = Context::createTexture(prefx_texture_ci);
 
 			FrameBufferCreateInfo world_frambuffer_ci;
 			world_frambuffer_ci.size = game_size;
-			world_frambuffer_ci.attachments = { { TEXTURE_SLOT_WORLD, { 0.0f, 0.0f, 0.0f, 1.0f }, { GL_LINEAR, GL_LINEAR } } };
+			world_frambuffer_ci.attachments = { { TEXTURE_SLOT_WORLD, { 0.0f, 0.0f, 0.0f, 1.0f }, { GL_LINEAR, GL_LINEAR }, sceneFormat() } };
 			m_world_framebuffer = Context::createFrameBuffer(world_frambuffer_ci);
 		} else {
 			TextureCreateInfo texture_ci;
@@ -1135,7 +1156,7 @@ void Context::onResize(glm::uvec2 w_size, glm::uvec2 g_size, uint32_t bpp)
 	if (game_resized || window_resized) {
 		FrameBufferCreateInfo frambuffer_ci;
 		frambuffer_ci.size = App.viewport.size;
-		frambuffer_ci.attachments = { { TEXTURE_SLOT_POSTFX1, {}, { GL_LINEAR, GL_LINEAR } } };
+		frambuffer_ci.attachments = { { TEXTURE_SLOT_POSTFX1, {}, { GL_LINEAR, GL_LINEAR }, ISGLIDE3X() ? sceneFormat() : std::pair<GLint, GLenum>{ GL_RGBA8, GL_RGBA } } };
 		m_postfx_framebuffer = Context::createFrameBuffer(frambuffer_ci);
 		if (App.gl_caps.compute_shader)
 			m_postfx_framebuffer->getTexture()->bindImage(IMAGE_UNIT_FXAA);
@@ -1146,6 +1167,8 @@ void Context::onResize(glm::uvec2 w_size, glm::uvec2 g_size, uint32_t bpp)
 		texture_ci.size = App.viewport.size;
 		texture_ci.slot = TEXTURE_SLOT_POSTFX2;
 		texture_ci.filter = { GL_LINEAR, GL_LINEAR };
+		if (ISGLIDE3X())
+			texture_ci.format = sceneFormat();
 		m_postfx_texture = Context::createTexture(texture_ci);
 
 		onShaderChange();
@@ -1277,7 +1300,8 @@ void Context::renderGI(const perf::FrameSettings& st, glm::uvec2 game_size)
 
 bool Context::emitWanted() const
 {
-	return ISGLIDE3X() && m_emit_supported && m_hdr && App.hdr.mode && App.hdr.emissive;
+	// float pipeline: additive light lands in the float colour directly, no emission attachment
+	return ISGLIDE3X() && m_emit_supported && m_hdr && App.hdr.mode && App.hdr.emissive && !App.hdr.float_mode;
 }
 
 void Context::onShaderChange()
@@ -1300,6 +1324,10 @@ void Context::onStageChange()
 		case DrawStage::World:
 			break;
 		case DrawStage::UI:
+			if (App.hdr.float_mode && ISGLIDE3X()) {
+				flushVertices();
+				m_command_buffer[m_frame_index].pushCommand(CommandType::UIStage, m_current_blend_index);
+			}
 			addPanelOccluders();
 			modules::HDText::drawFpsCounter();
 			if (m_shadow_fx && m_shadow_seen && *d2::screen_shift != SCREENPANEL_BOTH) {
@@ -1758,7 +1786,10 @@ void Context::captureSettings(perf::FrameSettings& st) const
 	st.bloom_exposure = App.bloom.exposure.value;
 	st.bloom_gamma = App.bloom.gamma.value;
 	st.lut = App.lut.selected;
-	st.tonemap = App.tonemap.active;
+	st.tonemap = App.tonemap.active && !App.hdr.float_mode; // float pipeline: one HDR tonemap in the presenter
+	st.add_scale = 1.0f;
+	if (App.hdr.float_mode && App.hdr.emissive)
+		st.add_scale = std::pow(std::max(App.hdr.emissive_nits.value / std::max(App.hdr.sdr_white.value, 1.0f), 1.0f), 1.0f / 2.2f);
 	st.tonemap_exposure = App.tonemap.exposure.value;
 	st.world_only = App.shader.world_only;
 
