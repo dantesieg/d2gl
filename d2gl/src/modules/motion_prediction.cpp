@@ -104,7 +104,18 @@ void MotionPrediction::update()
 
 	if (App.motion_prediction_v2) {
 		// Each unit is timed by its own position updates (units do not all update on the same frame).
-		const double now = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+		const double real = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+		// Frames finish at uneven times (vsync off) but reach the screen evenly: an even clock (average
+		// frame time per frame, gently pulled to real time) keeps the on-screen steps equal.
+		static double clock = 0.0;
+		const double avg = App.context->getAvgFrameTime() / 1000.0;
+		if (clock == 0.0 || std::abs(real - clock) > 0.1 || avg <= 0.0 || avg > 0.05)
+			clock = real;
+		else {
+			clock += avg;
+			clock += 0.05 * (real - clock);
+		}
+		const double now = clock;
 		if (m_player_motion.unit) {
 			setUnitMotionV2(&m_player_motion, now);
 			static FILE* mlog = nullptr;
