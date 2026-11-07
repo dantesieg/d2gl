@@ -116,7 +116,7 @@
 "case 3u: {"
 "vec3 base = texture(u_Texture, v_TexCoord).rgb;"
 "vec3 gi = texture(u_GI, v_TexCoord).rgb * u_Strength;"
-"FragColor = vec4(clamp(base + base * gi * 2.5 + gi * 0.08, 0.0, 1.0), 1.0);"
+"FragColor = vec4(clamp(base + base * gi * 2.5, 0.0, 1.0), 1.0);"
 "} break;"
 "}"
 "}"
