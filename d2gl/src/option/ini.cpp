@@ -543,7 +543,7 @@ void loadIni()
 		App.viewport.stretched.x = getBool("Graphic", "stretched_horizontal", App.viewport.stretched.x);
 		App.viewport.stretched.y = getBool("Graphic", "stretched_vertical", App.viewport.stretched.y);
 		App.game.native_render = getBool("Graphic", "native_render", App.game.native_render);
-		App.game.native_filter = getInt("Graphic", "native_render_filter", App.game.native_filter, 0, 2);
+		App.game.native_filter.selected = getInt("Graphic", "native_render_filter", App.game.native_filter.selected, 0, 2);
 
 		App.hd_cursor = getBool("Feature", "hd_cursor", App.hd_cursor);
 		App.hd_text.active = getBool("Feature", "hd_text", App.hd_text.active);

@@ -104,7 +104,7 @@ struct D2GLApp {
 		glm::vec2 tex_scale = { 1.0f, 1.0f };
 		glm::uvec2 render_size = { 640, 480 }; // game framebuffer size: = size, or the screen size with native_render
 		bool native_render = false;            // [Graphic] native_render: draw sprites straight at screen resolution
-		int native_filter = 1;                 // [Graphic] native_render_filter: 0 nearest, 1 sharp, 2 smooth
+		Select<int> native_filter = { 1, { { "Nearest", 0 }, { "Sharp", 1 }, { "Smooth", 2 } } }; // [Graphic] native_render_filter
 	} game;
 
 	struct {

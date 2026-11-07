@@ -617,6 +617,7 @@ void Context::renderThread(void* context)
 					// Uniform first: Pipeline::bind() inside setUniform resets the blend state to 0.
 					ctx->m_game_pipeline->setUniform1i("u_BlendIndex", command->index);
 					ctx->m_game_pipeline->setUniform1f("u_SpellGlow", st.spell_glow);
+					ctx->m_game_pipeline->setUniform1i("u_NativeFilter", App.game.native_filter.selected);
 					if (App.hdr.float_mode)
 						ctx->m_game_pipeline->setUniform1f("u_AddScale", ctx->m_add_scale);
 					if (App.hdr.float_mode)
@@ -1101,7 +1102,6 @@ void Context::onResize(glm::uvec2 w_size, glm::uvec2 g_size, uint32_t bpp)
 		if (ISGLIDE3X()) {
 			m_game_pipeline->setUniformMat4f("u_MVP", mvp);
 			m_game_pipeline->setUniform1f("u_NativeScale", (float)game_size.x / (float)App.game.size.x);
-			m_game_pipeline->setUniform1i("u_NativeFilter", App.game.native_filter);
 
 			m_bloom_ubo->updateDataVec2f("rel_size", { 4.0f / game_size.x, 4.0f / game_size.y });
 			m_bloom_tex_size = { game_size.x / 4, game_size.y / 4 };
