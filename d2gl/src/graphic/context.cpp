@@ -1298,6 +1298,13 @@ void Context::renderGI(const perf::FrameSettings& st, glm::uvec2 game_size)
 	drawQuad(3);
 }
 
+std::pair<GLint, GLenum> Context::sceneFormat()
+{
+	if (App.hdr.float_mode)
+		return { GL_RGBA16F, GL_RGBA };
+	return { GL_RGBA8, GL_RGBA };
+}
+
 bool Context::emitWanted() const
 {
 	// float pipeline: additive light lands in the float colour directly, no emission attachment
