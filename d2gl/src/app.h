@@ -197,7 +197,7 @@ struct D2GLApp {
 		bool peak_auto = true; // from IDXGIOutput6::GetDesc1 MaxLuminance, clamped to peak.min/max
 		Range<float> peak = { 1000.0f, 400.0f, 2000.0f };
 		Range<float> brightness = { 0.0f, -2.0f, 2.0f };   // stops
-		Range<float> black_level = { 0.0f, -0.05f, 0.05f }; // signal lift (+) / crush (-)
+		Range<float> black_level = { 0.0f, -0.20f, 0.05f }; // signal lift (+) / crush (-)
 		Range<float> contrast = { 1.0f, 0.8f, 1.2f };
 		Range<float> saturation = { 1.0f, 0.5f, 1.5f };
 		Range<float> highlight = { 0.0f, 0.0f, 1.0f };
