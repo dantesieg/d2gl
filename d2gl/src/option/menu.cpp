@@ -425,7 +425,7 @@ void Menu::draw()
 			{
 				saveBool("Graphic", "native_render", App.game.native_render);
 			}
-			drawCombo_m("Native Render Filter", App.game.native_filter, "How sprites are scaled with Native Render: Nearest (uneven pixels), Sharp (pixel-exact, blended at pixel borders), Smooth, Pixel Art (smooth diagonals, no colour bleed). Applies live.", false, 17, native_render_filter)
+			drawCombo_m("Native Render Filter", App.game.native_filter, "How sprites are scaled with Native Render: Nearest (uneven pixels), Sharp (pixel-exact, blended at pixel borders), Smooth. Applies live.", false, 17, native_render_filter)
 				saveInt("Graphic", "native_render_filter", App.game.native_filter.selected);
 			childEnd();
 			tabEnd();

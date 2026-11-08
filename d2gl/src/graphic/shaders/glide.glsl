@@ -83,50 +83,8 @@ uniform int u_NativeFilter;  // 0 nearest, 1 sharp (pixel-exact inside, blended 
 // native_render: palette sprites are scaled per sprite as they are drawn. Filtering runs on palette
 // colours (4 texelFetch, clamped to the sprite's own atlas rect so neighbours never bleed in);
 // colour-keyed texels drop out of the blend, coverage < 0.5 is discarded (crisp, fringe-free outlines).
-// Pixel Art (native_render_filter 3): palette-aware EPX-style diagonals. Edges are found by comparing
-// palette indices (no colour bleed); where two neighbours of the same index meet at a corner, the
-// corner triangle takes that index, anti-aliased over one screen pixel. Index 0 (key) cuts corners.
-float idxAt(vec2 c, vec2 lo, vec2 hi) { return texelFetch(u_Texture, ivec3(ivec2(clamp(c, lo, hi)), v_TexIds.x), 0).r; }
-bool pixelArtSample(out vec4 col)
-{
-	vec2 q = v_TexCoord * 512.0;
-	vec2 c = floor(q);
-	vec2 f = q - c - 0.5;
-	vec2 lo = vec2(v_TexRect.xy);
-	vec2 hi = lo + vec2(v_TexRect.zw) - 1.0;
-	bool key = (v_Flags.x & 15u) == 1u;
-	vec2 sg = vec2(f.x < 0.0 ? -1.0 : 1.0, f.y < 0.0 ? -1.0 : 1.0);
-	float ci = idxAt(c, lo, hi);
-	float h = idxAt(c + vec2(sg.x, 0.0), lo, hi);
-	float v = idxAt(c + vec2(0.0, sg.y), lo, hi);
-	float pick = ci;
-	float cov = 0.0;
-	if (h == v && h != ci && h != idxAt(c - vec2(0.0, sg.y), lo, hi) && v != idxAt(c - vec2(sg.x, 0.0), lo, hi)) {
-		float w = 0.5 / max(max(u_NativeScale.x, u_NativeScale.y), 1.0);
-		cov = smoothstep(-w, w, abs(f.x) + abs(f.y) - 0.5);
-		pick = h;
-	}
-	bool ck = key && ci == 0.0;
-	bool pk = key && pick == 0.0;
-	if (cov <= 0.0 || pick == ci) {
-		if (ck) return false;
-		col = u_Palette[int(ci * 255.0 + 0.5)];
-		return true;
-	}
-	if (ck || pk) { // transparency has no blend: hard cut at half coverage
-		float use = cov >= 0.5 ? pick : ci;
-		if (key && use == 0.0) return false;
-		col = u_Palette[int(use * 255.0 + 0.5)];
-		return true;
-	}
-	col = mix(u_Palette[int(ci * 255.0 + 0.5)], u_Palette[int(pick * 255.0 + 0.5)], cov);
-	return true;
-}
-
 bool nativeSample(out vec4 col)
 {
-	if (u_NativeFilter == 3)
-		return pixelArtSample(col);
 	vec2 p = v_TexCoord * 512.0 - 0.5;
 	vec2 i0 = floor(p);
 	vec2 f = p - i0;
