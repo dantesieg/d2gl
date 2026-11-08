@@ -129,7 +129,7 @@ float4 ps_main(VO i) : SV_Target {
 	float3 n = float3(dot(float3(0.627403896, 0.329283039, 0.043313065), n709),
 	                  dot(float3(0.069097289, 0.919540395, 0.011362316), n709),
 	                  dot(float3(0.016391439, 0.088013307, 0.895595253), n709));
-	// [HDR] gamut_expand: toward "the colour is P3", weighted by chroma^2 (greys and skin barely move)
+	// [HDR] gamut_expand: toward "the colour is P3", weighted by chroma (greys and skin barely move)
 	if (gamut > 0) {
 		float gmx = max(n709.r, max(n709.g, n709.b));
 		float gmn = min(n709.r, min(n709.g, n709.b));
@@ -138,7 +138,7 @@ float4 ps_main(VO i) : SV_Target {
 			float3 np3 = float3(dot(float3(0.753833034, 0.198597369, 0.047569597), n709),
 			                    dot(float3(0.045743849, 0.941777220, 0.012478931), n709),
 			                    dot(float3(-0.001210340, 0.017601717, 0.983608623), n709));
-			n = lerp(n, np3, gamut * gs * gs);
+			n = lerp(n, np3, gamut * gs);
 		}
 	}
 	n = max(n, 0);

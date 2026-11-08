@@ -160,7 +160,7 @@
 "float hmn = min(FragColor.r, min(FragColor.g, FragColor.b)); "
 "float hs = hmx > 0.0 ? (hmx - hmn) / hmx : 0.0; "
 "float hw = clamp((FragColor.r - FragColor.b) * 2.0, 0.0, 1.0); "
-"float he = smoothstep(0.82, 1.0, hmx) * smoothstep(0.45, 0.75, hs) * hw * u_HotPixels; "
+"float he = smoothstep(0.65, 0.95, hmx) * smoothstep(0.4, 0.7, hs) * hw * u_HotPixels; "
 "if (he > 0.0) "
 "FragEmit = vec4(he, 0.0, 0.0, u_BlendIndex == 3 ? FragColor.a : 1.0); "
 "} "

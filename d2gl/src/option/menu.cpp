@@ -301,6 +301,8 @@ void Menu::draw()
 			tabEnd();
 		}
 		if (tabBegin("Graphics", 1, &active_tab)) {
+			childBegin("##w3", false);
+			drawLabel("Upscale", m_colors[Color::Orange], 17);
 			drawCombo_m("Upscale Shader Preset", App.shader.presets, "", true, 17, shader_preset);
 			ImGui::SameLine(0.0f, 4.0f);
 			ImGui::BeginDisabled(App.shader.selected == App.shader.presets.selected);
@@ -312,8 +314,29 @@ void Menu::draw()
 				drawCheckbox_m("Shader On World Only", App.shader.world_only, "UI and text skip the shader and stay crisp.", shader_world_only)
 					saveBool("Graphic", "shader_world_only", App.shader.world_only);
 			ImGui::EndDisabled();
-			childBegin("##w3", true);
 			drawSeparator();
+			drawLabel("Stretched Viewport", m_colors[Color::Orange]);
+			drawCheckbox_m("Horizontal", App.viewport.stretched.x, "", stretched_horizontal)
+			{
+				App.context->getCommandBuffer()->resize();
+				saveBool("Graphic", "stretched_horizontal", App.viewport.stretched.x);
+			}
+			ImGui::SameLine(150.0f);
+			drawCheckbox_m("Vertical", App.viewport.stretched.y, "", stretched_vertical)
+			{
+				App.context->getCommandBuffer()->resize();
+				saveBool("Graphic", "stretched_vertical", App.viewport.stretched.y);
+			}
+			drawDescription("Stretch viewport to window size.", m_colors[Color::Gray], 14);
+			drawSeparator();
+			drawCheckbox_m("Native Render", App.game.native_render, "Draw every sprite straight at screen resolution instead of upscaling the finished frame. Restart to apply.", native_render)
+			{
+				saveBool("Graphic", "native_render", App.game.native_render);
+			}
+			drawCombo_m("Native Render Filter", App.game.native_filter, "How sprites are scaled with Native Render: Nearest (uneven pixels), Sharp (pixel-exact, blended at pixel borders), Smooth. Applies live.", false, 17, native_render_filter)
+				saveInt("Graphic", "native_render_filter", App.game.native_filter.selected);
+			drawSeparator();
+			drawLabel("Sharpen & Anti-Aliasing", m_colors[Color::Orange], 17);
 			drawCheckbox_m("Luma Sharpen", App.sharpen.active, "", sharpen)
 				saveBool("Graphic", "sharpen", App.sharpen.active);
 			ImGui::BeginDisabled(!App.sharpen.active);
@@ -334,23 +357,9 @@ void Menu::draw()
 				drawCombo_m("", App.fxaa.presets, "FXAA quality presets.", false, 17, fxaa_preset)
 					saveInt("Graphic", "fxaa_preset", App.fxaa.presets.selected);
 			ImGui::EndDisabled();
-			childSeparator("##w4");
 			drawSeparator();
+			drawLabel("Light", m_colors[Color::Orange], 17);
 			ImGui::BeginDisabled(!ISGLIDE3X());
-				drawCombo_m("Color Grading", App.lut, "Lookup table (LUT).", false, 17, lut)
-					saveInt("Graphic", "lut", App.lut.selected);
-				drawSeparator();
-				drawCheckbox_m("Bloom Effect", App.bloom.active, "", bloom)
-					saveBool("Graphic", "bloom", App.bloom.active);
-				ImGui::BeginDisabled(!App.bloom.active);
-					drawSlider_m(float, "", App.bloom.exposure, "%.3f", "", bloom_exposure)
-						saveFloat("Graphic", "bloom_exposure", App.bloom.exposure.value);
-					drawDescription("Bloom exposure setting.", m_colors[Color::Gray], 12);
-					drawSlider_m(float, "", App.bloom.gamma, "%.3f", "", bloom_gamma)
-						saveFloat("Graphic", "bloom_gamma", App.bloom.gamma.value);
-					drawDescription("Bloom Gamma setting.", m_colors[Color::Gray], 12);
-				ImGui::EndDisabled();
-				drawSeparator();
 				drawCheckbox_m("Dynamic Lighting", App.dynamic_light.active, "Light sources glow and light the world around them.", dynamic_light)
 					saveBool("Graphic", "dynamic_light", App.dynamic_light.active);
 				ImGui::BeginDisabled(!App.dynamic_light.active);
@@ -380,16 +389,7 @@ void Menu::draw()
 						drawDescription("Normal-mapped lighting strength.", m_colors[Color::Gray], 12);
 					ImGui::EndDisabled();
 				ImGui::EndDisabled();
-				drawSeparator();
-				drawSeparator();
-				drawCheckbox_m("HDR Tonemapping", App.tonemap.active, "Expands highlights so brights pop without crushing darks.", tonemap)
-					saveBool("Graphic", "tonemap", App.tonemap.active);
-				ImGui::BeginDisabled(!App.tonemap.active);
-					drawSlider_m(float, "", App.tonemap.exposure, "%.3f", "", tonemap_exposure)
-						saveFloat("Graphic", "tonemap_exposure", App.tonemap.exposure.value);
-					drawDescription("Tonemap exposure.", m_colors[Color::Gray], 12);
-				ImGui::EndDisabled();
-				drawSeparator();
+			drawSeparator();
 				drawCheckbox_m("Radiance GI", App.radiance_gi.active, "Spells, fire and bright lights bounce light onto nearby ground (world only).", radiance_gi)
 					saveBool("Graphic", "radiance_gi", App.radiance_gi.active);
 				ImGui::BeginDisabled(!App.radiance_gi.active);
@@ -397,7 +397,32 @@ void Menu::draw()
 						saveFloat("Graphic", "radiance_gi_strength", App.radiance_gi.strength.value);
 					drawDescription("Radiance GI strength.", m_colors[Color::Gray], 12);
 				ImGui::EndDisabled();
-				drawSeparator();
+			ImGui::EndDisabled();
+			drawSeparator();
+			drawLabel("Colour & Shadows", m_colors[Color::Orange], 17);
+			ImGui::BeginDisabled(!ISGLIDE3X());
+				drawCombo_m("Color Grading", App.lut, "Lookup table (LUT).", false, 17, lut)
+					saveInt("Graphic", "lut", App.lut.selected);
+			drawSeparator();
+				drawCheckbox_m("HDR Tonemapping", App.tonemap.active, "Expands highlights so brights pop without crushing darks.", tonemap)
+					saveBool("Graphic", "tonemap", App.tonemap.active);
+				ImGui::BeginDisabled(!App.tonemap.active);
+					drawSlider_m(float, "", App.tonemap.exposure, "%.3f", "", tonemap_exposure)
+						saveFloat("Graphic", "tonemap_exposure", App.tonemap.exposure.value);
+					drawDescription("Tonemap exposure.", m_colors[Color::Gray], 12);
+				ImGui::EndDisabled();
+			drawSeparator();
+				drawCheckbox_m("Bloom Effect", App.bloom.active, "", bloom)
+					saveBool("Graphic", "bloom", App.bloom.active);
+				ImGui::BeginDisabled(!App.bloom.active);
+					drawSlider_m(float, "", App.bloom.exposure, "%.3f", "", bloom_exposure)
+						saveFloat("Graphic", "bloom_exposure", App.bloom.exposure.value);
+					drawDescription("Bloom exposure setting.", m_colors[Color::Gray], 12);
+					drawSlider_m(float, "", App.bloom.gamma, "%.3f", "", bloom_gamma)
+						saveFloat("Graphic", "bloom_gamma", App.bloom.gamma.value);
+					drawDescription("Bloom Gamma setting.", m_colors[Color::Gray], 12);
+				ImGui::EndDisabled();
+			drawSeparator();
 				drawCheckbox_m("Soft Shadows", App.soft_shadows.active, "Unit shadows are blurred with a soft falloff.", soft_shadows)
 					saveBool("Graphic", "soft_shadows", App.soft_shadows.active);
 				ImGui::BeginDisabled(!App.soft_shadows.active);
@@ -406,27 +431,6 @@ void Menu::draw()
 					drawDescription("Shadow softness (blur radius).", m_colors[Color::Gray], 12);
 				ImGui::EndDisabled();
 			ImGui::EndDisabled();
-			drawSeparator();
-			drawLabel("Stretched Viewport", m_colors[Color::Orange]);
-			drawCheckbox_m("Horizontal", App.viewport.stretched.x, "", stretched_horizontal)
-			{
-				App.context->getCommandBuffer()->resize();
-				saveBool("Graphic", "stretched_horizontal", App.viewport.stretched.x);
-			}
-			ImGui::SameLine(150.0f);
-			drawCheckbox_m("Vertical", App.viewport.stretched.y, "", stretched_vertical)
-			{
-				App.context->getCommandBuffer()->resize();
-				saveBool("Graphic", "stretched_vertical", App.viewport.stretched.y);
-			}
-			drawDescription("Stretch viewport to window size.", m_colors[Color::Gray], 14);
-			drawSeparator();
-			drawCheckbox_m("Native Render", App.game.native_render, "Draw every sprite straight at screen resolution instead of upscaling the finished frame. Restart to apply.", native_render)
-			{
-				saveBool("Graphic", "native_render", App.game.native_render);
-			}
-			drawCombo_m("Native Render Filter", App.game.native_filter, "How sprites are scaled with Native Render: Nearest (uneven pixels), Sharp (pixel-exact, blended at pixel borders), Smooth. Applies live.", false, 17, native_render_filter)
-				saveInt("Graphic", "native_render_filter", App.game.native_filter.selected);
 			childEnd();
 			tabEnd();
 		}
@@ -536,7 +540,8 @@ void Menu::draw()
 		if (tabBegin("HDR", 4, &active_tab)) {
 			// Runs on the render thread, like the presenter, so it reads the presenter directly.
 			const auto hdr_p = App.context->hdrPresenter();
-			childBegin("##hdr0", true);
+			childBegin("##hdr0", false);
+			drawLabel("Output", m_colors[Color::Orange], 17);
 			drawCheckbox_m("HDR10 Output", App.hdr.enabled, "", hdr_enabled)
 				saveBool("HDR", "hdr", App.hdr.enabled);
 			if (App.hdr.enabled != App.hdr.mode && !hdr_p)
@@ -556,7 +561,6 @@ void Menu::draw()
 				} else
 					drawDescription("HDR path inactive (SDR WGL presentation).", m_colors[Color::Gray], 12);
 			}
-			drawSeparator();
 			{
 				char sys_label[64];
 				if (App.hdr.sdr_white_system_nits > 0.0f)
@@ -581,6 +585,37 @@ void Menu::draw()
 				sprintf_s(line, "Using %.0f nits.", hdr_p->effectivePeak());
 				drawDescription(line, m_colors[Color::Gray], 12);
 			}
+			drawCombo_m("Tonemap", App.hdr.tonemap, "", false, 17, hdr_tonemap)
+				saveInt("HDR", "tonemap", App.hdr.tonemap.selected);
+			drawCombo_m("SDR Curve", App.hdr.eotf, "Gamma 2.2 matches D2 on SDR screens.", false, 17, hdr_eotf)
+				saveInt("HDR", "eotf", App.hdr.eotf.selected);
+			drawCheckbox_m("Roll-off From Content", App.hdr.rolloff_content, "Tonemap starts near the display peak instead of ~250 nits: highlights keep their headroom.", hdr_rolloff_content)
+				saveBool("HDR", "rolloff_content", App.hdr.rolloff_content);
+			drawCheckbox_m("Calibration Overlay", App.hdr.calibration, "Paper white, peak and near-black patches.", hdr_calibration) {}
+			drawSeparator();
+			drawLabel("Image", m_colors[Color::Orange], 17);
+			drawSlider_m(float, "Brightness (stops)", App.hdr.brightness, "%.2f", "", hdr_brightness)
+				saveFloat("HDR", "brightness", App.hdr.brightness.value);
+			drawSlider_m(float, "Black Level", App.hdr.black_level, "%.3f", "+ lifts, - crushes shadows.", hdr_black_level)
+				saveFloat("HDR", "black_level", App.hdr.black_level.value);
+			drawSlider_m(float, "Contrast", App.hdr.contrast, "%.2f", "", hdr_contrast)
+				saveFloat("HDR", "contrast", App.hdr.contrast.value);
+			drawSlider_m(float, "Saturation", App.hdr.saturation, "%.2f", "", hdr_saturation)
+				saveFloat("HDR", "saturation", App.hdr.saturation.value);
+			drawSlider_m(float, "Gamut Expansion", App.hdr.gamut_expand, "%.2f", "Saturated colours deepen toward P3 (OLED). Greys and skin barely move. 0 = off.", hdr_gamut_expand)
+				saveFloat("HDR", "gamut_expand", App.hdr.gamut_expand.value);
+			drawSlider_m(float, "Inverse Tone Map", App.hdr.itm, "%.2f", "BT.2446 SDR to HDR expansion toward the peak. 0 = off.", hdr_itm)
+				saveFloat("HDR", "itm", App.hdr.itm.value);
+			drawCheckbox_m("Dither", App.hdr.dither, "Smooths banding in dark gradients.", hdr_dither)
+				saveBool("HDR", "dither", App.hdr.dither);
+			drawSeparator();
+			drawLabel("Highlights", m_colors[Color::Orange], 17);
+			drawSlider_m(float, "Highlight Expansion", App.hdr.highlight, "%.2f", "", hdr_highlight)
+				saveFloat("HDR", "highlight", App.hdr.highlight.value);
+			ImGui::BeginDisabled(App.hdr.highlight.value <= 0.0f);
+				drawSlider_m(float, "Highlight Knee", App.hdr.knee, "%.2f", "", hdr_knee)
+					saveFloat("HDR", "highlight_knee", App.hdr.knee.value);
+			ImGui::EndDisabled();
 			drawCheckbox_m("Emissive Highlights", App.hdr.emissive, "Spells, fire and auras above paper white; UI stays at paper white.", hdr_emissive)
 				saveBool("HDR", "emissive", App.hdr.emissive);
 			ImGui::BeginDisabled(!App.hdr.emissive);
@@ -591,7 +626,6 @@ void Menu::draw()
 				drawSlider_m(float, "Emissive Gain", App.hdr.emissive_gain, "%.2f", "", hdr_emissive_gain)
 					saveFloat("HDR", "emissive_gain", App.hdr.emissive_gain.value);
 			ImGui::EndDisabled();
-			drawSeparator();
 			drawSlider_m(float, "Light Highlights", App.hdr.light_highlights, "%.2f", "Floors and walls lit above the area's ambient glow (needs Emissive + Dynamic Light). 0 = off.", hdr_light_highlights)
 				saveFloat("HDR", "light_highlights", App.hdr.light_highlights.value);
 			drawSlider_m(float, "Hot Pixels", App.hdr.hot_pixels, "%.2f", "Torches, braziers and lava glow (bright warm pixels, needs Emissive). 0 = off.", hdr_hot_pixels)
@@ -604,6 +638,10 @@ void Menu::draw()
 				drawSlider_m(float, "Item Glow Strength", App.hdr.item_glow_strength, "%.2f", "", hdr_item_glow_strength)
 					saveFloat("HDR", "item_glow_strength", App.hdr.item_glow_strength.value);
 			ImGui::EndDisabled();
+			drawSeparator();
+			drawLabel("Scenes", m_colors[Color::Orange], 17);
+			drawSlider_m(float, "Movie/Menu White (nits)", App.hdr.movie_nits, "%.0f", "0 = Paper White. Movies, menus and loading skip brightness and highlights.", hdr_movie_nits)
+				saveFloat("HDR", "movie_nits", App.hdr.movie_nits.value);
 			drawCheckbox_m("Per-Act Grading", App.hdr.act_grading, "Own exposure and colour tint per act (Act 2 warm, Act 3 green, Act 4 red, Act 5 cold).", hdr_act_grading)
 				saveBool("HDR", "act_grading", App.hdr.act_grading);
 			ImGui::BeginDisabled(!App.hdr.act_grading);
@@ -621,34 +659,6 @@ void Menu::draw()
 				drawSlider_m(float, "Act 5 Exposure", act_exp5, "%.2f", "", hdr_act5)
 					saveFloat("HDR", "act5_exposure", App.hdr.act_exposure[4].value);
 			ImGui::EndDisabled();
-			childSeparator("##hdr1");
-			drawSlider_m(float, "Brightness (stops)", App.hdr.brightness, "%.2f", "", hdr_brightness)
-				saveFloat("HDR", "brightness", App.hdr.brightness.value);
-			drawSlider_m(float, "Black Level", App.hdr.black_level, "%.3f", "+ lifts, - crushes shadows.", hdr_black_level)
-				saveFloat("HDR", "black_level", App.hdr.black_level.value);
-			drawSlider_m(float, "Contrast", App.hdr.contrast, "%.2f", "", hdr_contrast)
-				saveFloat("HDR", "contrast", App.hdr.contrast.value);
-			drawSlider_m(float, "Saturation", App.hdr.saturation, "%.2f", "", hdr_saturation)
-				saveFloat("HDR", "saturation", App.hdr.saturation.value);
-			drawSlider_m(float, "Gamut Expansion", App.hdr.gamut_expand, "%.2f", "Saturated colours deepen toward P3 (OLED). Greys and skin barely move. 0 = off.", hdr_gamut_expand)
-				saveFloat("HDR", "gamut_expand", App.hdr.gamut_expand.value);
-			drawSlider_m(float, "Inverse Tone Map", App.hdr.itm, "%.2f", "BT.2446 SDR to HDR expansion toward the peak. 0 = off.", hdr_itm)
-				saveFloat("HDR", "itm", App.hdr.itm.value);
-			drawCheckbox_m("Dither", App.hdr.dither, "Smooths banding in dark gradients.", hdr_dither)
-				saveBool("HDR", "dither", App.hdr.dither);
-			drawSlider_m(float, "Highlight Expansion", App.hdr.highlight, "%.2f", "", hdr_highlight)
-				saveFloat("HDR", "highlight", App.hdr.highlight.value);
-			ImGui::BeginDisabled(App.hdr.highlight.value <= 0.0f);
-				drawSlider_m(float, "Highlight Knee", App.hdr.knee, "%.2f", "", hdr_knee)
-					saveFloat("HDR", "highlight_knee", App.hdr.knee.value);
-			ImGui::EndDisabled();
-			drawCombo_m("Tonemap", App.hdr.tonemap, "", false, 17, hdr_tonemap)
-				saveInt("HDR", "tonemap", App.hdr.tonemap.selected);
-			drawCombo_m("SDR Curve", App.hdr.eotf, "Gamma 2.2 matches D2 on SDR screens.", false, 17, hdr_eotf)
-				saveInt("HDR", "eotf", App.hdr.eotf.selected);
-			drawSlider_m(float, "Movie/Menu White (nits)", App.hdr.movie_nits, "%.0f", "0 = Paper White. Movies, menus and loading skip brightness and highlights.", hdr_movie_nits)
-				saveFloat("HDR", "movie_nits", App.hdr.movie_nits.value);
-			drawCheckbox_m("Calibration Overlay", App.hdr.calibration, "Paper white, peak and near-black patches.", hdr_calibration) {}
 			childEnd();
 			tabEnd();
 		}

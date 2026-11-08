@@ -151,17 +151,25 @@ constexpr float MP3_2020[3][3] = {
 	{-0.001210340f, 0.017601717f, 0.983608623f},
 };
 // Gamut expansion: blend the 709 -> 2020 result toward "treat the colour as P3", weighted by chroma
-// squared so greys and skin barely move while saturated colours deepen.
+// so greys barely move while saturated colours deepen.
 inline float3 to2020_expanded(float3 c, float strength) {
 	float3 a = rec709_to_2020(c);
 	if (strength <= 0.0f) return a;
 	float mx = std::max({c.r, c.g, c.b}), mn = std::min({c.r, c.g, c.b});
 	if (mx <= 0.0f) return a;
-	float s = (mx - mn) / mx, t = strength * s * s;
+	float s = (mx - mn) / mx, t = strength * s;
 	float3 b = {MP3_2020[0][0] * c.r + MP3_2020[0][1] * c.g + MP3_2020[0][2] * c.b,
 	            MP3_2020[1][0] * c.r + MP3_2020[1][1] * c.g + MP3_2020[1][2] * c.b,
 	            MP3_2020[2][0] * c.r + MP3_2020[2][1] * c.g + MP3_2020[2][2] * c.b};
 	return {a.r + (b.r - a.r) * t, a.g + (b.g - a.g) * t, a.b + (b.b - a.b) * t};
+}
+
+// [HDR] rolloff_content: the EETF source peak from what the game can produce (4x the exposed paper
+// white, at least 1.25x the display peak) instead of 10000 nits, so the roll-off starts near the
+// display peak and highlights keep their headroom.
+inline float content_src_peak(const Params& p) {
+	const float white = p.sdr_white_nits * std::exp2(p.brightness_stops);
+	return std::clamp(4.0f * white, 1.25f * p.peak_nits, 10000.0f);
 }
 
 // SDR signal (opaque final composite) -> PQ Rec.2020 code values in [0,1].

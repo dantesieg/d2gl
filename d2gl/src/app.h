@@ -218,6 +218,7 @@ struct D2GLApp {
 		Range<float> emissive_gain = { 1.5f, 0.5f, 4.0f };       // emission = clamp(additive luma * gain)
 		bool emissive_graded = false; // R16F emission, unbounded; alpha = 1 / (1 + e), decoded in the presenter
 		Range<float> movie_nits = { 0.0f, 0.0f, 500.0f }; // paper white of movies/menus/loading; 0 = sdr_white
+		bool rolloff_content = false; // BT.2390 source peak from the game content (4x exposed white) instead of 10000 nits
 		Range<float> gamut_expand = { 0.0f, 0.0f, 1.0f };  // saturated colours toward P3 (0 = off)
 		Range<float> itm = { 0.0f, 0.0f, 1.0f };           // BT.2446 Method A inverse tone mapping (0 = off)
 		bool dither = false;                               // +-1 LSB noise before the HDR encode

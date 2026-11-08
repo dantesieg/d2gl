@@ -380,6 +380,9 @@ void saveIni()
 		"; Paper white in nits for movies, menus and loading screens (0 = same as sdr_white, up to 500).\n"
 		"; These also skip brightness, highlight expansion and emissive.\n"
 		"movie_nits=%.1f\n"
+		"; Tonemap roll-off from the real content peak (4x the exposed paper white) instead of 10000 nits:\n"
+		"; highlights keep their headroom up to the display peak.\n"
+		"rolloff_content=%s\n"
 		"; Gamut expansion: saturated colours deepen from Rec.709 toward P3; greys and skin barely move (0-1).\n"
 		"gamut_expand=%.2f\n"
 		"; BT.2446 Method A inverse tone mapping: SDR expanded toward the peak on luminance (0 = off, 1 = full).\n"
@@ -421,6 +424,7 @@ void saveIni()
 		App.hdr.emissive_gain.value,
 		boolString(App.hdr.emissive_graded),
 		App.hdr.movie_nits.value,
+		boolString(App.hdr.rolloff_content),
 		App.hdr.gamut_expand.value,
 		App.hdr.itm.value,
 		boolString(App.hdr.dither),
@@ -628,6 +632,7 @@ void loadIni()
 		App.hdr.emissive_gain.value = getFloat("HDR", "emissive_gain", App.hdr.emissive_gain);
 		App.hdr.emissive_graded = getBool("HDR", "emissive_graded", App.hdr.emissive_graded);
 		App.hdr.movie_nits.value = getFloat("HDR", "movie_nits", App.hdr.movie_nits);
+		App.hdr.rolloff_content = getBool("HDR", "rolloff_content", App.hdr.rolloff_content);
 		App.hdr.gamut_expand.value = getFloat("HDR", "gamut_expand", App.hdr.gamut_expand);
 		App.hdr.itm.value = getFloat("HDR", "itm", App.hdr.itm);
 		App.hdr.dither = getBool("HDR", "dither", App.hdr.dither);

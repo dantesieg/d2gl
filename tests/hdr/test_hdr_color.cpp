@@ -115,6 +115,10 @@ int main()
 	{ float3 g = to2020_expanded({0.5f, 0.5f, 0.5f}, 1.0f), r0 = to2020_expanded({1, 0, 0}, 0.0f), r1 = to2020_expanded({1, 0, 0}, 1.0f);
 	  near("gamut: grey kept r", g.r, 0.5, 1e-4); near("gamut: grey kept b", g.b, 0.5, 1e-4);
 	  check(r1.g < r0.g && r1.r > r0.r, "gamut: red deepens", r1.g, r0.g, 0); }
+	{ Params r; r.sdr_white_nits = 240; r.brightness_stops = 1; r.peak_nits = 1015; r.src_peak_nits = content_src_peak(r);
+	  near("rolloff_content src peak", r.src_peak_nits, 1920.0, 0.5);
+	  check(nits_of(1.0f, r) > 470.0, "rolloff_content keeps 480-nit white", nits_of(1.0f, r), 480, 0);
+	  Params q3 = r; q3.src_peak_nits = 10000; check(nits_of(1.0f, q3) < nits_of(1.0f, r), "10000-nit source compresses white more", 0, 0, 0); }
 	near("EETF(src peak) -> dst peak", bt2390_eetf_nits(10000, 10000, 1000), 1000.0, 1.0);
 	near("EETF identity at paper white", bt2390_eetf_nits(200, 10000, 1000), 200.0, 0.05);
 	q = p; q.peak_nits = 400; q.brightness_stops = 2.0f;
