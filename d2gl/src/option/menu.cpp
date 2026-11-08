@@ -662,12 +662,6 @@ void Menu::draw()
 			ImGui::EndDisabled();
 			drawCombo_m("Tonemap", App.hdr.tonemap, "", false, 17, hdr_tonemap)
 				saveInt("HDR", "tonemap", App.hdr.tonemap.selected);
-			ImGui::BeginDisabled(App.hdr.tonemap.selected != 2);
-				drawSlider_m(float, "DICE Shoulder", App.hdr.dice_shoulder, "%.2f", "Roll-off start (share of peak). Lower = softer highlights.", hdr_dice_shoulder)
-					saveFloat("HDR", "dice_shoulder", App.hdr.dice_shoulder.value);
-			ImGui::EndDisabled();
-			drawSlider_m(float, "UI White (nits)", App.hdr.ui_nits, "%.0f", "0 = off. Own brightness for panels, text and belt in game.", hdr_ui_nits)
-				saveFloat("HDR", "ui_nits", App.hdr.ui_nits.value);
 			drawCombo_m("SDR Curve", App.hdr.eotf, "Gamma 2.2 matches D2 on SDR screens.", false, 17, hdr_eotf)
 				saveInt("HDR", "eotf", App.hdr.eotf.selected);
 			drawSlider_m(float, "Movie/Menu White (nits)", App.hdr.movie_nits, "%.0f", "0 = Paper White. Movies, menus and loading skip brightness and highlights.", hdr_movie_nits)

@@ -13,7 +13,7 @@ cbuffer P : register(b0) {
 	float knee; int transfer; int tonemap; int out_mode;
 	float gain; float black; float contrast; float saturation;
 	int calib; int flip_y; float width; float height;
-	float emit_scale; int graded; float dice; float ui_white;
+	float emit_scale; int graded; float pad1; float pad2;
 	float3 tint; float pad3;
 };
 Texture2D<float4> src : register(t0);
@@ -44,21 +44,6 @@ float4 ps_main(VO i) : SV_Target {
 	float3 rgb = texel.rgb;
 	float ev = 1.0 - texel.a;                           // GL wrote alpha = 1 - emission ([HDR] emissive)
 	if (out_mode == 0) return float4(saturate(rgb), 1); // SDR swapchain: signal unchanged
-	// [HDR] ui_nits: UI drawn after the emit pass left alpha 1 (world <= 253/255): own paper white, clip at peak
-	if (ui_white > 0) {
-		if (texel.a > 254.0 / 255.0) {
-			float3 ua = abs(saturate(rgb));
-			float ug = 2.2;
-			if (transfer == 1) ug = 2.4;
-			float3 ul = pow(ua, ug) * ui_white;
-			float3 un = float3(dot(float3(0.627403896, 0.329283039, 0.043313065), ul),
-			                   dot(float3(0.069097289, 0.919540395, 0.011362316), ul),
-			                   dot(float3(0.016391439, 0.088013307, 0.895595253), ul));
-			un = min(max(un, 0), peak);
-			return float4(PQ_ENC(un.r), PQ_ENC(un.g), PQ_ENC(un.b), 1);
-		}
-		ev = max(ev - 2.0 / 255.0, 0); // undo the 253/255 cap
-	}
 
 	// Calibration overlay: dark band with paper-white (signal 1.0, full pipeline), peak (direct peak nits)
 	// and five near-black steps (signal 0, 1, 2, 3, 5 % through the full pipeline).
@@ -115,7 +100,6 @@ float4 ps_main(VO i) : SV_Target {
 	if (emit_scale > 0) {
 		float ee = saturate(ev);
 		if (graded == 1) ee = min(1.0 / max(texel.a, 1.0 / 255.0) - 1.0, 254.0);
-		if (graded == 1 && ui_white > 0) ee = max(ee - 2.0 / 253.0, 0);
 		lin = lin * (1.0 + ee * emit_scale);
 	}
 	float3 n709 = lin * sdr_white;
@@ -125,15 +109,6 @@ float4 ps_main(VO i) : SV_Target {
 	n = max(n, 0);
 	if (tonemap == 0) {
 		n = min(n, peak);
-	} else if (tonemap == 2) {
-		float dm = max(n.r, max(n.g, n.b));
-		float dpp = PQ_ENC(peak);
-		float dsp = PQ_ENC(peak * dice);
-		float de = PQ_ENC(dm);
-		if (dm > 0 && de > dsp) {
-			float dout = PQ_DEC(dpp - (dpp - dsp) * exp(-(de - dsp) / (dpp - dsp)));
-			n = max(n * (dout / dm), 0);
-		}
 	} else {
 		float m = max(n.r, max(n.g, n.b));
 		float sp = PQ_ENC(src_peak);
@@ -161,7 +136,7 @@ struct ShaderConstants {
 	float knee; int transfer, tonemap, out_mode;
 	float gain, black, contrast, saturation;
 	int calib, flip_y; float width, height;
-	float emit_scale; int graded; float dice, ui_white;
+	float emit_scale; int graded; float pad1, pad2;
 	float tint_r, tint_g, tint_b, pad3;
 };
 static_assert(sizeof(ShaderConstants) == 96, "cbuffer layout");
@@ -170,7 +145,7 @@ inline ShaderConstants makeConstants(const Params& p, int out_mode, bool calib, 
 {
 	return { p.sdr_white_nits, p.peak_nits, p.src_peak_nits, p.highlight_strength, p.highlight_knee, (int)p.transfer,
 		(int)p.tonemap, out_mode, std::exp2(p.brightness_stops), p.black_level, p.contrast, p.saturation,
-		calib ? 1 : 0, flip_y ? 1 : 0, w, h, emit_scale, graded ? 1 : 0, p.dice_shoulder, p.ui_white_nits, p.tint[0], p.tint[1], p.tint[2], 0.0f };
+		calib ? 1 : 0, flip_y ? 1 : 0, w, h, emit_scale, graded ? 1 : 0, 0.0f, 0.0f, p.tint[0], p.tint[1], p.tint[2], 0.0f };
 }
 
 }

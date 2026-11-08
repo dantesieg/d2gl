@@ -209,9 +209,7 @@ struct D2GLApp {
 		Range<float> saturation = { 1.0f, 0.5f, 1.5f };
 		Range<float> highlight = { 0.0f, 0.0f, 1.0f };
 		Range<float> knee = { 0.75f, 0.5f, 0.95f };
-		Select<int> tonemap = { 1, { { "Clip", 0 }, { "BT.2390 roll-off", 1 }, { "DICE (RenoDX)", 2 } } };
-		Range<float> dice_shoulder = { 0.5f, 0.2f, 0.9f }; // DICE: roll-off start as a share of peak nits
-		Range<float> ui_nits = { 0.0f, 0.0f, 500.0f };      // in-game UI paper white; 0 = off (same as the world)
+		Select<int> tonemap = { 1, { { "Clip", 0 }, { "BT.2390 roll-off", 1 } } };
 		Select<int> eotf = { 0, { { "Gamma 2.2", 0 }, { "Gamma 2.4", 1 }, { "sRGB piecewise", 2 } } };
 		bool calibration = false;
 		bool float_pipeline = false; // [HDR] float_pipeline: RGBA16F scene buffers + transfer (restart)

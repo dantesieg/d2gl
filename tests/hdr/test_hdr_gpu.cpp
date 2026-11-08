@@ -82,7 +82,6 @@ int main()
 		{"black -0.04", [] { Params p; p.black_level = -0.04f; return p; }(), false},
 		{"contrast 1.15", [] { Params p; p.contrast = 1.15f; return p; }(), false},
 		{"contrast 0.85", [] { Params p; p.contrast = 0.85f; return p; }(), false},
-		{"DICE shoulder .4, +1 stop, peak 600", [] { Params p; p.tonemap = Tonemap::DICE; p.dice_shoulder = 0.4f; p.brightness_stops = 1.0f; p.peak_nits = 600; return p; }(), false},
 		{"brightness +1.5 stops, peak 600", [] { Params p; p.brightness_stops = 1.5f; p.peak_nits = 600; return p; }(), false},
 		{"highlight 1.0 knee .6, peak 1015", [] { Params p; p.highlight_strength = 1.0f; p.highlight_knee = 0.6f; p.peak_nits = 1015; return p; }(), false},
 		{"all controls", [] { Params p; p.sdr_white_nits = 300; p.peak_nits = 800; p.brightness_stops = -0.5f; p.black_level = 0.02f;

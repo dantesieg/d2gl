@@ -10,7 +10,7 @@ namespace d2gl::hdr {
 struct float3 { float r, g, b; };
 
 enum class Transfer : int { GAMMA22 = 0, GAMMA24 = 1, SRGB_PIECEWISE = 2 };
-enum class Tonemap : int { CLIP = 0, BT2390 = 1, DICE = 2 };
+enum class Tonemap : int { CLIP = 0, BT2390 = 1 };
 
 struct Params {
 	float sdr_white_nits = 200.0f;   // paper white: SDR 1.0 maps here
@@ -25,8 +25,6 @@ struct Params {
 	Transfer transfer = Transfer::GAMMA22;
 	Tonemap tonemap = Tonemap::BT2390;
 	float tint[3] = { 1.0f, 1.0f, 1.0f }; // per-act colour grading (linear multiplier)
-	float dice_shoulder = 0.5f;  // DICE: roll-off start as a share of peak nits (compressed in PQ)
-	float ui_white_nits = 0.0f;  // >0: alpha-tagged UI pixels use this paper white (shader only)
 };
 
 constexpr float CONTRAST_PIVOT = 0.18f;
@@ -118,19 +116,7 @@ inline float bt2390_eetf_nits(float nits, float src_peak, float dst_peak) {
 	}
 	return pq_decode(std::min(e2, 1.0f) * src_pq);
 }
-// DICE (RenoDX / Lilium): from shoulder * peak nits an exponential shoulder in PQ space on the max channel, so hue is kept.
-inline float dice_nits(float nits, float peak, float shoulder) {
-	float pp = pq_encode(peak), sp = pq_encode(peak * shoulder), e = pq_encode(nits);
-	if (e <= sp) return nits;
-	return pq_decode(pp - (pp - sp) * std::exp(-(e - sp) / (pp - sp)));
-}
 inline float3 tonemap_nits(float3 c, const Params& p) {
-	if (p.tonemap == Tonemap::DICE) {
-		float m = std::max({c.r, c.g, c.b});
-		if (m <= 0.0f) return {0, 0, 0};
-		float s = dice_nits(m, p.peak_nits, p.dice_shoulder) / m;
-		return {c.r * s, c.g * s, c.b * s};
-	}
 	if (p.tonemap == Tonemap::CLIP)
 		return {std::clamp(c.r, 0.0f, p.peak_nits), std::clamp(c.g, 0.0f, p.peak_nits), std::clamp(c.b, 0.0f, p.peak_nits)};
 	float m = std::max({c.r, c.g, c.b});
