@@ -620,7 +620,10 @@ void Context::renderThread(void* context)
 							ctx->m_game_pipeline->setUniform1f("u_SpellGlow", last_glow = st.spell_glow);
 						if (!same_pipe || last_filter != App.game.native_filter.selected)
 							ctx->m_game_pipeline->setUniform1i("u_NativeFilter", last_filter = App.game.native_filter.selected);
-						static float last_flicker = -1.0f, last_item_glow = -1.0f, last_hot = -1.0f;
+						static float last_flicker = -1.0f, last_item_glow = -1.0f, last_hot = -1.0f, last_unit = -1.0f;
+						const float unit_emit = ctx->m_emit_attached ? App.hdr.unit_emissive.value : 1.0f;
+						if (!same_pipe || last_unit != unit_emit)
+							ctx->m_game_pipeline->setUniform1f("u_UnitEmit", last_unit = unit_emit);
 						const float hot = ctx->m_emit_attached ? App.hdr.hot_pixels.value : 0.0f;
 						if (!same_pipe || last_hot != hot)
 							ctx->m_game_pipeline->setUniform1f("u_HotPixels", last_hot = hot);
@@ -1538,6 +1541,9 @@ void Context::pushVertex(const GlideVertex* vertex, glm::vec2 fix, glm::ivec2 of
 	m_vertices.ptr->tex_ids = m_vertex_params.tex_ids;
 	m_vertices.ptr->flags = m_vertex_params.flags;
 	m_vertices.ptr->tex_rect = m_vertex_params.tex_rect;
+	if (App.hdr.unit_emissive.value < 1.0f && m_emit_attached && App.game.draw_stage == DrawStage::World && d2::currently_drawing_unit &&
+		(d2::currently_drawing_unit->dwType == d2::UnitType::Player || d2::currently_drawing_unit->dwType == d2::UnitType::Monster))
+		m_vertices.ptr->flags.z |= 0x80; // [HDR] unit_emissive: auras and glows on units (missiles are not units here)
 	if (App.hdr.item_glow && m_emit_attached && App.game.draw_stage == DrawStage::World && d2::currently_drawing_unit) {
 		// [HDR] item_glow: tag valuable ground item sprites (flag z high nibble), classified once per unit draw
 		static d2::UnitAny* last_unit = nullptr;

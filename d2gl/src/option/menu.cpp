@@ -640,6 +640,8 @@ void Menu::draw()
 				saveFloat("HDR", "light_highlights", App.hdr.light_highlights.value);
 			drawSlider_m(float, "Hot Pixels", App.hdr.hot_pixels, "%.2f", "Torches, braziers and lava glow (bright warm pixels, needs Emissive). 0 = off.", hdr_hot_pixels)
 				saveFloat("HDR", "hot_pixels", App.hdr.hot_pixels.value);
+			drawSlider_m(float, "Aura & Unit Glow", App.hdr.unit_emissive, "%.2f", "Auras and glows on players, mercs, summons and monsters vs spells (1 = same). Needs Emissive.", hdr_unit_emissive)
+				saveFloat("HDR", "unit_emissive", App.hdr.unit_emissive.value);
 			drawCheckbox_m("Item Glow", App.hdr.item_glow, "Uniques, sets and runes on the ground glow in HDR (needs Emissive).", hdr_item_glow) {
 				saveBool("HDR", "item_glow", App.hdr.item_glow);
 				modules::LootSparkle::Instance().toggle(App.loot_sparkle.active || App.minion_ring || App.hdr.item_glow);

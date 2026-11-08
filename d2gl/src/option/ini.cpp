@@ -393,6 +393,9 @@ void saveIni()
 		"light_highlights=%.2f\n"
 		"; Hot pixels: bright saturated warm pixels of opaque sprites (torches, braziers, lava) glow (needs emissive, 0-2).\n"
 		"hot_pixels=%.2f\n"
+		"; Unit glow: auras and glows drawn on players, mercs, summons and monsters, as a share of spell emission\n"
+		"; and of the floor light they cast (1.0 = same as spells, 0 = none; needs emissive).\n"
+		"unit_emissive=%.2f\n"
 		"; Item glow: uniques, sets and runes on the ground glow above paper white (needs emissive, strength 0.25-3).\n"
 		"item_glow=%s\n"
 		"item_glow_strength=%.2f\n"
@@ -430,6 +433,7 @@ void saveIni()
 		boolString(App.hdr.dither),
 		App.hdr.light_highlights.value,
 		App.hdr.hot_pixels.value,
+		App.hdr.unit_emissive.value,
 		boolString(App.hdr.item_glow),
 		App.hdr.item_glow_strength.value,
 		boolString(App.hdr.act_grading),
@@ -638,6 +642,7 @@ void loadIni()
 		App.hdr.dither = getBool("HDR", "dither", App.hdr.dither);
 		App.hdr.light_highlights.value = getFloat("HDR", "light_highlights", App.hdr.light_highlights);
 		App.hdr.hot_pixels.value = getFloat("HDR", "hot_pixels", App.hdr.hot_pixels);
+		App.hdr.unit_emissive.value = getFloat("HDR", "unit_emissive", App.hdr.unit_emissive);
 		App.hdr.item_glow = getBool("HDR", "item_glow", App.hdr.item_glow);
 		App.hdr.item_glow_strength.value = getFloat("HDR", "item_glow_strength", App.hdr.item_glow_strength);
 		App.hdr.act_grading = getBool("HDR", "act_grading", App.hdr.act_grading);

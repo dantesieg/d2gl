@@ -224,6 +224,7 @@ struct D2GLApp {
 		bool dither = false;                               // +-1 LSB noise before the HDR encode
 		Range<float> light_highlights = { 0.0f, 0.0f, 2.0f }; // lit floors/walls above area ambient glow (needs emissive + dynamic light)
 		Range<float> hot_pixels = { 0.0f, 0.0f, 2.0f };    // bright saturated warm pixels of opaque sprites (torches, lava) emit (needs emissive)
+		Range<float> unit_emissive = { 1.0f, 0.0f, 1.0f }; // auras/glows on players and monsters: share of spell emission + floor light
 		bool item_glow = false;                          // valuable ground items glow above paper white (needs emissive)
 		Range<float> item_glow_strength = { 1.0f, 0.25f, 3.0f };
 		bool act_grading = false;                         // per-act exposure + colour tint in game

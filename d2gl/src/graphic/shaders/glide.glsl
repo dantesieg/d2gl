@@ -66,6 +66,7 @@ uniform int u_BlendIndex; // pipeline blend index: 0 opaque, 1 multiply, 2 addit
 uniform float u_LightFlicker; // [Graphic] light_flicker: 0 = off, spell/fire light pulses up to +-45 %
 uniform float u_Time;         // seconds, wraps every hour
 uniform float u_HotPixels;    // [HDR] hot_pixels: bright saturated warm pixels of opaque world sprites emit (0 = off)
+uniform float u_UnitEmit;     // [HDR] unit_emissive: additive draws on players/monsters (auras, glows) scale emission and floor light (1 = as spells)
 uniform float u_ItemGlow;     // [HDR] item_glow: emission of valuable ground items (needs emissive)
 uniform float u_SpellGlow; // additive draws feed the light buffer at this strength
 
@@ -194,7 +195,7 @@ void main()
 				float n = mix(mix(n00, n10, cf.x), mix(n01, n11, cf.x), cf.y);
 				fl = 1.0 + (n * 2.0 - 1.0) * 0.45 * u_LightFlicker;
 			}
-			FragLight = vec4(FragColor.rgb * u_SpellGlow * fl, 0.0);
+			FragLight = vec4(FragColor.rgb * u_SpellGlow * fl * ((v_Flags.z & 128u) != 0u ? u_UnitEmit : 1.0), 0.0);
 		}
 	}
 
@@ -203,7 +204,7 @@ void main()
 	// (SAlpha_OneMinusSAlpha, attenuates); multiply adds 0 (One_One).
 	if (u_BlendIndex == 2) {
 		if (v_Flags.w == 0u || v_Flags.w == 11u)
-			FragEmit = vec4(dot(FragColor.rgb, vec3(0.299, 0.587, 0.114)), 0.0, 0.0, 0.0);
+			FragEmit = vec4(dot(FragColor.rgb, vec3(0.299, 0.587, 0.114)) * ((v_Flags.z & 128u) != 0u ? u_UnitEmit : 1.0), 0.0, 0.0, 0.0);
 	} else if (u_BlendIndex == 3 && sk != 4u) // alpha shadows paint no colour
 		FragEmit = vec4(0.0, 0.0, 0.0, FragColor.a);
 	// [HDR] hot_pixels: flames, braziers, lava (opaque or alpha world sprites, not shadows)
@@ -217,7 +218,7 @@ void main()
 			FragEmit = vec4(he, 0.0, 0.0, u_BlendIndex == 3 ? FragColor.a : 1.0);
 	}
 	// [HDR] item_glow: valuable ground items (z >> 4 = 1 rune, 2 set, 3 unique) emit their own colour's luma
-	uint ig = v_Flags.z >> 4u;
+	uint ig = (v_Flags.z >> 4u) & 3u;
 	if (ig > 0u && u_ItemGlow > 0.0 && (u_BlendIndex == 0 || u_BlendIndex == 3) && sk == 0u)
 		FragEmit = vec4(dot(FragColor.rgb, vec3(0.299, 0.587, 0.114)) * u_ItemGlow * (0.5 + 0.25 * float(ig)), 0.0, 0.0, u_BlendIndex == 3 ? FragColor.a : 1.0);
 
