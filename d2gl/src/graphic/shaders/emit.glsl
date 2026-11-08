@@ -49,7 +49,9 @@ float LightEmission()
 	// relative to the area: light twice the ambient is a full highlight, so dim dungeons count too
 	float ls = dot(s.rgb, vec3(0.299, 0.587, 0.114));
 	float la = dot(texture(u_AmbientTexture, vec2(0.5)).rgb, vec3(0.299, 0.587, 0.114)) * s.a;
-	return clamp((ls - la) / max(la, 0.15), 0.0, 2.0) * 0.5 * u_LightHi;
+	float e = clamp((ls - la) / max(la, 0.15), 0.0, 2.0) * 0.5 * u_LightHi;
+	// soft shoulder toward 0.6: lit floors top out around three quarters of the peak, spells keep the rest
+	return 0.6 * (1.0 - exp(-e / 0.6));
 }
 
 void main()
