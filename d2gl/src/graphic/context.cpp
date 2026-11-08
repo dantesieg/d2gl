@@ -34,6 +34,11 @@
 #include <imgui/imgui_impl_win32.h>
 #include <dwmapi.h>
 
+// Game-thread time blocked on the render thread (pacing / vsync), QPC ticks. Exported for d2modern
+// FrameBudget so frame work excludes the wait.
+static volatile int64_t g_game_wait_qpc = 0;
+extern "C" __declspec(dllexport) int64_t __cdecl d2gl_game_wait_qpc() { return g_game_wait_qpc; }
+
 namespace d2gl {
 
 Context::Context()
@@ -1628,12 +1633,14 @@ void Context::presentFrame()
 	ReleaseSemaphore(m_semaphore_cpu[m_frame_index], 1, NULL);
 	m_frame_index = (m_frame_index + 1) % (App.frame_latency + 1);
 
-	if (m_perf) {
+	{
 		const int64_t t = qpcNow();
 		WaitForSingleObject(m_semaphore_gpu[m_frame_index], INFINITE);
-		m_perf_wait_ms = qpcMs(qpcNow() - t);
-	} else
-		WaitForSingleObject(m_semaphore_gpu[m_frame_index], INFINITE);
+		const int64_t w = qpcNow() - t;
+		g_game_wait_qpc += w; // game thread only; read by d2modern FrameBudget on the same thread
+		if (m_perf)
+			m_perf_wait_ms = qpcMs(w);
+	}
 	m_command_buffer[m_frame_index].reset();
 
 	QueryPerformanceCounter(&m_frame.time);
