@@ -715,6 +715,117 @@ void Presenter::waitForFrame()
 		WaitForSingleObjectEx(m_latency_wait, 100, TRUE);
 }
 
+// ---------------------------------------------------------------------------------- HDR screenshot
+// 16-bit RGB PNG of the HDR10 back buffer (PQ code values, BT.2020) with a cICP chunk (9/16/0/1) so
+// HDR-aware viewers show it in HDR. Stored (uncompressed) deflate: no zlib dependency.
+static uint32_t pngCrc(const uint8_t* d, size_t n, uint32_t c = 0xFFFFFFFFu)
+{
+	static uint32_t t[256];
+	static bool init = false;
+	if (!init) {
+		for (uint32_t i = 0; i < 256; i++) {
+			uint32_t k = i;
+			for (int j = 0; j < 8; j++)
+				k = (k & 1) ? 0xEDB88320u ^ (k >> 1) : k >> 1;
+			t[i] = k;
+		}
+		init = true;
+	}
+	for (size_t i = 0; i < n; i++)
+		c = t[(c ^ d[i]) & 0xFF] ^ (c >> 8);
+	return c;
+}
+static void pngBe32(std::vector<uint8_t>& v, uint32_t x) { v.push_back((uint8_t)(x >> 24)); v.push_back((uint8_t)(x >> 16)); v.push_back((uint8_t)(x >> 8)); v.push_back((uint8_t)x); }
+static void pngChunk(std::vector<uint8_t>& out, const char* type, const std::vector<uint8_t>& data)
+{
+	pngBe32(out, (uint32_t)data.size());
+	const size_t start = out.size();
+	out.insert(out.end(), type, type + 4);
+	out.insert(out.end(), data.begin(), data.end());
+	pngBe32(out, pngCrc(out.data() + start, out.size() - start) ^ 0xFFFFFFFFu);
+}
+
+void Presenter::saveHdrScreenshot()
+{
+	ID3D11Texture2D* bb = nullptr;
+	if (FAILED(m_sc->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&bb)) || !bb)
+		return;
+	D3D11_TEXTURE2D_DESC d;
+	bb->GetDesc(&d);
+	d.Usage = D3D11_USAGE_STAGING;
+	d.BindFlags = 0;
+	d.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+	d.MiscFlags = 0;
+	ID3D11Texture2D* st = nullptr;
+	if (d.Format != DXGI_FORMAT_R10G10B10A2_UNORM || FAILED(m_dev->CreateTexture2D(&d, nullptr, &st))) {
+		safeRelease(bb);
+		return;
+	}
+	m_ctx->CopyResource(st, bb);
+	safeRelease(bb);
+	D3D11_MAPPED_SUBRESOURCE m;
+	if (FAILED(m_ctx->Map(st, 0, D3D11_MAP_READ, 0, &m))) {
+		safeRelease(st);
+		return;
+	}
+	const uint32_t w = d.Width, h = d.Height;
+	std::vector<uint8_t> raw;
+	raw.reserve((size_t)(w * 6 + 1) * h);
+	for (uint32_t y = 0; y < h; y++) {
+		raw.push_back(0); // filter: none
+		const uint32_t* row = (const uint32_t*)((const uint8_t*)m.pData + (size_t)y * m.RowPitch);
+		for (uint32_t x = 0; x < w; x++) {
+			const uint32_t p = row[x];
+			for (int c = 0; c < 3; c++) {
+				const uint32_t v10 = (p >> (10 * c)) & 0x3FF;
+				const uint16_t v = (uint16_t)((v10 << 6) | (v10 >> 4));
+				raw.push_back((uint8_t)(v >> 8));
+				raw.push_back((uint8_t)v);
+			}
+		}
+	}
+	m_ctx->Unmap(st, 0);
+	safeRelease(st);
+
+	std::vector<uint8_t> z = { 0x78, 0x01 };
+	uint32_t a = 1, b = 0;
+	for (size_t i = 0; i < raw.size(); i += 65535) {
+		const uint16_t n = (uint16_t)std::min<size_t>(65535, raw.size() - i);
+		z.push_back(i + n >= raw.size() ? 1 : 0);
+		z.push_back((uint8_t)n); z.push_back((uint8_t)(n >> 8));
+		z.push_back((uint8_t)~n); z.push_back((uint8_t)(~n >> 8));
+		z.insert(z.end(), raw.begin() + i, raw.begin() + i + n);
+	}
+	for (uint8_t c : raw) {
+		a = (a + c) % 65521;
+		b = (b + a) % 65521;
+	}
+	pngBe32(z, (b << 16) | a);
+
+	std::vector<uint8_t> out = { 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A };
+	std::vector<uint8_t> ihdr;
+	pngBe32(ihdr, w);
+	pngBe32(ihdr, h);
+	ihdr.insert(ihdr.end(), { 16, 2, 0, 0, 0 }); // 16-bit RGB
+	pngChunk(out, "IHDR", ihdr);
+	pngChunk(out, "cICP", { 9, 16, 0, 1 }); // BT.2020 primaries, PQ, RGB, full range
+	pngChunk(out, "IDAT", z);
+	pngChunk(out, "IEND", {});
+
+	char name[40] = { 0 };
+	for (int i = 1; i < 999; i++) {
+		sprintf_s(name, "ScreenshotHDR%03d.png", i);
+		if (GetFileAttributesA(name) == INVALID_FILE_ATTRIBUTES)
+			break;
+	}
+	FILE* f = nullptr;
+	if (fopen_s(&f, name, "wb") == 0 && f) {
+		fwrite(out.data(), 1, out.size(), f);
+		fclose(f);
+		trace_log("HDR: screenshot %s (%ux%u, PQ BT.2020)", name, w, h);
+	}
+}
+
 bool Presenter::present(bool vsync)
 {
 	if (!m_sc || !m_fbo)
@@ -835,6 +946,19 @@ bool Presenter::present(bool vsync)
 		m_sh_cur = (m_sh_cur + 1) % SHARED;
 		glBindFramebuffer(GL_FRAMEBUFFER, m_fbo);
 		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_sh_gltex[m_sh_cur], 0);
+	}
+
+	// HDR screenshot: the game's screenshot key, or a d2gl_hdr_ss.req file in the game folder (polled ~1/s)
+	if (++m_ss_poll >= 60) {
+		m_ss_poll = 0;
+		if (GetFileAttributesA("d2gl_hdr_ss.req") != INVALID_FILE_ATTRIBUTES) {
+			DeleteFileA("d2gl_hdr_ss.req");
+			m_ss_request = true;
+		}
+	}
+	if (m_ss_request && m_hdr_presenting) {
+		m_ss_request = false;
+		saveHdrScreenshot();
 	}
 
 	HRESULT hr = m_sc->Present(vsync ? 1 : 0, 0);

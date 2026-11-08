@@ -60,6 +60,7 @@ public:
 	const char* refusal() const { return m_refusal; }
 	float effectivePeak() const { return m_effective_peak; }
 	int lostCount() const { return m_lost_count; }
+	void requestScreenshot() { m_ss_request = true; } // next presented HDR10 frame -> ScreenshotHDR###.png (16-bit, cICP PQ/BT.2020)
 	void setEmissive(bool on, bool graded = false) { m_emissive = on; m_emissive_graded = graded; } // render thread: GL wrote 1 - emission into alpha this frame
 	void setCinematic(bool on) { m_cinematic = on; } // render thread: movie / menu / loading frame ([HDR] movie_nits)
 
@@ -123,6 +124,9 @@ private:
 	float m_metadata_peak = 0.0f;
 	float m_effective_peak = 1000.0f;
 	int m_lost_count = 0;
+	bool m_ss_request = false;
+	uint32_t m_ss_poll = 0;
+	void saveHdrScreenshot();
 	bool m_emissive = false;
 	bool m_cinematic = false;
 	bool m_emissive_graded = false;

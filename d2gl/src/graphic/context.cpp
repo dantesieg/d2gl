@@ -1866,6 +1866,8 @@ void Context::takeScreenShot()
 
 	std::string file_name = helpers::saveScreenShot(data, App.viewport.size.x, App.viewport.size.y);
 	delete[] data;
+	if (m_hdr)
+		m_hdr->requestScreenshot(); // also the HDR10 frame as ScreenshotHDR###.png
 }
 
 void Context::imguiInit()
