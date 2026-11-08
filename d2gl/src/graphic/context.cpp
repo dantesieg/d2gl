@@ -22,6 +22,7 @@
 #include "helpers.h"
 #include "modules/hd_cursor.h"
 #include "modules/hd_text.h"
+#include "modules/loot_sparkle.h"
 #include "modules/mini_map.h"
 #include "modules/motion_prediction.h"
 #include "option/menu.h"
@@ -632,6 +633,14 @@ void Context::renderThread(void* context)
 							ctx->m_game_pipeline->setUniform1f("u_SpellGlow", last_glow = st.spell_glow);
 						if (!same_pipe || last_filter != App.game.native_filter.selected)
 							ctx->m_game_pipeline->setUniform1i("u_NativeFilter", last_filter = App.game.native_filter.selected);
+						static float last_flicker = -1.0f, last_item_glow = -1.0f;
+						if (!same_pipe || last_flicker != App.dynamic_light.flicker.value)
+							ctx->m_game_pipeline->setUniform1f("u_LightFlicker", last_flicker = App.dynamic_light.flicker.value);
+						if (App.dynamic_light.flicker.value > 0.0f)
+							ctx->m_game_pipeline->setUniform1f("u_Time", (float)fmod((double)GetTickCount64() * 0.001, 3600.0));
+						const float item_glow = (App.hdr.item_glow && ctx->m_emit_attached && !App.hdr.float_mode) ? App.hdr.item_glow_strength.value : 0.0f;
+						if (!same_pipe || last_item_glow != item_glow)
+							ctx->m_game_pipeline->setUniform1f("u_ItemGlow", last_item_glow = item_glow);
 						if (App.hdr.float_mode)
 							ctx->m_game_pipeline->setUniform1f("u_AddScale", ctx->m_add_scale);
 						const float emit = ctx->m_emit_attached ? 1.0f : 0.0f;
@@ -1685,6 +1694,18 @@ void Context::pushVertex(const GlideVertex* vertex, glm::vec2 fix, glm::ivec2 of
 	m_vertices.ptr->tex_ids = m_vertex_params.tex_ids;
 	m_vertices.ptr->flags = m_vertex_params.flags;
 	m_vertices.ptr->tex_rect = m_vertex_params.tex_rect;
+	if (App.hdr.item_glow && m_emit_attached && App.game.draw_stage == DrawStage::World && d2::currently_drawing_unit) {
+		// [HDR] item_glow: tag valuable ground item sprites (flag z high nibble), classified once per unit draw
+		static d2::UnitAny* last_unit = nullptr;
+		static uint8_t last_level = 0;
+		static uint32_t last_frame = 0;
+		if (d2::currently_drawing_unit != last_unit || last_frame != m_frame.frame_count) {
+			last_unit = d2::currently_drawing_unit;
+			last_frame = m_frame.frame_count;
+			last_level = d2::currently_drawing_unit->dwType == d2::UnitType::Item ? modules::LootSparkle::itemGlowLevel(last_unit) : 0;
+		}
+		m_vertices.ptr->flags.z |= (uint8_t)(last_level << 4);
+	}
 	if (m_shadow_fx && App.game.draw_stage == DrawStage::World && m_shadow_draw != 2) {
 		// High nibble of flag x tags shadow-buffer writes (see glide.glsl).
 		const uint32_t blend = m_current_blend_index;

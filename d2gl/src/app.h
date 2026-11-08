@@ -104,7 +104,7 @@ struct D2GLApp {
 		glm::vec2 tex_scale = { 1.0f, 1.0f };
 		glm::uvec2 render_size = { 640, 480 }; // game framebuffer size: = size, or the screen size with native_render
 		bool native_render = false;            // [Graphic] native_render: draw sprites straight at screen resolution
-		Select<int> native_filter = { 1, { { "Nearest", 0 }, { "Sharp", 1 }, { "Smooth", 2 } } }; // [Graphic] native_render_filter
+		Select<int> native_filter = { 1, { { "Nearest", 0 }, { "Sharp", 1 }, { "Smooth", 2 }, { "Pixel Art", 3 } } }; // [Graphic] native_render_filter
 	} game;
 
 	struct {
@@ -166,6 +166,7 @@ struct D2GLApp {
 		bool depth_haze = false;
 		Range<float> depth_haze_strength = { 0.5f, 0.0f, 1.0f };
 		Range<float> spell_glow = { 0.5f, 0.0f, 1.5f };
+		Range<float> flicker = { 0.0f, 0.0f, 1.0f }; // [Graphic] light_flicker: spell/fire light pulses (0 = off)
 	} dynamic_light;
 
 	struct {
@@ -228,6 +229,8 @@ struct D2GLApp {
 		Range<float> emissive_gain = { 1.5f, 0.5f, 4.0f };       // emission = clamp(additive luma * gain)
 		bool emissive_graded = false; // R16F emission, unbounded; alpha = 1 / (1 + e), decoded in the presenter
 		Range<float> movie_nits = { 0.0f, 0.0f, 500.0f }; // paper white of movies/menus/loading; 0 = sdr_white
+		bool item_glow = false;                          // valuable ground items glow above paper white (needs emissive)
+		Range<float> item_glow_strength = { 1.0f, 0.25f, 3.0f };
 		bool act_grading = false;                         // per-act exposure + colour tint in game
 		Range<float> act_tint = { 1.0f, 0.0f, 2.0f };     // tint strength (0 = exposure only)
 		Range<float> act_exposure[5] = { { 0.0f, -1.0f, 1.0f }, { -0.25f, -1.0f, 1.0f }, { 0.0f, -1.0f, 1.0f }, { 0.0f, -1.0f, 1.0f }, { 0.0f, -1.0f, 1.0f } }; // stops

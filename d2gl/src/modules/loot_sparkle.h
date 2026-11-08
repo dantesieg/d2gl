@@ -45,6 +45,7 @@ public:
 	}
 
 	void toggle(bool active);
+	static uint8_t itemGlowLevel(d2::UnitAny* unit); // [HDR] item_glow: 0 none, 1 rune, 2 set, 3 unique (ground items)
 	void record(d2::CellContext* cell, int x, int y);
 	void draw();
 };

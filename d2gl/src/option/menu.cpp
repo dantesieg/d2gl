@@ -370,6 +370,8 @@ void Menu::draw()
 					ImGui::EndDisabled();
 					drawSlider_m(float, "Spell Glow", App.dynamic_light.spell_glow, "%.3f", "How much spells and fire light the world (game vertex lighting).", spell_glow)
 						saveFloat("Graphic", "spell_glow", App.dynamic_light.spell_glow.value);
+					drawSlider_m(float, "Light Flicker", App.dynamic_light.flicker, "%.2f", "Spell and fire light pulses unevenly over the room. 0 = off.", light_flicker)
+						saveFloat("Graphic", "light_flicker", App.dynamic_light.flicker.value);
 					drawCheckbox_m("Normal-Mapped Lighting", App.dynamic_light.normals, "Shade sprites and walls toward nearby lights for a 3D look.", light_normals)
 						saveBool("Graphic", "light_normals", App.dynamic_light.normals);
 					ImGui::BeginDisabled(!App.dynamic_light.normals);
@@ -423,7 +425,7 @@ void Menu::draw()
 			{
 				saveBool("Graphic", "native_render", App.game.native_render);
 			}
-			drawCombo_m("Native Render Filter", App.game.native_filter, "How sprites are scaled with Native Render: Nearest (uneven pixels), Sharp (pixel-exact, blended at pixel borders), Smooth. Applies live.", false, 17, native_render_filter)
+			drawCombo_m("Native Render Filter", App.game.native_filter, "How sprites are scaled with Native Render: Nearest (uneven pixels), Sharp (pixel-exact, blended at pixel borders), Smooth, Pixel Art (smooth diagonals, no colour bleed). Applies live.", false, 17, native_render_filter)
 				saveInt("Graphic", "native_render_filter", App.game.native_filter.selected);
 			childEnd();
 			tabEnd();
@@ -494,7 +496,7 @@ void Menu::draw()
 			ImGui::BeginDisabled(!ISGLIDE3X());
 				drawCheckbox_m("Loot Sparkle", App.loot_sparkle.active, "Short sparkle when a valuable item drops (glide only).", loot_sparkle)
 				{
-					modules::LootSparkle::Instance().toggle(App.loot_sparkle.active || App.minion_ring);
+					modules::LootSparkle::Instance().toggle(App.loot_sparkle.active || App.minion_ring || App.hdr.item_glow);
 					saveBool("Feature", "loot_sparkle", App.loot_sparkle.active);
 				}
 				ImGui::BeginDisabled(!App.loot_sparkle.active);
@@ -508,7 +510,7 @@ void Menu::draw()
 				ImGui::BeginDisabled(!(isVer(V_114d)));
 					drawCheckbox_m("Minion Ring", App.minion_ring, "Soft green ring under your summons (glide only, 1.14d).", minion_ring)
 					{
-						modules::LootSparkle::Instance().toggle(App.loot_sparkle.active || App.minion_ring);
+						modules::LootSparkle::Instance().toggle(App.loot_sparkle.active || App.minion_ring || App.hdr.item_glow);
 						saveBool("Feature", "minion_ring", App.minion_ring);
 					}
 				ImGui::EndDisabled();
@@ -604,6 +606,14 @@ void Menu::draw()
 					saveFloat("HDR", "emissive_gain", App.hdr.emissive_gain.value);
 			ImGui::EndDisabled();
 			drawSeparator();
+			drawCheckbox_m("Item Glow", App.hdr.item_glow, "Uniques, sets and runes on the ground glow in HDR (needs Emissive).", hdr_item_glow) {
+				saveBool("HDR", "item_glow", App.hdr.item_glow);
+				modules::LootSparkle::Instance().toggle(App.loot_sparkle.active || App.minion_ring || App.hdr.item_glow);
+			}
+			ImGui::BeginDisabled(!App.hdr.item_glow);
+				drawSlider_m(float, "Item Glow Strength", App.hdr.item_glow_strength, "%.2f", "", hdr_item_glow_strength)
+					saveFloat("HDR", "item_glow_strength", App.hdr.item_glow_strength.value);
+			ImGui::EndDisabled();
 			drawCheckbox_m("Per-Act Grading", App.hdr.act_grading, "Own exposure and colour tint per act (Act 2 warm, Act 3 green, Act 4 red, Act 5 cold).", hdr_act_grading)
 				saveBool("HDR", "act_grading", App.hdr.act_grading);
 			ImGui::BeginDisabled(!App.hdr.act_grading);

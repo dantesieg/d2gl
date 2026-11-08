@@ -63,6 +63,9 @@ layout(std140) uniform ubo_Colors {
 
 uniform sampler2DArray u_Texture;
 uniform int u_BlendIndex; // pipeline blend index: 0 opaque, 1 multiply, 2 additive, 3 alpha
+uniform float u_LightFlicker; // [Graphic] light_flicker: 0 = off, spell/fire light pulses up to +-45 %
+uniform float u_Time;         // seconds, wraps every hour
+uniform float u_ItemGlow;     // [HDR] item_glow: emission of valuable ground items (needs emissive)
 uniform float u_SpellGlow; // additive draws feed the light buffer at this strength
 uniform float u_EmitRGB; // [HDR] float_pipeline + diffuse_shoulder: FragEmit = rgb share of additive light in FragColor
 uniform float u_AddScale; // [HDR] float_pipeline: additive world draws scaled above 1.0 (0/1 = off)
@@ -80,8 +83,50 @@ uniform int u_NativeFilter;  // 0 nearest, 1 sharp (pixel-exact inside, blended 
 // native_render: palette sprites are scaled per sprite as they are drawn. Filtering runs on palette
 // colours (4 texelFetch, clamped to the sprite's own atlas rect so neighbours never bleed in);
 // colour-keyed texels drop out of the blend, coverage < 0.5 is discarded (crisp, fringe-free outlines).
+// Pixel Art (native_render_filter 3): palette-aware EPX-style diagonals. Edges are found by comparing
+// palette indices (no colour bleed); where two neighbours of the same index meet at a corner, the
+// corner triangle takes that index, anti-aliased over one screen pixel. Index 0 (key) cuts corners.
+float idxAt(vec2 c, vec2 lo, vec2 hi) { return texelFetch(u_Texture, ivec3(ivec2(clamp(c, lo, hi)), v_TexIds.x), 0).r; }
+bool pixelArtSample(out vec4 col)
+{
+	vec2 q = v_TexCoord * 512.0;
+	vec2 c = floor(q);
+	vec2 f = q - c - 0.5;
+	vec2 lo = vec2(v_TexRect.xy);
+	vec2 hi = lo + vec2(v_TexRect.zw) - 1.0;
+	bool key = (v_Flags.x & 15u) == 1u;
+	vec2 sg = vec2(f.x < 0.0 ? -1.0 : 1.0, f.y < 0.0 ? -1.0 : 1.0);
+	float ci = idxAt(c, lo, hi);
+	float h = idxAt(c + vec2(sg.x, 0.0), lo, hi);
+	float v = idxAt(c + vec2(0.0, sg.y), lo, hi);
+	float pick = ci;
+	float cov = 0.0;
+	if (h == v && h != ci && h != idxAt(c - vec2(0.0, sg.y), lo, hi) && v != idxAt(c - vec2(sg.x, 0.0), lo, hi)) {
+		float w = 0.5 / max(max(u_NativeScale.x, u_NativeScale.y), 1.0);
+		cov = smoothstep(-w, w, abs(f.x) + abs(f.y) - 0.5);
+		pick = h;
+	}
+	bool ck = key && ci == 0.0;
+	bool pk = key && pick == 0.0;
+	if (cov <= 0.0 || pick == ci) {
+		if (ck) return false;
+		col = u_Palette[int(ci * 255.0 + 0.5)];
+		return true;
+	}
+	if (ck || pk) { // transparency has no blend: hard cut at half coverage
+		float use = cov >= 0.5 ? pick : ci;
+		if (key && use == 0.0) return false;
+		col = u_Palette[int(use * 255.0 + 0.5)];
+		return true;
+	}
+	col = mix(u_Palette[int(ci * 255.0 + 0.5)], u_Palette[int(pick * 255.0 + 0.5)], cov);
+	return true;
+}
+
 bool nativeSample(out vec4 col)
 {
+	if (u_NativeFilter == 3)
+		return pixelArtSample(col);
 	vec2 p = v_TexCoord * 512.0 - 0.5;
 	vec2 i0 = floor(p);
 	vec2 f = p - i0;
@@ -150,7 +195,7 @@ void main()
 	FragColor.r = u_Gamma[int(FragColor.r * 255)].r;
 	FragColor.g = u_Gamma[int(FragColor.g * 255)].g;
 	FragColor.b = u_Gamma[int(FragColor.b * 255)].b;
-	FragColor.a = v_Flags.z == 1u ? v_Color2.a : (v_Flags.z == 2u ? v_Color1.a : 1.0);
+	FragColor.a = (v_Flags.z & 15u) == 1u ? v_Color2.a : ((v_Flags.z & 15u) == 2u ? v_Color1.a : 1.0); // z >> 4: item glow level
 
 	FragColorMap = vec4(0.0);
 	if (v_Flags.w > 0u && v_Flags.w < 10u)
@@ -176,7 +221,26 @@ void main()
 		if (u_BlendIndex == 0)
 			FragLight = vec4(v_Color1.rgb, 1.0);
 		else if (u_BlendIndex == 2)
-			FragLight = vec4(FragColor.rgb * u_SpellGlow, 0.0);
+		{
+			float fl = 1.0;
+			if (u_LightFlicker > 0.0) {
+				// smooth value noise in time, varied over 160 px screen cells; lightning (blue) flickers faster
+				vec2 cell = gl_FragCoord.xy / 160.0;
+				vec2 ci0 = floor(cell);
+				vec2 cf = smoothstep(0.0, 1.0, cell - ci0);
+				float rate = FragColor.b > FragColor.r * 1.2 ? 17.0 : 7.0;
+				float t = u_Time * rate;
+				float ti = floor(t);
+				float tf = smoothstep(0.0, 1.0, t - ti);
+				float n00 = mix(fract(sin(dot(ci0, vec2(12.9898, 78.233)) + ti * 0.731) * 43758.5453), fract(sin(dot(ci0, vec2(12.9898, 78.233)) + (ti + 1.0) * 0.731) * 43758.5453), tf);
+				float n10 = mix(fract(sin(dot(ci0 + vec2(1, 0), vec2(12.9898, 78.233)) + ti * 0.731) * 43758.5453), fract(sin(dot(ci0 + vec2(1, 0), vec2(12.9898, 78.233)) + (ti + 1.0) * 0.731) * 43758.5453), tf);
+				float n01 = mix(fract(sin(dot(ci0 + vec2(0, 1), vec2(12.9898, 78.233)) + ti * 0.731) * 43758.5453), fract(sin(dot(ci0 + vec2(0, 1), vec2(12.9898, 78.233)) + (ti + 1.0) * 0.731) * 43758.5453), tf);
+				float n11 = mix(fract(sin(dot(ci0 + vec2(1, 1), vec2(12.9898, 78.233)) + ti * 0.731) * 43758.5453), fract(sin(dot(ci0 + vec2(1, 1), vec2(12.9898, 78.233)) + (ti + 1.0) * 0.731) * 43758.5453), tf);
+				float n = mix(mix(n00, n10, cf.x), mix(n01, n11, cf.x), cf.y);
+				fl = 1.0 + (n * 2.0 - 1.0) * 0.45 * u_LightFlicker;
+			}
+			FragLight = vec4(FragColor.rgb * u_SpellGlow * fl, 0.0);
+		}
 	}
 
 	// Emission attachment: additive world sprites (spells, fire, lightning, auras) add their luma;
@@ -187,6 +251,10 @@ void main()
 			FragEmit = vec4(dot(FragColor.rgb, vec3(0.299, 0.587, 0.114)), 0.0, 0.0, 0.0);
 	} else if (u_BlendIndex == 3 && sk != 4u) // alpha shadows paint no colour
 		FragEmit = vec4(0.0, 0.0, 0.0, FragColor.a);
+	// [HDR] item_glow: valuable ground items (z >> 4 = 1 rune, 2 set, 3 unique) emit their own colour's luma
+	uint ig = v_Flags.z >> 4u;
+	if (ig > 0u && u_ItemGlow > 0.0 && (u_BlendIndex == 0 || u_BlendIndex == 3) && sk == 0u)
+		FragEmit = vec4(dot(FragColor.rgb, vec3(0.299, 0.587, 0.114)) * u_ItemGlow * (0.5 + 0.25 * float(ig)), 0.0, 0.0, u_BlendIndex == 3 ? FragColor.a : 1.0);
 
 	// Float pipeline: additive world light (spells, fire) lands above 1.0 in the float game buffer.
 	if (u_AddScale > 1.0 && u_BlendIndex == 2 && (v_Flags.w == 0u || v_Flags.w == 11u))

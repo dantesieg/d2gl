@@ -105,6 +105,12 @@ static int64_t nowMs()
 // [Feature] loot_sparkle_duration (default 1.1 s = the original 1100 ms)
 static int64_t sparkleMs() { return (int64_t)std::llround(glm::clamp(App.loot_sparkle.duration.value, 0.5f, 10.0f) * 1000.0); }
 
+uint8_t LootSparkle::itemGlowLevel(d2::UnitAny* unit)
+{
+	const int kind = classifyItem(unit);
+	return kind == 2 ? 1 : kind == 3 ? 2 : kind == 4 ? 3 : 0;
+}
+
 void LootSparkle::toggle(bool active)
 {
 	active = active && ISGLIDE3X();

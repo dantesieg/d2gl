@@ -217,7 +217,9 @@ void saveIni()
 		"light_depth_haze=%s\n"
 		"light_depth_haze_strength=%.3f\n"
 		"; Spell glow: how much spells and fire light the world (game vertex lighting, 0.0-1.5).\n"
-		"spell_glow=%.3f\n\n"
+		"spell_glow=%.3f\n"
+		"; Light flicker: spell and fire light pulses unevenly over the room (0.0 = off, up to 1.0).\n"
+		"light_flicker=%.3f\n\n"
 		"; HDR-style tonemapping (world only, exposure: 0.2-1.0).\n"
 		"tonemap=%s\n"
 		"tonemap_exposure=%.3f\n\n"
@@ -259,6 +261,7 @@ void saveIni()
 		boolString(App.dynamic_light.depth_haze),
 		App.dynamic_light.depth_haze_strength.value,
 		App.dynamic_light.spell_glow.value,
+		App.dynamic_light.flicker.value,
 		boolString(App.tonemap.active),
 		App.tonemap.exposure.value,
 		boolString(App.soft_shadows.active),
@@ -377,6 +380,9 @@ void saveIni()
 		"; Paper white in nits for movies, menus and loading screens (0 = same as sdr_white, up to 500).\n"
 		"; These also skip brightness, highlight expansion and emissive.\n"
 		"movie_nits=%.1f\n"
+		"; Item glow: uniques, sets and runes on the ground glow above paper white (needs emissive, strength 0.25-3).\n"
+		"item_glow=%s\n"
+		"item_glow_strength=%.2f\n"
 		"; Per-act grading: exposure offset in stops per act and a colour tint (strength 0-2).\n"
 		"act_grading=%s\n"
 		"act_tint=%.2f\n"
@@ -422,6 +428,8 @@ void saveIni()
 		App.hdr.emissive_gain.value,
 		boolString(App.hdr.emissive_graded),
 		App.hdr.movie_nits.value,
+		boolString(App.hdr.item_glow),
+		App.hdr.item_glow_strength.value,
 		boolString(App.hdr.act_grading),
 		App.hdr.act_tint.value,
 		App.hdr.act_exposure[0].value,
@@ -560,6 +568,7 @@ void loadIni()
 		App.dynamic_light.depth_haze = getBool("Graphic", "light_depth_haze", App.dynamic_light.depth_haze);
 		App.dynamic_light.depth_haze_strength.value = getFloat("Graphic", "light_depth_haze_strength", App.dynamic_light.depth_haze_strength);
 		App.dynamic_light.spell_glow.value = getFloat("Graphic", "spell_glow", App.dynamic_light.spell_glow);
+		App.dynamic_light.flicker.value = getFloat("Graphic", "light_flicker", App.dynamic_light.flicker);
 		App.tonemap.active = getBool("Graphic", "tonemap", App.tonemap.active);
 		App.tonemap.exposure.value = getFloat("Graphic", "tonemap_exposure", App.tonemap.exposure);
 		App.soft_shadows.active = getBool("Graphic", "soft_shadows", App.soft_shadows.active);
@@ -570,7 +579,7 @@ void loadIni()
 		App.viewport.stretched.x = getBool("Graphic", "stretched_horizontal", App.viewport.stretched.x);
 		App.viewport.stretched.y = getBool("Graphic", "stretched_vertical", App.viewport.stretched.y);
 		App.game.native_render = getBool("Graphic", "native_render", App.game.native_render);
-		App.game.native_filter.selected = getInt("Graphic", "native_render_filter", App.game.native_filter.selected, 0, 2);
+		App.game.native_filter.selected = getInt("Graphic", "native_render_filter", App.game.native_filter.selected, 0, 3);
 
 		App.hd_cursor = getBool("Feature", "hd_cursor", App.hd_cursor);
 		App.hd_text.active = getBool("Feature", "hd_text", App.hd_text.active);
@@ -631,6 +640,8 @@ void loadIni()
 		App.hdr.emissive_gain.value = getFloat("HDR", "emissive_gain", App.hdr.emissive_gain);
 		App.hdr.emissive_graded = getBool("HDR", "emissive_graded", App.hdr.emissive_graded);
 		App.hdr.movie_nits.value = getFloat("HDR", "movie_nits", App.hdr.movie_nits);
+		App.hdr.item_glow = getBool("HDR", "item_glow", App.hdr.item_glow);
+		App.hdr.item_glow_strength.value = getFloat("HDR", "item_glow_strength", App.hdr.item_glow_strength);
 		App.hdr.act_grading = getBool("HDR", "act_grading", App.hdr.act_grading);
 		App.hdr.act_tint.value = getFloat("HDR", "act_tint", App.hdr.act_tint);
 		for (int i = 0; i < 5; i++) {
