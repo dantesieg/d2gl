@@ -291,9 +291,7 @@ void saveIni()
 		"; Minimap opacity in percent (10-100).\n"
 		"mini_map_opacity=%d\n\n"
 		"; D2DX's Motion Prediction.\n"
-		"motion_prediction=%s\n"
-		"; Motion prediction uses the real game tick times from d2modern.dll when it is loaded.\n"
-		"motion_prediction_ticks=%s\n\n"
+		"motion_prediction=%s\n\n"
 		"; Loot sparkle: short sparkle when a valuable item drops (glide only).\n"
 		"; loot_sparkle_min_quality: 0 magic, 1 rare/rune, 2 set, 3 unique.\n"
 		"loot_sparkle=%s\n"
@@ -328,7 +326,6 @@ void saveIni()
 		App.mini_map.height.value,
 		App.mini_map.opacity.value,
 		boolString(App.motion_prediction),
-		boolString(App.motion_prediction_ticks),
 		boolString(App.loot_sparkle.active),
 		App.loot_sparkle.min_quality.selected,
 		boolString(App.loot_sparkle.colors),
@@ -590,7 +587,6 @@ void loadIni()
 		App.hd_text.bg_opacity.value = getInt("Feature", "hd_text_bg_opacity", App.hd_text.bg_opacity.value, App.hd_text.bg_opacity.min, App.hd_text.bg_opacity.max);
 
 		App.motion_prediction = getBool("Feature", "motion_prediction", App.motion_prediction);
-		App.motion_prediction_ticks = getBool("Feature", "motion_prediction_ticks", App.motion_prediction_ticks);
 
 		App.loot_sparkle.active = getBool("Feature", "loot_sparkle", App.loot_sparkle.active);
 
