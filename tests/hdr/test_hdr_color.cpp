@@ -107,6 +107,14 @@ int main()
 	q = p; q.highlight_strength = 1.0f;
 	near("expansion: below knee untouched", nits_of(0.5f, q), nits_of(0.5f, p), 1e-4);
 	check(nits_of(1.0f, q) > nits_of(1.0f, p), "expansion: white boosted when on", nits_of(1.0f, q), nits_of(1.0f, p), 0);
+	// BT.2446 Method A ITM: SDR white -> peak, monotonic, black stays black
+	near("ITM white -> peak", bt2446a_itm_ratio(1.0f, 1000.0f, 200.0f), 5.0, 0.02);
+	check(bt2446a_itm_ratio(0.18f, 1000.0f, 200.0f) * 0.18f < bt2446a_itm_ratio(0.5f, 1000.0f, 200.0f) * 0.5f, "ITM monotonic", 0, 0, 0);
+	{ Params q2; q2.itm = 0.0f; near("ITM off = identity", nits_of(0.5f, q2), nits_of(0.5f, Params{}), 1e-3); }
+	// gamut expansion: grey unchanged, saturated red more saturated in 2020
+	{ float3 g = to2020_expanded({0.5f, 0.5f, 0.5f}, 1.0f), r0 = to2020_expanded({1, 0, 0}, 0.0f), r1 = to2020_expanded({1, 0, 0}, 1.0f);
+	  near("gamut: grey kept r", g.r, 0.5, 1e-4); near("gamut: grey kept b", g.b, 0.5, 1e-4);
+	  check(r1.g < r0.g && r1.r > r0.r, "gamut: red deepens", r1.g, r0.g, 0); }
 	near("EETF(src peak) -> dst peak", bt2390_eetf_nits(10000, 10000, 1000), 1000.0, 1.0);
 	near("EETF identity at paper white", bt2390_eetf_nits(200, 10000, 1000), 200.0, 0.05);
 	q = p; q.peak_nits = 400; q.brightness_stops = 2.0f;

@@ -380,6 +380,16 @@ void saveIni()
 		"; Paper white in nits for movies, menus and loading screens (0 = same as sdr_white, up to 500).\n"
 		"; These also skip brightness, highlight expansion and emissive.\n"
 		"movie_nits=%.1f\n"
+		"; Gamut expansion: saturated colours deepen from Rec.709 toward P3; greys and skin barely move (0-1).\n"
+		"gamut_expand=%.2f\n"
+		"; BT.2446 Method A inverse tone mapping: SDR expanded toward the peak on luminance (0 = off, 1 = full).\n"
+		"itm=%.2f\n"
+		"; Dither the 8-bit image before the HDR encode (smooth dark gradients).\n"
+		"dither=%s\n"
+		"; Light highlights: floors and walls lit above the area's ambient glow (needs emissive and dynamic_light, 0-2).\n"
+		"light_highlights=%.2f\n"
+		"; Hot pixels: bright saturated warm pixels of opaque sprites (torches, braziers, lava) glow (needs emissive, 0-2).\n"
+		"hot_pixels=%.2f\n"
 		"; Item glow: uniques, sets and runes on the ground glow above paper white (needs emissive, strength 0.25-3).\n"
 		"item_glow=%s\n"
 		"item_glow_strength=%.2f\n"
@@ -411,6 +421,11 @@ void saveIni()
 		App.hdr.emissive_gain.value,
 		boolString(App.hdr.emissive_graded),
 		App.hdr.movie_nits.value,
+		App.hdr.gamut_expand.value,
+		App.hdr.itm.value,
+		boolString(App.hdr.dither),
+		App.hdr.light_highlights.value,
+		App.hdr.hot_pixels.value,
 		boolString(App.hdr.item_glow),
 		App.hdr.item_glow_strength.value,
 		boolString(App.hdr.act_grading),
@@ -613,6 +628,11 @@ void loadIni()
 		App.hdr.emissive_gain.value = getFloat("HDR", "emissive_gain", App.hdr.emissive_gain);
 		App.hdr.emissive_graded = getBool("HDR", "emissive_graded", App.hdr.emissive_graded);
 		App.hdr.movie_nits.value = getFloat("HDR", "movie_nits", App.hdr.movie_nits);
+		App.hdr.gamut_expand.value = getFloat("HDR", "gamut_expand", App.hdr.gamut_expand);
+		App.hdr.itm.value = getFloat("HDR", "itm", App.hdr.itm);
+		App.hdr.dither = getBool("HDR", "dither", App.hdr.dither);
+		App.hdr.light_highlights.value = getFloat("HDR", "light_highlights", App.hdr.light_highlights);
+		App.hdr.hot_pixels.value = getFloat("HDR", "hot_pixels", App.hdr.hot_pixels);
 		App.hdr.item_glow = getBool("HDR", "item_glow", App.hdr.item_glow);
 		App.hdr.item_glow_strength.value = getFloat("HDR", "item_glow_strength", App.hdr.item_glow_strength);
 		App.hdr.act_grading = getBool("HDR", "act_grading", App.hdr.act_grading);

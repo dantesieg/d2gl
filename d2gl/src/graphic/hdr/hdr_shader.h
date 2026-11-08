@@ -13,8 +13,8 @@ cbuffer P : register(b0) {
 	float knee; int transfer; int tonemap; int out_mode;
 	float gain; float black; float contrast; float saturation;
 	int calib; int flip_y; float width; float height;
-	float emit_scale; int graded; float pad1; float pad2;
-	float3 tint; float pad3;
+	float emit_scale; int graded; float gamut; float dither;
+	float3 tint; float itm;
 };
 Texture2D<float4> src : register(t0);
 SamplerState smp : register(s0);
@@ -42,6 +42,14 @@ float4 ps_main(VO i) : SV_Target {
 	if (flip_y == 1) uv.y = 1.0 - uv.y;                 // GL rows are bottom-up
 	float4 texel = src.Sample(smp, uv);
 	float3 rgb = texel.rgb;
+	// [HDR] dither: triangular noise of +-1 LSB on the 8-bit composite, so stretched dark gradients do not band
+	if (dither > 0 && out_mode != 0) {
+		float2 dp = i.pos.xy;
+		float d1 = frac(sin(dot(dp, float2(12.9898, 78.233))) * 43758.5453);
+		float d2 = frac(sin(dot(dp, float2(39.3468, 11.135))) * 24634.6345);
+		rgb = rgb + (d1 + d2 - 1.0) * (dither / 255.0);
+		rgb = max(rgb, 0);
+	}
 	float ev = 1.0 - texel.a;                           // GL wrote alpha = 1 - emission ([HDR] emissive)
 	if (out_mode == 0) return float4(saturate(rgb), 1); // SDR swapchain: signal unchanged
 
@@ -86,6 +94,21 @@ float4 ps_main(VO i) : SV_Target {
 	// contrast around 0.18 linear, on luminance (hue/neutrality preserved)
 	y = LUMA(lin);
 	if (y > 0) lin = lin * (0.18 * pow(y / 0.18, contrast) / y);
+	// [HDR] itm: BT.2446 Method A inverse tone mapping on luminance (SDR ref 100 nits -> peak), blended
+	if (itm > 0) {
+		float iy = min(LUMA(lin), 1.0);
+		if (iy > 0) {
+			float irs = 1.0 + 32.0 * pow(0.01, 1.0 / 2.4);
+			float irh = 1.0 + 32.0 * pow(peak / 10000.0, 1.0 / 2.4);
+			float iyc = log(1.0 + (irs - 1.0) * pow(iy, 1.0 / 2.4)) / log(irs);
+			float iyp = (iyc - 0.5) / 0.5;
+			if (iyc <= 0.9954521) iyp = (2.7811 - sqrt(max(2.7811 * 2.7811 - 4.0 * 1.151 * (0.6302 + iyc), 0))) / (2.0 * 1.151);
+			if (iyc <= 0.7968723) iyp = iyc / 1.077;
+			float iyh = (pow(irh, iyp) - 1.0) / (irh - 1.0);
+			float ir = pow(max(iyh, 0), 2.4) * peak / sdr_white / iy;
+			lin = lin * (1.0 + (ir - 1.0) * itm);
+		}
+	}
 	lin = lin * gain;
 	// optional highlight expansion above the knee
 	if (strength > 0) {
@@ -106,6 +129,18 @@ float4 ps_main(VO i) : SV_Target {
 	float3 n = float3(dot(float3(0.627403896, 0.329283039, 0.043313065), n709),
 	                  dot(float3(0.069097289, 0.919540395, 0.011362316), n709),
 	                  dot(float3(0.016391439, 0.088013307, 0.895595253), n709));
+	// [HDR] gamut_expand: toward "the colour is P3", weighted by chroma^2 (greys and skin barely move)
+	if (gamut > 0) {
+		float gmx = max(n709.r, max(n709.g, n709.b));
+		float gmn = min(n709.r, min(n709.g, n709.b));
+		if (gmx > 0) {
+			float gs = (gmx - gmn) / gmx;
+			float3 np3 = float3(dot(float3(0.753833034, 0.198597369, 0.047569597), n709),
+			                    dot(float3(0.045743849, 0.941777220, 0.012478931), n709),
+			                    dot(float3(-0.001210340, 0.017601717, 0.983608623), n709));
+			n = lerp(n, np3, gamut * gs * gs);
+		}
+	}
 	n = max(n, 0);
 	if (tonemap == 0) {
 		n = min(n, peak);
@@ -136,8 +171,8 @@ struct ShaderConstants {
 	float knee; int transfer, tonemap, out_mode;
 	float gain, black, contrast, saturation;
 	int calib, flip_y; float width, height;
-	float emit_scale; int graded; float pad1, pad2;
-	float tint_r, tint_g, tint_b, pad3;
+	float emit_scale; int graded; float gamut, dither;
+	float tint_r, tint_g, tint_b, itm;
 };
 static_assert(sizeof(ShaderConstants) == 96, "cbuffer layout");
 
@@ -145,7 +180,7 @@ inline ShaderConstants makeConstants(const Params& p, int out_mode, bool calib, 
 {
 	return { p.sdr_white_nits, p.peak_nits, p.src_peak_nits, p.highlight_strength, p.highlight_knee, (int)p.transfer,
 		(int)p.tonemap, out_mode, std::exp2(p.brightness_stops), p.black_level, p.contrast, p.saturation,
-		calib ? 1 : 0, flip_y ? 1 : 0, w, h, emit_scale, graded ? 1 : 0, 0.0f, 0.0f, p.tint[0], p.tint[1], p.tint[2], 0.0f };
+		calib ? 1 : 0, flip_y ? 1 : 0, w, h, emit_scale, graded ? 1 : 0, p.gamut_expand, p.dither, p.tint[0], p.tint[1], p.tint[2], p.itm };
 }
 
 }

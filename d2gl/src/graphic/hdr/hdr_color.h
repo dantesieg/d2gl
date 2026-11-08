@@ -25,6 +25,9 @@ struct Params {
 	Transfer transfer = Transfer::GAMMA22;
 	Tonemap tonemap = Tonemap::BT2390;
 	float tint[3] = { 1.0f, 1.0f, 1.0f }; // per-act colour grading (linear multiplier)
+	float gamut_expand = 0.0f; // 0 = off; saturated colours move from Rec.709 toward P3 (neutrals unchanged)
+	float itm = 0.0f;          // 0 = off; BT.2446 Method A inverse tone mapping blend (luminance only)
+	float dither = 0.0f;       // shader only: noise in LSBs of the 8-bit composite before decoding
 };
 
 constexpr float CONTRAST_PIVOT = 0.18f;
@@ -125,16 +128,57 @@ inline float3 tonemap_nits(float3 c, const Params& p) {
 	return {std::max(c.r * s, 0.0f), std::max(c.g * s, 0.0f), std::max(c.b * s, 0.0f)};
 }
 
+// BT.2446 Method A inverse tone mapping: luminance ratio HDR / SDR for a linear SDR luminance y
+// (1 = paper white), output relative to paper white. SDR reference 100 nits, HDR peak = peak_nits.
+inline float bt2446a_itm_ratio(float y, float peak_nits, float sdr_white_nits) {
+	if (y <= 0.0f) return 1.0f;
+	y = std::min(y, 1.0f);
+	const float rs = 1.0f + 32.0f * std::pow(100.0f / 10000.0f, 1.0f / 2.4f);
+	const float rh = 1.0f + 32.0f * std::pow(peak_nits / 10000.0f, 1.0f / 2.4f);
+	const float yp = std::pow(y, 1.0f / 2.4f);
+	const float yc = std::log(1.0f + (rs - 1.0f) * yp) / std::log(rs);
+	float ypp;
+	if (yc <= 0.7968723f) ypp = yc / 1.077f;
+	else if (yc <= 0.9954521f) ypp = (2.7811f - std::sqrt(std::max(2.7811f * 2.7811f - 4.0f * 1.151f * (0.6302f + yc), 0.0f))) / (2.0f * 1.151f);
+	else ypp = (yc - 0.5f) / 0.5f;
+	const float yh = (std::pow(rh, ypp) - 1.0f) / (rh - 1.0f);
+	const float nits = std::pow(std::max(yh, 0.0f), 2.4f) * peak_nits;
+	return nits / sdr_white_nits / y;
+}
+constexpr float MP3_2020[3][3] = {
+	{0.753833034f, 0.198597369f, 0.047569597f},
+	{0.045743849f, 0.941777220f, 0.012478931f},
+	{-0.001210340f, 0.017601717f, 0.983608623f},
+};
+// Gamut expansion: blend the 709 -> 2020 result toward "treat the colour as P3", weighted by chroma
+// squared so greys and skin barely move while saturated colours deepen.
+inline float3 to2020_expanded(float3 c, float strength) {
+	float3 a = rec709_to_2020(c);
+	if (strength <= 0.0f) return a;
+	float mx = std::max({c.r, c.g, c.b}), mn = std::min({c.r, c.g, c.b});
+	if (mx <= 0.0f) return a;
+	float s = (mx - mn) / mx, t = strength * s * s;
+	float3 b = {MP3_2020[0][0] * c.r + MP3_2020[0][1] * c.g + MP3_2020[0][2] * c.b,
+	            MP3_2020[1][0] * c.r + MP3_2020[1][1] * c.g + MP3_2020[1][2] * c.b,
+	            MP3_2020[2][0] * c.r + MP3_2020[2][1] * c.g + MP3_2020[2][2] * c.b};
+	return {a.r + (b.r - a.r) * t, a.g + (b.g - a.g) * t, a.b + (b.b - a.b) * t};
+}
+
 // SDR signal (opaque final composite) -> PQ Rec.2020 code values in [0,1].
 inline float3 encode_pixel(float3 rgb, const Params& p) {
 	rgb = {black_adjust(rgb.r, p.black_level), black_adjust(rgb.g, p.black_level), black_adjust(rgb.b, p.black_level)};
 	float3 lin = {decode_sdr(rgb.r, p.transfer), decode_sdr(rgb.g, p.transfer), decode_sdr(rgb.b, p.transfer)};
 	lin = saturate_709(lin, p.saturation);
 	lin = contrast_luma(lin, p.contrast);
+	if (p.itm > 0.0f) {
+		float r = bt2446a_itm_ratio(luma709(lin), p.peak_nits, p.sdr_white_nits);
+		r = 1.0f + (r - 1.0f) * p.itm;
+		lin = {lin.r * r, lin.g * r, lin.b * r};
+	}
 	float gain = std::exp2(p.brightness_stops);
 	lin = {lin.r * gain, lin.g * gain, lin.b * gain};
 	lin = expand_highlights(lin, p);
-	float3 n = rec709_to_2020({lin.r * p.sdr_white_nits, lin.g * p.sdr_white_nits, lin.b * p.sdr_white_nits});
+	float3 n = to2020_expanded({lin.r * p.sdr_white_nits, lin.g * p.sdr_white_nits, lin.b * p.sdr_white_nits}, p.gamut_expand);
 	n = {std::max(n.r, 0.0f), std::max(n.g, 0.0f), std::max(n.b, 0.0f)};
 	n = tonemap_nits(n, p);
 	return {pq_encode(n.r), pq_encode(n.g), pq_encode(n.b)};

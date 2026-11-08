@@ -401,6 +401,8 @@ Context::Context()
 			emit_pipeline_ci.shader = g_shader_emit;
 			emit_pipeline_ci.bindings = {
 				{ BindingType::FBTexture, "u_EmitTexture", TEXTURE_SLOT_EMIT, &m_game_framebuffer, 5 },
+				{ BindingType::FBTexture, "u_VLightTexture", TEXTURE_SLOT_VLIGHT, &m_game_framebuffer, 4 },
+				{ BindingType::FBTexture, "u_AmbientTexture", TEXTURE_SLOT_AMBIENT, &m_ambient_framebuffer },
 			};
 			emit_pipeline_ci.attachment_blends = { { BlendType::NoBlend } };
 			m_emit_pipeline = Context::createPipeline(emit_pipeline_ci);
@@ -618,7 +620,10 @@ void Context::renderThread(void* context)
 							ctx->m_game_pipeline->setUniform1f("u_SpellGlow", last_glow = st.spell_glow);
 						if (!same_pipe || last_filter != App.game.native_filter.selected)
 							ctx->m_game_pipeline->setUniform1i("u_NativeFilter", last_filter = App.game.native_filter.selected);
-						static float last_flicker = -1.0f, last_item_glow = -1.0f;
+						static float last_flicker = -1.0f, last_item_glow = -1.0f, last_hot = -1.0f;
+						const float hot = ctx->m_emit_attached ? App.hdr.hot_pixels.value : 0.0f;
+						if (!same_pipe || last_hot != hot)
+							ctx->m_game_pipeline->setUniform1f("u_HotPixels", last_hot = hot);
 						if (!same_pipe || last_flicker != App.dynamic_light.flicker.value)
 							ctx->m_game_pipeline->setUniform1f("u_LightFlicker", last_flicker = App.dynamic_light.flicker.value);
 						if (App.dynamic_light.flicker.value > 0.0f)
@@ -836,6 +841,8 @@ void Context::renderThread(void* context)
 							ctx->setViewport(vp_size, vp_offset);
 							ctx->m_emit_pipeline->setUniform1f("u_Gain", App.hdr.emissive_gain.value);
 							ctx->m_emit_pipeline->setUniform1i("u_Graded", ctx->m_emit_graded ? 1 : 0); // 0: output as before
+							// [HDR] light_highlights: needs the smoothed ambient, which the vertex-light dynamic light pass keeps
+							ctx->m_emit_pipeline->setUniform1f("u_LightHi", (App.dynamic_light.active && App.dynamic_light.source.selected == 1 && cmd->m_screen == GameScreen::InGame) ? App.hdr.light_highlights.value : 0.0f);
 							ctx->bindPipeline(ctx->m_emit_pipeline);
 							glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_TRUE);
 							ctx->drawQuad();

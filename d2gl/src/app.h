@@ -218,6 +218,11 @@ struct D2GLApp {
 		Range<float> emissive_gain = { 1.5f, 0.5f, 4.0f };       // emission = clamp(additive luma * gain)
 		bool emissive_graded = false; // R16F emission, unbounded; alpha = 1 / (1 + e), decoded in the presenter
 		Range<float> movie_nits = { 0.0f, 0.0f, 500.0f }; // paper white of movies/menus/loading; 0 = sdr_white
+		Range<float> gamut_expand = { 0.0f, 0.0f, 1.0f };  // saturated colours toward P3 (0 = off)
+		Range<float> itm = { 0.0f, 0.0f, 1.0f };           // BT.2446 Method A inverse tone mapping (0 = off)
+		bool dither = false;                               // +-1 LSB noise before the HDR encode
+		Range<float> light_highlights = { 0.0f, 0.0f, 2.0f }; // lit floors/walls above area ambient glow (needs emissive + dynamic light)
+		Range<float> hot_pixels = { 0.0f, 0.0f, 2.0f };    // bright saturated warm pixels of opaque sprites (torches, lava) emit (needs emissive)
 		bool item_glow = false;                          // valuable ground items glow above paper white (needs emissive)
 		Range<float> item_glow_strength = { 1.0f, 0.25f, 3.0f };
 		bool act_grading = false;                         // per-act exposure + colour tint in game

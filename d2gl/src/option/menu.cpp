@@ -592,6 +592,10 @@ void Menu::draw()
 					saveFloat("HDR", "emissive_gain", App.hdr.emissive_gain.value);
 			ImGui::EndDisabled();
 			drawSeparator();
+			drawSlider_m(float, "Light Highlights", App.hdr.light_highlights, "%.2f", "Floors and walls lit above the area's ambient glow (needs Emissive + Dynamic Light). 0 = off.", hdr_light_highlights)
+				saveFloat("HDR", "light_highlights", App.hdr.light_highlights.value);
+			drawSlider_m(float, "Hot Pixels", App.hdr.hot_pixels, "%.2f", "Torches, braziers and lava glow (bright warm pixels, needs Emissive). 0 = off.", hdr_hot_pixels)
+				saveFloat("HDR", "hot_pixels", App.hdr.hot_pixels.value);
 			drawCheckbox_m("Item Glow", App.hdr.item_glow, "Uniques, sets and runes on the ground glow in HDR (needs Emissive).", hdr_item_glow) {
 				saveBool("HDR", "item_glow", App.hdr.item_glow);
 				modules::LootSparkle::Instance().toggle(App.loot_sparkle.active || App.minion_ring || App.hdr.item_glow);
@@ -626,6 +630,12 @@ void Menu::draw()
 				saveFloat("HDR", "contrast", App.hdr.contrast.value);
 			drawSlider_m(float, "Saturation", App.hdr.saturation, "%.2f", "", hdr_saturation)
 				saveFloat("HDR", "saturation", App.hdr.saturation.value);
+			drawSlider_m(float, "Gamut Expansion", App.hdr.gamut_expand, "%.2f", "Saturated colours deepen toward P3 (OLED). Greys and skin barely move. 0 = off.", hdr_gamut_expand)
+				saveFloat("HDR", "gamut_expand", App.hdr.gamut_expand.value);
+			drawSlider_m(float, "Inverse Tone Map", App.hdr.itm, "%.2f", "BT.2446 SDR to HDR expansion toward the peak. 0 = off.", hdr_itm)
+				saveFloat("HDR", "itm", App.hdr.itm.value);
+			drawCheckbox_m("Dither", App.hdr.dither, "Smooths banding in dark gradients.", hdr_dither)
+				saveBool("HDR", "dither", App.hdr.dither);
 			drawSlider_m(float, "Highlight Expansion", App.hdr.highlight, "%.2f", "", hdr_highlight)
 				saveFloat("HDR", "highlight", App.hdr.highlight.value);
 			ImGui::BeginDisabled(App.hdr.highlight.value <= 0.0f);

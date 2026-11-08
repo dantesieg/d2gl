@@ -74,6 +74,9 @@ Params Presenter::currentParams()
 	p.highlight_knee = App.hdr.knee.value;
 	p.tonemap = (Tonemap)App.hdr.tonemap.selected;
 	p.transfer = (Transfer)App.hdr.eotf.selected;
+	p.gamut_expand = App.hdr.gamut_expand.value;
+	p.itm = App.hdr.itm.value;
+	p.dither = App.hdr.dither ? 1.0f : 0.0f;
 	return p;
 }
 
@@ -779,6 +782,7 @@ bool Presenter::present(bool vsync)
 			p.sdr_white_nits = App.hdr.movie_nits.value;
 		p.brightness_stops = 0.0f;
 		p.highlight_strength = 0.0f;
+		p.itm = 0.0f;
 	}
 	if (App.hdr.act_grading && !m_cinematic && App.game.screen == GameScreen::InGame && d2::level_no) {
 		// per-act look: Act 1 neutral, Act 2 warm desert, Act 3 humid green, Act 4 hellish red, Act 5 cold

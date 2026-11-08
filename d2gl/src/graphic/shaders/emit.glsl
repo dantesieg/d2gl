@@ -35,17 +35,30 @@ layout(location = 0) out vec4 FragColor;
 uniform sampler2D u_EmitTexture; // 6th game attachment: emission (R8, or R16F graded)
 uniform float u_Gain;
 uniform int u_Graded; // 1 = R16F unbounded emission, alpha = 1 / (1 + e)
+uniform sampler2D u_VLightTexture;  // game vertex light of world draws (a = coverage)
+uniform sampler2D u_AmbientTexture; // 1x1 smoothed ambient (dynamic light)
+uniform float u_LightHi;            // [HDR] light_highlights: light above ambient adds emission (0 = off)
 
 in vec2 v_TexCoord;
 
+float LightEmission()
+{
+	if (u_LightHi <= 0.0)
+		return 0.0;
+	vec4 s = texture(u_VLightTexture, v_TexCoord);
+	vec3 l = max(s.rgb - texture(u_AmbientTexture, vec2(0.5)).rgb * s.a, 0.0);
+	return dot(l, vec3(0.299, 0.587, 0.114)) * u_LightHi;
+}
+
 void main()
 {
+	float le = LightEmission();
 	if (u_Graded == 1) {
-		float g = max(texture(u_EmitTexture, v_TexCoord).r * u_Gain, 0.0);
+		float g = max(texture(u_EmitTexture, v_TexCoord).r * u_Gain, 0.0) + le;
 		FragColor = vec4(0.0, 0.0, 0.0, 1.0 / (1.0 + g));
 		return;
 	}
-	float e = clamp(texture(u_EmitTexture, v_TexCoord).r * u_Gain, 0.0, 1.0);
+	float e = clamp(texture(u_EmitTexture, v_TexCoord).r * u_Gain + le, 0.0, 1.0);
 	FragColor = vec4(0.0, 0.0, 0.0, 1.0 - e);
 }
 
