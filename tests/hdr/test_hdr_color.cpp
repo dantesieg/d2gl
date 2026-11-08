@@ -107,6 +107,11 @@ int main()
 	q = p; q.highlight_strength = 1.0f;
 	near("expansion: below knee untouched", nits_of(0.5f, q), nits_of(0.5f, p), 1e-4);
 	check(nits_of(1.0f, q) > nits_of(1.0f, p), "expansion: white boosted when on", nits_of(1.0f, q), nits_of(1.0f, p), 0);
+	near("DICE below shoulder = identity", dice_nits(100, 1000, 0.5f), 100.0, 1e-3);
+	check(dice_nits(10000, 1000, 0.5f) < 1000.0f, "DICE stays under peak", dice_nits(10000, 1000, 0.5f), 1000, 0);
+	check(dice_nits(800, 1000, 0.5f) < dice_nits(900, 1000, 0.5f), "DICE monotonic", 0, 0, 0);
+	{ Params d; d.tonemap = Tonemap::DICE; float3 t = tonemap_nits({4000, 2000, 1000}, d);
+	  near("DICE keeps hue ratio", t.g / t.r, 0.5, 1e-4); }
 	near("EETF(src peak) -> dst peak", bt2390_eetf_nits(10000, 10000, 1000), 1000.0, 1.0);
 	near("EETF identity at paper white", bt2390_eetf_nits(200, 10000, 1000), 200.0, 0.05);
 	q = p; q.peak_nits = 400; q.brightness_stops = 2.0f;

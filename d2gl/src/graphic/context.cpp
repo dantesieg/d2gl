@@ -852,7 +852,8 @@ void Context::renderThread(void* context)
 						if (ISGLIDE3X() && ctx->m_emit_attached && ctx->m_emit_pipeline && !App.hdr.float_mode) {
 							FrameBuffer::unBind();
 							ctx->setViewport(vp_size, vp_offset);
-							ctx->m_emit_pipeline->setUniform1f("u_Gain", App.hdr.emissive_gain.value);
+							ctx->m_emit_pipeline->setUniform1f("u_Gain", App.hdr.emissive ? App.hdr.emissive_gain.value : 0.0f);
+							ctx->m_emit_pipeline->setUniform1i("u_UiTag", App.hdr.ui_nits.value > 0.0f ? 1 : 0); // world alpha <= 253/255, UI = 1
 							ctx->m_emit_pipeline->setUniform1i("u_Graded", ctx->m_emit_graded ? 1 : 0); // 0: output as before
 							ctx->bindPipeline(ctx->m_emit_pipeline);
 							glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_TRUE);
@@ -1463,7 +1464,7 @@ bool Context::emitGradedWanted() const
 bool Context::emitWanted() const
 {
 	// float pipeline: the attachment carries the additive share of the colour for the diffuse shoulder
-	return ISGLIDE3X() && m_emit_supported && m_hdr && App.hdr.mode && (App.hdr.float_mode ? (App.hdr.diffuse_shoulder || App.hdr.auto_exposure || App.hdr.hdr_bloom) : App.hdr.emissive);
+	return ISGLIDE3X() && m_emit_supported && m_hdr && App.hdr.mode && (App.hdr.float_mode ? (App.hdr.diffuse_shoulder || App.hdr.auto_exposure || App.hdr.hdr_bloom) : (App.hdr.emissive || App.hdr.ui_nits.value > 0.0f));
 }
 
 void Context::onShaderChange()

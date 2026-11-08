@@ -73,6 +73,7 @@ Params Presenter::currentParams()
 	p.highlight_strength = App.hdr.highlight.value;
 	p.highlight_knee = App.hdr.knee.value;
 	p.tonemap = (Tonemap)App.hdr.tonemap.selected;
+	p.dice_shoulder = App.hdr.dice_shoulder.value;
 	p.transfer = (Transfer)App.hdr.eotf.selected;
 	return p;
 }
@@ -813,7 +814,9 @@ bool Presenter::present(bool vsync)
 		m_metadata_set = SUCCEEDED(HR(m_sc4->SetHDRMetaData(DXGI_HDR_METADATA_TYPE_HDR10, sizeof(md), &md)));
 		m_metadata_peak = p.peak_nits;
 	}
-	const float emit_scale = (m_emissive && !m_cinematic) ? std::max(App.hdr.emissive_nits.value / std::max(p.sdr_white_nits, 1.0f) - 1.0f, 0.0f) : 0.0f;
+	// UI tag: the emit alpha pass caps world alpha below 1, UI drawn after it writes alpha 1
+	p.ui_white_nits = (m_emissive && !m_float && !m_cinematic && App.hdr.ui_nits.value > 0.0f && App.game.screen == GameScreen::InGame) ? App.hdr.ui_nits.value : 0.0f;
+	const float emit_scale = (m_emissive && App.hdr.emissive && !m_cinematic) ? std::max(App.hdr.emissive_nits.value / std::max(p.sdr_white_nits, 1.0f) - 1.0f, 0.0f) : 0.0f;
 	const ShaderConstants k = makeConstants(p, m_hdr_presenting ? 1 : 0, App.hdr.calibration, true, (float)m_w, (float)m_h, emit_scale, m_emissive_graded);
 	D3D11_MAPPED_SUBRESOURCE m;
 	if (SUCCEEDED(m_ctx->Map(m_cb, 0, D3D11_MAP_WRITE_DISCARD, 0, &m))) {

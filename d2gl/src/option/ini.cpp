@@ -365,8 +365,13 @@ void saveIni()
 		"; Highlight expansion above the knee (0 = off, up to 1) and knee (0.5-0.95, linear SDR).\n"
 		"highlight=%.3f\n"
 		"highlight_knee=%.3f\n"
-		"; Tonemap toward peak: 0 = clip, 1 = BT.2390 roll-off.\n"
+		"; Tonemap toward peak: 0 = clip, 1 = BT.2390 roll-off, 2 = DICE (RenoDX-style, hue kept).\n"
 		"tonemap=%d\n"
+		"; DICE roll-off start as a share of peak (0.2-0.9; lower = softer highlights).\n"
+		"dice_shoulder=%.2f\n"
+		"; In-game UI paper white in nits (0 = off, same as the world; up to 500). Panels, text and\n"
+		"; the belt get their own brightness and skip world brightness/highlights (not with float_pipeline).\n"
+		"ui_nits=%.1f\n"
 		"; SDR decoding curve: 0 = gamma 2.2, 1 = gamma 2.4, 2 = sRGB piecewise (lifts blacks).\n"
 		"eotf=%d\n"
 		"; HDR highlights for additive sprites (spells, fire, lightning, auras): they go above paper white\n"
@@ -419,6 +424,8 @@ void saveIni()
 		App.hdr.highlight.value,
 		App.hdr.knee.value,
 		App.hdr.tonemap.selected,
+		App.hdr.dice_shoulder.value,
+		App.hdr.ui_nits.value,
 		App.hdr.eotf.selected,
 		boolString(App.hdr.emissive),
 		App.hdr.emissive_nits.value,
@@ -628,7 +635,9 @@ void loadIni()
 		App.hdr.saturation.value = getFloat("HDR", "saturation", App.hdr.saturation);
 		App.hdr.highlight.value = getFloat("HDR", "highlight", App.hdr.highlight);
 		App.hdr.knee.value = getFloat("HDR", "highlight_knee", App.hdr.knee);
-		App.hdr.tonemap.selected = getInt("HDR", "tonemap", App.hdr.tonemap.selected, 0, 1);
+		App.hdr.tonemap.selected = getInt("HDR", "tonemap", App.hdr.tonemap.selected, 0, 2);
+		App.hdr.dice_shoulder.value = getFloat("HDR", "dice_shoulder", App.hdr.dice_shoulder);
+		App.hdr.ui_nits.value = getFloat("HDR", "ui_nits", App.hdr.ui_nits);
 		App.hdr.eotf.selected = getInt("HDR", "eotf", App.hdr.eotf.selected, 0, 2);
 		App.hdr.emissive = getBool("HDR", "emissive", App.hdr.emissive);
 		App.hdr.emissive_nits.value = getFloat("HDR", "emissive_nits", App.hdr.emissive_nits);
