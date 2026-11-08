@@ -67,8 +67,6 @@ uniform float u_LightFlicker; // [Graphic] light_flicker: 0 = off, spell/fire li
 uniform float u_Time;         // seconds, wraps every hour
 uniform float u_ItemGlow;     // [HDR] item_glow: emission of valuable ground items (needs emissive)
 uniform float u_SpellGlow; // additive draws feed the light buffer at this strength
-uniform float u_EmitRGB; // [HDR] float_pipeline + diffuse_shoulder: FragEmit = rgb share of additive light in FragColor
-uniform float u_AddScale; // [HDR] float_pipeline: additive world draws scaled above 1.0 (0/1 = off)
 
 in vec2 v_TexCoord;
 in vec4 v_Color1;
@@ -124,8 +122,6 @@ void main()
 		FragColorMap = vec4(0.0);
 		FragColorMask = vec4(0.0);
 		FragColorShadow = vec4(e * v_Color2.a, 0.0, 0.0, 0.0);
-		if (u_EmitRGB > 0.5 && u_BlendIndex == 1)
-			FragEmit = vec4(1.0); // multiply by 1 keeps the additive share
 		return;
 	}
 
@@ -214,10 +210,6 @@ void main()
 	if (ig > 0u && u_ItemGlow > 0.0 && (u_BlendIndex == 0 || u_BlendIndex == 3) && sk == 0u)
 		FragEmit = vec4(dot(FragColor.rgb, vec3(0.299, 0.587, 0.114)) * u_ItemGlow * (0.5 + 0.25 * float(ig)), 0.0, 0.0, u_BlendIndex == 3 ? FragColor.a : 1.0);
 
-	// Float pipeline: additive world light (spells, fire) lands above 1.0 in the float game buffer.
-	if (u_AddScale > 1.0 && u_BlendIndex == 2 && (v_Flags.w == 0u || v_Flags.w == 11u))
-		FragColor.rgb *= u_AddScale;
-
 	if (sk == 1u) {
 		FragColorShadow.r = 1.0 - dot(FragColor.rgb, vec3(0.299, 0.587, 0.114));
 		FragColor = vec4(1.0);
@@ -228,20 +220,6 @@ void main()
 		FragColorShadow.g = 1.0;
 	else if (sk == 5u)
 		FragColorShadow.g = FragColor.a;
-
-	// Float pipeline diffuse shoulder: FragEmit tracks exactly the additive share of FragColor, so the
-	// PreFx shoulder can split colour = diffuse + additive. Its blends mirror the colour blends:
-	// opaque replaces (0), alpha attenuates (rgb 0, a = coverage), additive adds, multiply multiplies.
-	if (u_EmitRGB > 0.5) {
-		if (u_BlendIndex == 2)
-			FragEmit = (v_Flags.w == 0u || v_Flags.w == 11u) ? vec4(FragColor.rgb, 0.0) : vec4(0.0);
-		else if (u_BlendIndex == 1)
-			FragEmit = vec4(FragColor.rgb, 1.0);
-		else if (u_BlendIndex == 3)
-			FragEmit = vec4(0.0, 0.0, 0.0, FragColor.a);
-		else
-			FragEmit = vec4(0.0);
-	}
 }
 
 #endif

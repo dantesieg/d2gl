@@ -213,17 +213,6 @@ struct D2GLApp {
 		Select<int> tonemap = { 1, { { "Clip", 0 }, { "BT.2390 roll-off", 1 } } };
 		Select<int> eotf = { 0, { { "Gamma 2.2", 0 }, { "Gamma 2.4", 1 }, { "sRGB piecewise", 2 } } };
 		bool calibration = false;
-		bool float_pipeline = false; // [HDR] float_pipeline: RGBA16F scene buffers + transfer (restart)
-		bool float_mode = false;     // decided once at startup: mode && float_pipeline
-		bool diffuse_shoulder = true; // float pipeline: soft-clip non-additive colour to paper white
-		Range<float> shoulder_knee = { 0.8f, 0.6f, 0.95f };
-		bool auto_exposure = true; // float pipeline: eye adaptation on the diffuse world
-		Range<float> auto_exposure_strength = { 0.6f, 0.0f, 1.0f };
-		Range<float> auto_exposure_min = { -1.5f, -3.0f, 0.0f }; // stops
-		Range<float> auto_exposure_max = { 1.0f, 0.0f, 3.0f };
-		bool hdr_bloom = true; // float pipeline: bloom around light above paper white
-		Range<float> hdr_bloom_intensity = { 0.15f, 0.0f, 1.0f };
-		Range<int> hdr_bloom_radius = { 5, 2, 6 }; // mip levels
 		bool emissive = false;                                  // HDR highlights for additive sprites (spells, fire)
 		Range<float> emissive_nits = { 600.0f, 200.0f, 1000.0f }; // brightness of full emission
 		Range<float> emissive_gain = { 1.5f, 0.5f, 4.0f };       // emission = clamp(additive luma * gain)

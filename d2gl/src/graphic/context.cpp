@@ -71,7 +71,6 @@ Context::Context()
 		} else {
 			error_log("HDR: hidden GL window failed (%lu), HDR disabled", GetLastError());
 			App.hdr.mode = false;
-			App.hdr.float_mode = false;
 		}
 	}
 
@@ -162,8 +161,6 @@ Context::Context()
 		m_emit_supported = m_vlight_supported && max_texture_unit > TEXTURE_SLOT_EMIT && max_draw_buffers >= 6;
 	}
 	m_gi_supported = max_texture_unit > TEXTURE_SLOT_GI;
-	m_expo_supported = max_texture_unit > TEXTURE_SLOT_EXPO;
-	m_hdrbloom_supported = max_texture_unit > TEXTURE_SLOT_HDRBLOOM;
 
 	glDisable(GL_CULL_FACE);
 	glDisable(GL_DEPTH_TEST);
@@ -224,8 +221,6 @@ Context::Context()
 		{ BindingType::Texture, "u_Texture1", TEXTURE_SLOT_POSTFX2, &m_postfx_texture },
 	};
 	m_postfx_pipeline = Context::createPipeline(postfx_pipeline_ci);
-	if (App.hdr.float_mode)
-		m_postfx_pipeline->setUniform1f("u_Float", 1.0f);
 	m_postfx_pipeline->setUniformMat4f("u_MVP", glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f));
 
 	if (App.gl_caps.compute_shader) {
@@ -283,9 +278,7 @@ Context::Context()
 			game_pipeline_ci.attachment_blends.push_back({ blend.second.second, BlendType::SAlpha_OneMinusSAlpha, BlendType::SAlpha_OneMinusSAlpha, BlendType::One_One, blend.second.first == 0 ? BlendType::One_Zero : BlendType::One_One });
 			// emission: opaque replaces (occludes), alpha attenuates by coverage, additive/multiply add (multiply adds 0)
 			if (m_emit_supported)
-				game_pipeline_ci.attachment_blends.back().push_back(blend.second.first == 0 ? BlendType::One_Zero : (blend.second.first == 3 ? BlendType::SAlpha_OneMinusSAlpha :
-					// float pipeline: the attachment is the additive share of the colour, so multiply must multiply it too
-					(blend.second.first == 1 && App.hdr.float_mode ? BlendType::Zero_SColor : BlendType::One_One)));
+				game_pipeline_ci.attachment_blends.back().push_back(blend.second.first == 0 ? BlendType::One_Zero : (blend.second.first == 3 ? BlendType::SAlpha_OneMinusSAlpha : BlendType::One_One));
 		}
 		m_game_pipeline = Context::createPipeline(game_pipeline_ci);
 
@@ -328,8 +321,6 @@ Context::Context()
 			{ BindingType::Texture, "u_LUTTexture", m_lut_texture->getSlot(), &m_lut_texture },
 		};
 		m_prefx_pipeline = Context::createPipeline(prefx_pipeline_ci);
-		if (App.hdr.float_mode)
-			m_prefx_pipeline->setUniform1f("u_Float", 1.0f);
 		m_prefx_pipeline->setUniformMat4f("u_MVP", glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f));
 
 		PipelineCreateInfo light_pipeline_ci = { "light" };
@@ -344,8 +335,6 @@ Context::Context()
 			light_pipeline_ci.bindings.push_back({ BindingType::FBTexture, "u_AmbientTexture", TEXTURE_SLOT_AMBIENT, &m_ambient_framebuffer });
 		}
 		m_light_pipeline = Context::createPipeline(light_pipeline_ci);
-		if (App.hdr.float_mode)
-			m_light_pipeline->setUniform1f("u_Float", 1.0f);
 		m_light_pipeline->setUniformMat4f("u_MVP", glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f));
 
 		if (m_vlight_supported) {
@@ -364,8 +353,6 @@ Context::Context()
 		light_pipeline_ci.name = "lightfx";
 		light_pipeline_ci.shader = g_shader_lightfx;
 		m_lightfx_pipeline = Context::createPipeline(light_pipeline_ci);
-		if (App.hdr.float_mode)
-			m_lightfx_pipeline->setUniform1f("u_Float", 1.0f);
 		m_lightfx_pipeline->setUniformMat4f("u_MVP", glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f));
 
 		PipelineCreateInfo atmos_pipeline_ci = { "atmos" };
@@ -414,11 +401,9 @@ Context::Context()
 			emit_pipeline_ci.shader = g_shader_emit;
 			emit_pipeline_ci.bindings = {
 				{ BindingType::FBTexture, "u_EmitTexture", TEXTURE_SLOT_EMIT, &m_game_framebuffer, 5 },
-				{ BindingType::Texture, "u_Texture", TEXTURE_SLOT_PREFX, &m_prefx_texture },
 			};
-			emit_pipeline_ci.attachment_blends = { { BlendType::NoBlend }, { BlendType::One_One } }; // 1: HDR bloom up/composite
+			emit_pipeline_ci.attachment_blends = { { BlendType::NoBlend } };
 			m_emit_pipeline = Context::createPipeline(emit_pipeline_ci);
-			m_emit_pipeline->setUniform1i("u_Bloom", TEXTURE_SLOT_HDRBLOOM);
 			m_emit_pipeline->setUniformMat4f("u_MVP", glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f));
 		}
 	} else {
@@ -625,7 +610,7 @@ void Context::renderThread(void* context)
 					{
 						// Per-frame values: only re-upload when they change (this runs per blend switch).
 						static const Pipeline* last_pipe = nullptr;
-						static float last_glow = -1.0f, last_emit = -1.0f;
+						static float last_glow = -1.0f;
 						static int last_filter = -1;
 						const bool same_pipe = last_pipe == ctx->m_game_pipeline.get();
 						last_pipe = ctx->m_game_pipeline.get();
@@ -638,21 +623,10 @@ void Context::renderThread(void* context)
 							ctx->m_game_pipeline->setUniform1f("u_LightFlicker", last_flicker = App.dynamic_light.flicker.value);
 						if (App.dynamic_light.flicker.value > 0.0f)
 							ctx->m_game_pipeline->setUniform1f("u_Time", (float)fmod((double)GetTickCount64() * 0.001, 3600.0));
-						const float item_glow = (App.hdr.item_glow && ctx->m_emit_attached && !App.hdr.float_mode) ? App.hdr.item_glow_strength.value : 0.0f;
+						const float item_glow = (App.hdr.item_glow && ctx->m_emit_attached) ? App.hdr.item_glow_strength.value : 0.0f;
 						if (!same_pipe || last_item_glow != item_glow)
 							ctx->m_game_pipeline->setUniform1f("u_ItemGlow", last_item_glow = item_glow);
-						if (App.hdr.float_mode)
-							ctx->m_game_pipeline->setUniform1f("u_AddScale", ctx->m_add_scale);
-						const float emit = ctx->m_emit_attached ? 1.0f : 0.0f;
-						if (App.hdr.float_mode && (!same_pipe || last_emit != emit))
-							ctx->m_game_pipeline->setUniform1f("u_EmitRGB", last_emit = emit);
 					}
-					ctx->bindPipeline(ctx->m_game_pipeline, command->index);
-					break;
-				case CommandType::UIStage:
-					// Float pipeline: UI draws (panels, text, minimap) must stay <= 1.0 (paper white).
-					ctx->m_add_scale = 1.0f;
-					ctx->m_game_pipeline->setUniform1f("u_AddScale", 1.0f);
 					ctx->bindPipeline(ctx->m_game_pipeline, command->index);
 					break;
 				case CommandType::DrawIndexed:
@@ -751,11 +725,6 @@ void Context::renderThread(void* context)
 						ctx->drawQuad(1);
 					}
 
-					if (App.hdr.float_mode && ctx->m_emit_attached && ctx->m_emit_pipeline && (App.hdr.diffuse_shoulder || App.hdr.auto_exposure))
-						ctx->hdrSceneFx(st, cmd->m_game_size);
-					if (App.hdr.float_mode && ctx->m_emit_attached && ctx->m_emit_pipeline && App.hdr.hdr_bloom && ctx->m_hdrbloom_supported)
-						ctx->hdrBloom(cmd->m_game_size);
-
 					ctx->bindPipeline(ctx->m_game_pipeline, command->index);
 					FrameBuffer::setDrawBuffers(ctx->gameDrawBufferCount(st));
 					break;
@@ -790,7 +759,6 @@ void Context::renderThread(void* context)
 					break;
 				case CommandType::Begin:
 					ctx->m_world_ready = false;
-					ctx->m_add_scale = cmd->m_screen == GameScreen::InGame ? st.add_scale : 1.0f;
 					if (cmd->m_screen == GameScreen::Movie) {
 						ctx->bindDefaultFrameBuffer();
 						ctx->setViewport({ st.window_w, st.window_h });
@@ -863,7 +831,7 @@ void Context::renderThread(void* context)
 
 						// [HDR] emissive: default-FB alpha = 1 - emission (1 = no boost), so the UI, HD text and
 						// menus drawn after this blend alpha back toward 1 and are never boosted.
-						if (ISGLIDE3X() && ctx->m_emit_attached && ctx->m_emit_pipeline && !App.hdr.float_mode) {
+						if (ISGLIDE3X() && ctx->m_emit_attached && ctx->m_emit_pipeline) {
 							FrameBuffer::unBind();
 							ctx->setViewport(vp_size, vp_offset);
 							ctx->m_emit_pipeline->setUniform1f("u_Gain", App.hdr.emissive_gain.value);
@@ -950,7 +918,7 @@ void Context::renderThread(void* context)
 		if (ctx->m_hdr) {
 			FrameBuffer::unBind(); // the menu goes into the HDR target like everything else
 			option::Menu::instance().draw();
-			ctx->m_hdr->setEmissive(ctx->m_emit_attached && !App.hdr.float_mode, ctx->m_emit_graded);
+			ctx->m_hdr->setEmissive(ctx->m_emit_attached, ctx->m_emit_graded);
 			ctx->m_hdr->setCinematic(cmd->m_screen != GameScreen::InGame);
 			if (!ctx->m_hdr->present(App.vsync))
 				ctx->hdrFallbackToWgl("present failed");
@@ -1076,7 +1044,6 @@ void Context::hdrFallbackToWgl(const char* why)
 		error_log("HDR: wglMakeCurrent on the game window failed (%lu)", GetLastError());
 	wglSwapIntervalEXT(App.vsync);
 	App.hdr.mode = false;
-	App.hdr.float_mode = false; // existing float buffers stay; the WGL framebuffer clips them to SDR
 }
 
 void Context::onResize(glm::uvec2 w_size, glm::uvec2 g_size, glm::uvec2 l_size, uint32_t bpp)
@@ -1106,7 +1073,7 @@ void Context::onResize(glm::uvec2 w_size, glm::uvec2 g_size, glm::uvec2 l_size, 
 		frambuffer_ci.size = game_size;
 		if (ISGLIDE3X())
 			frambuffer_ci.attachments = {
-				{ TEXTURE_SLOT_GAME, { 0.0f, 0.0f, 0.0f, 1.0f }, { GL_LINEAR, GL_LINEAR }, sceneFormat() },
+				{ TEXTURE_SLOT_GAME, { 0.0f, 0.0f, 0.0f, 1.0f }, { GL_LINEAR, GL_LINEAR }, std::pair<GLint, GLenum>{ GL_RGBA8, GL_RGBA } },
 				{ TEXTURE_SLOT_MAP, { 0.0f, 0.0f, 0.0f, 0.0f } },
 				{ TEXTURE_SLOT_MASK, { 0.0f, 0.0f, 0.0f, 0.0f }, { GL_LINEAR, GL_LINEAR }, { GL_R8, GL_RED } },
 				{ TEXTURE_SLOT_SHADOW, { 0.0f, 0.0f, 0.0f, 0.0f }, { GL_LINEAR, GL_LINEAR } },
@@ -1118,7 +1085,7 @@ void Context::onResize(glm::uvec2 w_size, glm::uvec2 g_size, glm::uvec2 l_size, 
 			frambuffer_ci.attachments.push_back({ TEXTURE_SLOT_VLIGHT, { 0.0f, 0.0f, 0.0f, 0.0f }, { GL_LINEAR, GL_LINEAR } });
 			if (emit_want) // r = emission of additive world sprites (HDR emissive highlights)
 				frambuffer_ci.attachments.push_back({ TEXTURE_SLOT_EMIT, { 0.0f, 0.0f, 0.0f, 0.0f }, { GL_LINEAR, GL_LINEAR },
-					App.hdr.float_mode ? std::pair<GLint, GLenum>{ GL_RGBA16F, GL_RGBA } : (emitGradedWanted() ? std::pair<GLint, GLenum>{ GL_R16F, GL_RED } : std::pair<GLint, GLenum>{ GL_R8, GL_RED }) }); // float: rgb additive share; graded: unclamped sum
+					emitGradedWanted() ? std::pair<GLint, GLenum>{ GL_R16F, GL_RED } : std::pair<GLint, GLenum>{ GL_R8, GL_RED } }); // graded: unclamped sum
 		}
 		m_emit_attached = ISGLIDE3X() && m_vlight_supported && emit_want;
 		m_emit_graded = m_emit_attached && emitGradedWanted();
@@ -1134,7 +1101,7 @@ void Context::onResize(glm::uvec2 w_size, glm::uvec2 g_size, glm::uvec2 l_size, 
 
 			FrameBufferCreateInfo bloom_frambuffer_ci;
 			bloom_frambuffer_ci.size = m_bloom_tex_size;
-			bloom_frambuffer_ci.attachments = { { TEXTURE_SLOT_BLOOM1, {}, { GL_LINEAR, GL_LINEAR }, sceneFormat() } };
+			bloom_frambuffer_ci.attachments = { { TEXTURE_SLOT_BLOOM1, {}, { GL_LINEAR, GL_LINEAR }, std::pair<GLint, GLenum>{ GL_RGBA8, GL_RGBA } } };
 			m_bloom_framebuffer = Context::createFrameBuffer(bloom_frambuffer_ci);
 			if (App.gl_caps.compute_shader)
 				m_bloom_framebuffer->getTexture()->bindImage(IMAGE_UNIT_BLUR);
@@ -1143,7 +1110,7 @@ void Context::onResize(glm::uvec2 w_size, glm::uvec2 g_size, glm::uvec2 l_size, 
 			bloom_texture_ci.size = m_bloom_tex_size;
 			bloom_texture_ci.slot = TEXTURE_SLOT_BLOOM2;
 			bloom_texture_ci.filter = { GL_LINEAR, GL_LINEAR };
-			bloom_texture_ci.format = sceneFormat();
+			bloom_texture_ci.format = std::pair<GLint, GLenum>{ GL_RGBA8, GL_RGBA };
 			m_bloom_texture = Context::createTexture(bloom_texture_ci);
 
 			m_light_tex_size = { game_size.x / 8, game_size.y / 8 };
@@ -1173,12 +1140,12 @@ void Context::onResize(glm::uvec2 w_size, glm::uvec2 g_size, glm::uvec2 l_size, 
 			TextureCreateInfo prefx_texture_ci;
 			prefx_texture_ci.size = game_size;
 			prefx_texture_ci.slot = TEXTURE_SLOT_PREFX;
-			prefx_texture_ci.format = sceneFormat();
+			prefx_texture_ci.format = std::pair<GLint, GLenum>{ GL_RGBA8, GL_RGBA };
 			m_prefx_texture = Context::createTexture(prefx_texture_ci);
 
 			FrameBufferCreateInfo world_frambuffer_ci;
 			world_frambuffer_ci.size = game_size;
-			world_frambuffer_ci.attachments = { { TEXTURE_SLOT_WORLD, { 0.0f, 0.0f, 0.0f, 1.0f }, { GL_LINEAR, GL_LINEAR }, sceneFormat() } };
+			world_frambuffer_ci.attachments = { { TEXTURE_SLOT_WORLD, { 0.0f, 0.0f, 0.0f, 1.0f }, { GL_LINEAR, GL_LINEAR }, std::pair<GLint, GLenum>{ GL_RGBA8, GL_RGBA } } };
 			m_world_framebuffer = Context::createFrameBuffer(world_frambuffer_ci);
 		} else {
 			TextureCreateInfo texture_ci;
@@ -1202,7 +1169,7 @@ void Context::onResize(glm::uvec2 w_size, glm::uvec2 g_size, glm::uvec2 l_size, 
 	if (game_resized || window_resized) {
 		FrameBufferCreateInfo frambuffer_ci;
 		frambuffer_ci.size = App.viewport.size;
-		frambuffer_ci.attachments = { { TEXTURE_SLOT_POSTFX1, {}, { GL_LINEAR, GL_LINEAR }, ISGLIDE3X() ? sceneFormat() : std::pair<GLint, GLenum>{ GL_RGBA8, GL_RGBA } } };
+		frambuffer_ci.attachments = { { TEXTURE_SLOT_POSTFX1, {}, { GL_LINEAR, GL_LINEAR }, ISGLIDE3X() ? std::pair<GLint, GLenum>{ GL_RGBA8, GL_RGBA } : std::pair<GLint, GLenum>{ GL_RGBA8, GL_RGBA } } };
 		m_postfx_framebuffer = Context::createFrameBuffer(frambuffer_ci);
 		if (App.gl_caps.compute_shader)
 			m_postfx_framebuffer->getTexture()->bindImage(IMAGE_UNIT_FXAA);
@@ -1214,7 +1181,7 @@ void Context::onResize(glm::uvec2 w_size, glm::uvec2 g_size, glm::uvec2 l_size, 
 		texture_ci.slot = TEXTURE_SLOT_POSTFX2;
 		texture_ci.filter = { GL_LINEAR, GL_LINEAR };
 		if (ISGLIDE3X())
-			texture_ci.format = sceneFormat();
+			texture_ci.format = std::pair<GLint, GLenum>{ GL_RGBA8, GL_RGBA };
 		m_postfx_texture = Context::createTexture(texture_ci);
 
 		onShaderChange();
@@ -1344,140 +1311,14 @@ void Context::renderGI(const perf::FrameSettings& st, glm::uvec2 game_size)
 	drawQuad(3);
 }
 
-std::pair<GLint, GLenum> Context::sceneFormat()
-{
-	if (App.hdr.float_mode)
-		return { GL_RGBA16F, GL_RGBA };
-	return { GL_RGBA8, GL_RGBA };
-}
-
-// Float pipeline, end of PreFx (world only, before UI): auto exposure adapt (1x1), then one pass
-// that exposes colour and soft-clips its diffuse share (colour - additive share, attachment 5).
-void Context::hdrSceneFx(const perf::FrameSettings& st, glm::uvec2 game_size)
-{
-	const auto& p = m_emit_pipeline;
-	const glm::ivec2 gs(game_size);
-	bindFrameBuffer(m_game_framebuffer, false);
-	FrameBuffer::setDrawBuffers(1);
-	m_prefx_texture->fillFromBuffer(m_game_framebuffer);
-
-	const bool ae = App.hdr.auto_exposure && m_expo_supported;
-	if (ae) {
-		bool reset = false;
-		if (!m_expo_fb[0]) {
-			FrameBufferCreateInfo ci;
-			ci.size = { 1, 1 };
-			ci.attachments = { { TEXTURE_SLOT_EXPO, { 0.0f, 0.0f, 0.0f, 1.0f }, { GL_NEAREST, GL_NEAREST }, { GL_RGBA16F, GL_RGBA } } };
-			m_expo_fb[0] = Context::createFrameBuffer(ci);
-			m_expo_fb[1] = Context::createFrameBuffer(ci);
-			reset = true;
-		}
-		LARGE_INTEGER now, freq;
-		QueryPerformanceCounter(&now);
-		QueryPerformanceFrequency(&freq);
-		float dt = m_expo_qpc ? (float)((double)(now.QuadPart - m_expo_qpc) / (double)freq.QuadPart) : 0.0f;
-		m_expo_qpc = now.QuadPart;
-		if (dt <= 0.0f || dt > 0.25f) // first frame, or after a pause/loading: no time jump
-			dt = 1.0f / 60.0f;
-		if (st.level_no != m_expo_level) { // new area: adapt at once
-			m_expo_level = st.level_no;
-			reset = true;
-		}
-		const int prev = m_expo_cur, cur = m_expo_cur ^ 1;
-		m_expo_fb[prev]->getTexture()->bind();
-		p->setUniform1i("u_Mode", 3);
-		p->setUniform1f("u_Key", 0.08f);
-		p->setUniform1f("u_Strength", App.hdr.auto_exposure_strength.value);
-		p->setUniformVec2f("u_ExpoRange", { App.hdr.auto_exposure_min.value, App.hdr.auto_exposure_max.value });
-		p->setUniformVec2f("u_Rate", { 1.0f - std::exp(-dt / 1.5f), 1.0f - std::exp(-dt / 3.0f) }); // darken ~1.5 s, brighten ~3 s
-		p->setUniform1i("u_Reset", reset ? 1 : 0);
-		bindPipeline(p);
-		bindFrameBuffer(m_expo_fb[cur], false);
-		setViewport({ 1, 1 });
-		drawQuad();
-		m_expo_cur = cur;
-		m_expo_fb[cur]->getTexture()->bind();
-		bindFrameBuffer(m_game_framebuffer, false);
-	}
-
-	p->setUniform1i("u_Mode", 1);
-	p->setUniform1i("u_ExpoOn", ae ? 1 : 0);
-	p->setUniform1f("u_Knee", App.hdr.diffuse_shoulder ? App.hdr.shoulder_knee.value : 1.0e9f);
-	bindPipeline(p);
-	setViewport(gs);
-	drawQuad();
-}
-
-// Float pipeline HDR bloom (end of PreFx, before UI): prefilter > 1.0 at half res, dual-filter
-// down/up over hdr_bloom_radius RGBA16F levels, added onto the game colour.
-void Context::hdrBloom(glm::uvec2 game_size)
-{
-	const int levels = std::clamp(App.hdr.hdr_bloom_radius.value, 2, 6);
-	if (m_hdrbloom_game_size != game_size || (int)m_hdrbloom_fb.size() != levels) {
-		m_hdrbloom_game_size = game_size;
-		m_hdrbloom_fb.clear();
-		glm::uvec2 size = game_size;
-		for (int i = 0; i < levels; i++) {
-			size = glm::max(size / 2u, glm::uvec2(1));
-			FrameBufferCreateInfo ci;
-			ci.size = size;
-			ci.attachments = { { TEXTURE_SLOT_HDRBLOOM, { 0.0f, 0.0f, 0.0f, 1.0f }, { GL_LINEAR, GL_LINEAR }, { GL_RGBA16F, GL_RGBA } } };
-			m_hdrbloom_fb.push_back(Context::createFrameBuffer(ci));
-		}
-	}
-	const auto& p = m_emit_pipeline;
-	const auto texel = [](const std::unique_ptr<FrameBuffer>& fb) { return glm::vec2(1.0f / fb->getWidth(), 1.0f / fb->getHeight()); };
-	const auto size = [](const std::unique_ptr<FrameBuffer>& fb) { return glm::ivec2(fb->getWidth(), fb->getHeight()); };
-
-	bindFrameBuffer(m_game_framebuffer, false);
-	FrameBuffer::setDrawBuffers(1);
-	m_prefx_texture->fillFromBuffer(m_game_framebuffer);
-
-	p->setUniform1i("u_Mode", 4);
-	p->setUniformVec2f("u_SrcTexel", { 1.0f / game_size.x, 1.0f / game_size.y });
-	bindPipeline(p, 0);
-	bindFrameBuffer(m_hdrbloom_fb[0], false);
-	setViewport(size(m_hdrbloom_fb[0]));
-	drawQuad();
-
-	for (int i = 1; i < levels; i++) {
-		m_hdrbloom_fb[i - 1]->getTexture()->bind();
-		p->setUniform1i("u_Mode", 5);
-		p->setUniformVec2f("u_SrcTexel", texel(m_hdrbloom_fb[i - 1]));
-		bindPipeline(p, 0);
-		bindFrameBuffer(m_hdrbloom_fb[i], false);
-		setViewport(size(m_hdrbloom_fb[i]));
-		drawQuad();
-	}
-	for (int i = levels - 2; i >= 0; i--) {
-		m_hdrbloom_fb[i + 1]->getTexture()->bind();
-		p->setUniform1i("u_Mode", 6);
-		p->setUniformVec2f("u_SrcTexel", texel(m_hdrbloom_fb[i + 1]));
-		bindPipeline(p, 1);
-		bindFrameBuffer(m_hdrbloom_fb[i], false);
-		setViewport(size(m_hdrbloom_fb[i]));
-		drawQuad();
-	}
-
-	m_hdrbloom_fb[0]->getTexture()->bind();
-	p->setUniform1i("u_Mode", 7);
-	p->setUniform1f("u_Intensity", App.hdr.hdr_bloom_intensity.value);
-	p->setUniform1f("u_Levels", (float)levels);
-	bindPipeline(p, 1);
-	bindFrameBuffer(m_game_framebuffer, false);
-	setViewport(glm::ivec2(game_size));
-	drawQuad();
-}
-
 bool Context::emitGradedWanted() const
 {
-	return App.hdr.emissive_graded && !App.hdr.float_mode;
+	return App.hdr.emissive_graded;
 }
 
 bool Context::emitWanted() const
 {
-	// float pipeline: the attachment carries the additive share of the colour for the diffuse shoulder
-	return ISGLIDE3X() && m_emit_supported && m_hdr && App.hdr.mode && (App.hdr.float_mode ? (App.hdr.diffuse_shoulder || App.hdr.auto_exposure || App.hdr.hdr_bloom) : App.hdr.emissive);
+	return ISGLIDE3X() && m_emit_supported && m_hdr && App.hdr.mode && App.hdr.emissive;
 }
 
 void Context::onShaderChange()
@@ -1500,17 +1341,13 @@ void Context::onStageChange()
 		case DrawStage::World:
 			break;
 		case DrawStage::UI:
-			if (App.hdr.float_mode && ISGLIDE3X()) {
-				flushVertices();
-				m_command_buffer[m_frame_index].pushCommand(CommandType::UIStage, m_current_blend_index);
-			}
 			addPanelOccluders();
 			modules::HDText::drawFpsCounter();
 			if (m_shadow_fx && m_shadow_seen && *d2::screen_shift != SCREENPANEL_BOTH) {
 				flushVertices();
 				m_command_buffer[m_frame_index].pushCommand(CommandType::SoftShadow, m_current_blend_index);
 			}
-			if (ISGLIDE3X() && (App.bloom.active || App.lut.selected || App.dynamic_light.active || App.tonemap.active || App.radiance_gi.active || (App.hdr.float_mode && (App.hdr.auto_exposure || App.hdr.hdr_bloom))) && *d2::screen_shift != SCREENPANEL_BOTH) {
+			if (ISGLIDE3X() && (App.bloom.active || App.lut.selected || App.dynamic_light.active || App.tonemap.active || App.radiance_gi.active) && *d2::screen_shift != SCREENPANEL_BOTH) {
 				flushVertices();
 				m_command_buffer[m_frame_index].pushCommand(CommandType::PreFx, m_current_blend_index);
 			}
@@ -1980,10 +1817,7 @@ void Context::captureSettings(perf::FrameSettings& st) const
 	st.bloom_exposure = App.bloom.exposure.value;
 	st.bloom_gamma = App.bloom.gamma.value;
 	st.lut = App.lut.selected;
-	st.tonemap = App.tonemap.active && !App.hdr.float_mode; // float pipeline: one HDR tonemap in the presenter
-	st.add_scale = 1.0f;
-	if (App.hdr.float_mode && App.hdr.emissive)
-		st.add_scale = std::pow(std::max(App.hdr.emissive_nits.value / std::max(App.hdr.sdr_white.value, 1.0f), 1.0f), 1.0f / 2.2f);
+	st.tonemap = App.tonemap.active;
 	st.tonemap_exposure = App.tonemap.exposure.value;
 	st.world_only = App.shader.world_only;
 

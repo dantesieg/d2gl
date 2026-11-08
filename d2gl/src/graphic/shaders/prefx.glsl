@@ -54,7 +54,6 @@ uniform sampler2D u_Texture;
 uniform sampler2D u_BloomTexture1;
 uniform sampler2D u_BloomTexture2;
 uniform sampler2DArray u_LUTTexture;
-uniform float u_Float; // 1 = [HDR] float_pipeline: scene colour may exceed 1.0
 
 in vec2 v_TexCoord;
 flat in ivec2 v_TexIds;
@@ -138,13 +137,10 @@ void main()
 				vec3 bloom_color = texture(u_BloomTexture1, v_TexCoord).rgb;
 				bloom_color = vec3(1.0) - exp(-bloom_color * u_BloomExp);
 				bloom_color = pow(bloom_color, vec3(1.0 / u_BloomGamma));
-				out_color = u_Float > 0.5 ? max(out_color + bloom_color, 0.0) : clamp(out_color + bloom_color, 0.0, 1.0);
+				out_color = clamp(out_color + bloom_color, 0.0, 1.0);
 			}
 
 			FragColor = vec4(out_color, 1.0);
-			if (u_Float > 0.5 && v_TexIds.x > 0) // LUT grades [0,1]; light above 1.0 passes through on top
-				FragColor = vec4(LUT(vec4(min(out_color, 1.0), 1.0)).rgb + max(out_color - 1.0, 0.0), 1.0);
-			else
 			FragColor = v_TexIds.x > 0 ? LUT(FragColor) : FragColor;
 		break;
 	}

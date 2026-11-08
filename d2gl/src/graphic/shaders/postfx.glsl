@@ -225,7 +225,6 @@ layout(std140) uniform ubo_Metrics {
 };
 
 uniform sampler2D u_Texture0;
-uniform float u_Float; // 1 = [HDR] float_pipeline: scene colour may exceed 1.0
 uniform sampler2D u_Texture1;
 
 in vec2 v_TexCoord;
@@ -246,7 +245,7 @@ vec3 LumaSharpen(sampler2D tex, vec2 tc)
 
 	float sharp_luma = (u_SharpClamp * 2.0) * clamp(dot(vec4(sharp, 1.0), sharp_clamp), 0.0, 1.0) - u_SharpClamp;
 
-	return u_Float > 0.5 ? max(rgb + sharp_luma, 0.0) : clamp(rgb + sharp_luma, 0.0, 1.0);
+	return clamp(rgb + sharp_luma, 0.0, 1.0);
 }
 
 void main()

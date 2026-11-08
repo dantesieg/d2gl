@@ -405,9 +405,8 @@ bool Presenter::createTarget()
 	td.Height = (UINT)m_h;
 	td.MipLevels = 1;
 	td.ArraySize = 1;
-	// the final composite is the SDR signal: RGBA8, or RGBA16F (values above 1.0) with [HDR] float_pipeline
-	m_float = App.hdr.float_mode;
-	td.Format = m_float ? DXGI_FORMAT_R16G16B16A16_FLOAT : DXGI_FORMAT_R8G8B8A8_UNORM;
+	// the final composite is the SDR signal (RGBA8)
+	td.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 	td.SampleDesc.Count = 1;
 
 	glGenTextures(1, &m_tex);
@@ -416,13 +415,6 @@ bool Presenter::createTarget()
 	if (App.hdr.shared_texture && !m_interop_available) {
 		if (createShared())
 			return true;
-		if (m_float) {
-			error_log("HDR: float (R16G16B16A16_FLOAT) shared texture failed, retrying RGBA8 (float pipeline output clipped to 1.0)");
-			m_float = false;
-			td.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-			if (createShared())
-				return true;
-		}
 	}
 
 	if (m_interop_available) {
@@ -456,7 +448,7 @@ bool Presenter::createTarget()
 
 	// CPU copy path: plain GL texture + PBO ring, dynamic D3D11 upload texture.
 	glBindTexture(GL_TEXTURE_2D, m_tex);
-	glTexImage2D(GL_TEXTURE_2D, 0, m_float ? GL_RGBA16F : GL_RGBA8, m_w, m_h, 0, GL_RGBA, m_float ? GL_HALF_FLOAT : GL_UNSIGNED_BYTE, nullptr);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, m_w, m_h, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glBindTexture(GL_TEXTURE_2D, 0);
@@ -480,7 +472,7 @@ bool Presenter::createTarget()
 	if (FAILED(HR(m_dev->CreateTexture2D(&td, nullptr, &m_in_tex))) || FAILED(HR(m_dev->CreateShaderResourceView(m_in_tex, nullptr, &m_in_srv))))
 		return false;
 	m_transport = Transport::CpuCopy;
-	trace_log("HDR: CPU copy path, %s", m_float ? "RGBA16F" : "RGBA8");
+	trace_log("HDR: CPU copy path, %s", "RGBA8");
 	return true;
 }
 
@@ -498,7 +490,7 @@ bool Presenter::createShared()
 	td.Height = (UINT)m_h;
 	td.MipLevels = 1;
 	td.ArraySize = 1;
-	td.Format = m_float ? DXGI_FORMAT_R16G16B16A16_FLOAT : DXGI_FORMAT_R8G8B8A8_UNORM;
+	td.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 	td.SampleDesc.Count = 1;
 	td.Usage = D3D11_USAGE_DEFAULT;
 	td.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
@@ -545,7 +537,7 @@ bool Presenter::createShared()
 		}
 		glGenTextures(1, &m_sh_gltex[i]);
 		glBindTexture(GL_TEXTURE_2D, m_sh_gltex[i]);
-		glTexStorageMem2DEXT(GL_TEXTURE_2D, 1, m_float ? GL_RGBA16F : GL_RGBA8, m_w, m_h, m_sh_mem[i], 0);
+		glTexStorageMem2DEXT(GL_TEXTURE_2D, 1, GL_RGBA8, m_w, m_h, m_sh_mem[i], 0);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 		glBindTexture(GL_TEXTURE_2D, 0);
@@ -571,7 +563,7 @@ bool Presenter::createShared()
 	m_sh_cur = 0;
 	glBindFramebuffer(GL_FRAMEBUFFER, m_fbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_sh_gltex[0], 0);
-	m_transport = Transport::SharedTex; trace_log("HDR: shared texture %s", m_float ? "R16G16B16A16_FLOAT" : "R8G8B8A8_UNORM");
+	m_transport = Transport::SharedTex; trace_log("HDR: shared texture %s", "R8G8B8A8_UNORM");
 	return true;
 }
 
@@ -745,7 +737,7 @@ bool Presenter::present(bool vsync)
 		glBindFramebuffer(GL_READ_FRAMEBUFFER, m_fbo);
 		glBindBuffer(GL_PIXEL_PACK_BUFFER, m_pbo[m_ring_head]);
 		glPixelStorei(GL_PACK_ALIGNMENT, 4);
-		glReadPixels(0, 0, m_w, m_h, GL_RGBA, m_float ? GL_HALF_FLOAT : GL_UNSIGNED_BYTE, nullptr);
+		glReadPixels(0, 0, m_w, m_h, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
 		if (m_fence[m_ring_head])
 			glDeleteSync(m_fence[m_ring_head]);
 		m_fence[m_ring_head] = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
@@ -788,8 +780,6 @@ bool Presenter::present(bool vsync)
 		p.brightness_stops = 0.0f;
 		p.highlight_strength = 0.0f;
 	}
-	if (m_float)
-		p.highlight_strength = 0.0f; // float pipeline: real light above 1.0 replaces highlight expansion
 	if (App.hdr.act_grading && !m_cinematic && App.game.screen == GameScreen::InGame && d2::level_no) {
 		// per-act look: Act 1 neutral, Act 2 warm desert, Act 3 humid green, Act 4 hellish red, Act 5 cold
 		static const float tints[5][3] = { { 1.00f, 1.00f, 1.00f }, { 1.04f, 1.00f, 0.92f }, { 0.95f, 1.03f, 0.96f }, { 1.05f, 0.96f, 0.94f }, { 0.95f, 0.99f, 1.06f } };

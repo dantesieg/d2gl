@@ -543,20 +543,6 @@ void Menu::draw()
 				drawDescription("Restart the game to apply.", m_colors[Color::Orange], 14);
 			else
 				drawDescription("Off presents SDR; on/off of the HDR path itself needs a restart.", m_colors[Color::Gray], 12);
-			drawCheckbox_m("Float Pipeline", App.hdr.float_pipeline, "", hdr_float_pipeline)
-				saveBool("HDR", "float_pipeline", App.hdr.float_pipeline);
-			if (App.hdr.float_pipeline != App.hdr.float_mode && App.hdr.mode)
-				drawDescription("Restart the game to apply.", m_colors[Color::Orange], 14);
-			else
-				drawDescription(hdr_p && hdr_p->floatTarget() ? "Scene in RGBA16F: light above paper white." : "Scene in RGBA8 (SDR range).", m_colors[Color::Gray], 12);
-			ImGui::BeginDisabled(!App.hdr.float_pipeline);
-				drawCheckbox_m("Diffuse Shoulder", App.hdr.diffuse_shoulder, "Lit ground and walls soft-clip to paper white; spells and fire still go above.", hdr_diffuse_shoulder)
-					saveBool("HDR", "diffuse_shoulder", App.hdr.diffuse_shoulder);
-				ImGui::BeginDisabled(!App.hdr.diffuse_shoulder);
-					drawSlider_m(float, "Shoulder Knee", App.hdr.shoulder_knee, "%.2f", "", hdr_shoulder_knee)
-						saveFloat("HDR", "shoulder_knee", App.hdr.shoulder_knee.value);
-				ImGui::EndDisabled();
-			ImGui::EndDisabled();
 			{
 				char line[160] = { 0 };
 				if (hdr_p) {
@@ -632,26 +618,6 @@ void Menu::draw()
 					saveFloat("HDR", "act5_exposure", App.hdr.act_exposure[4].value);
 			ImGui::EndDisabled();
 			childSeparator("##hdr1");
-			ImGui::BeginDisabled(!App.hdr.float_pipeline);
-				drawCheckbox_m("Auto Exposure", App.hdr.auto_exposure, "Eye adaptation on the world (float pipeline); spells and UI do not affect it.", hdr_auto_exposure)
-					saveBool("HDR", "auto_exposure", App.hdr.auto_exposure);
-				ImGui::BeginDisabled(!App.hdr.auto_exposure);
-					drawSlider_m(float, "Exposure Strength", App.hdr.auto_exposure_strength, "%.2f", "", hdr_ae_strength)
-						saveFloat("HDR", "auto_exposure_strength", App.hdr.auto_exposure_strength.value);
-					drawSlider_m(float, "Exposure Min (stops)", App.hdr.auto_exposure_min, "%.2f", "", hdr_ae_min)
-						saveFloat("HDR", "auto_exposure_min", App.hdr.auto_exposure_min.value);
-					drawSlider_m(float, "Exposure Max (stops)", App.hdr.auto_exposure_max, "%.2f", "", hdr_ae_max)
-						saveFloat("HDR", "auto_exposure_max", App.hdr.auto_exposure_max.value);
-				ImGui::EndDisabled();
-				drawCheckbox_m("HDR Bloom", App.hdr.hdr_bloom, "Glow around light above paper white only (float pipeline).", hdr_bloom)
-					saveBool("HDR", "hdr_bloom", App.hdr.hdr_bloom);
-				ImGui::BeginDisabled(!App.hdr.hdr_bloom);
-					drawSlider_m(float, "Bloom Intensity", App.hdr.hdr_bloom_intensity, "%.2f", "", hdr_bloom_intensity)
-						saveFloat("HDR", "hdr_bloom_intensity", App.hdr.hdr_bloom_intensity.value);
-					drawSlider_m(int, "Bloom Radius", App.hdr.hdr_bloom_radius, "%d", "", hdr_bloom_radius)
-						saveInt("HDR", "hdr_bloom_radius", App.hdr.hdr_bloom_radius.value);
-				ImGui::EndDisabled();
-			ImGui::EndDisabled();
 			drawSlider_m(float, "Brightness (stops)", App.hdr.brightness, "%.2f", "", hdr_brightness)
 				saveFloat("HDR", "brightness", App.hdr.brightness.value);
 			drawSlider_m(float, "Black Level", App.hdr.black_level, "%.3f", "+ lifts, - crushes shadows.", hdr_black_level)
@@ -731,6 +697,7 @@ void Menu::draw()
 		ImGui::EndTabBar();
 	}
 	ImGui::PopFont();
+#if 0 // wiki button: fixed y = 500 overlapped the taller menu, and a browser link is no use on the Deck
 	if (active_tab != 3) {
 		ImGui::SetCursorPos({ 16.0f, 500.0f });
 		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, { 0.0f, 0.0f });
@@ -744,6 +711,7 @@ void Menu::draw()
 		ImGui::PopFont();
 		ImGui::EndChildFrame();
 	}
+#endif
 	ImGui::End();
 
 	// clang-format on

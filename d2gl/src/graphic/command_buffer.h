@@ -16,7 +16,6 @@ enum class CommandType {
 	WorldSnapshot,
 	Submit,
 	TakeScreenShot,
-	UIStage, // [HDR] float_pipeline: world done, UI draws follow (additive scale back to 1)
 };
 
 struct Command {
