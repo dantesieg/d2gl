@@ -164,7 +164,7 @@ static void __fastcall setLightRGBHooked(void* light, uint8_t r, uint8_t g, uint
 }
 static bool lightHooksValid()
 {
-	if (!isVer(V_114d))
+	if (isVerNot(V_114d))
 		return false;
 	const uintptr_t base = (uintptr_t)GetModuleHandle(NULL);
 	static const uint8_t alloc_sig[] = { 0x55, 0x8B, 0xEC, 0x51, 0x53, 0x8B, 0x5D, 0x08 };
