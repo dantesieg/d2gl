@@ -197,7 +197,7 @@ void LootSparkle::record(d2::CellContext* cell, int x, int y)
 		return;
 
 	const uint32_t frame = App.context->getFrameCount();
-	if (unit == d2::player_unit) { // [HDR] light_pools anchor
+	if (unit == d2::getPlayerUnit()) { // [HDR] light_pools anchor
 		d2::player_screen_x = x;
 		d2::player_screen_y = y;
 		d2::player_screen_frame = frame;

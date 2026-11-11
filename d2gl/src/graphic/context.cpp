@@ -1540,13 +1540,16 @@ void Context::setViewport(glm::ivec2 size, glm::ivec2 offset)
 void Context::captureLights(CommandBuffer& cb)
 {
 	cb.m_light_count = 0;
-	if (App.hdr.light_pools.value <= 0.0f || !m_emit_attached || App.game.screen != GameScreen::InGame || isVerNot(V_114d) || !d2::player_unit)
+	if (App.hdr.light_pools.value <= 0.0f || !m_emit_attached || App.game.screen != GameScreen::InGame || isVerNot(V_114d))
+		return;
+	d2::UnitAny* me = d2::getPlayerUnit();
+	if (!me)
 		return;
 	if (m_frame.frame_count - d2::player_screen_frame > 2)
 		return;
 	const uintptr_t base = (uintptr_t)GetModuleHandle(NULL);
 	const uint8_t* head = *(const uint8_t**)(base + 0x3B5668);
-	const uint32_t guid = d2::player_unit->dwUnitId;
+	const uint32_t guid = me->v110.dwUnitId;
 	int pgx = INT_MIN, pgy = 0;
 	int n = 0;
 	for (const uint8_t* l = head; l && n < 256; l = *(const uint8_t* const*)(l + 0x28), n++)
