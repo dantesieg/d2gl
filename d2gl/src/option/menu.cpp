@@ -650,6 +650,8 @@ void Menu::draw()
 				drawSlider_m(float, "Item Glow Strength", App.hdr.item_glow_strength, "%.2f", "", hdr_item_glow_strength)
 					saveFloat("HDR", "item_glow_strength", App.hdr.item_glow_strength.value);
 			ImGui::EndDisabled();
+			drawSlider_m(float, "Orb Glow", App.hdr.orb_glow, "%.2f", "Health and mana orb liquid glows in HDR (needs Emissive). 0 = off.", hdr_orb_glow)
+				saveFloat("HDR", "orb_glow", App.hdr.orb_glow.value);
 			ImGui::Dummy({ 0.0f, 12.0f });
 			drawSeparator();
 			drawLabel("Scenes", m_colors[Color::Orange], 17);

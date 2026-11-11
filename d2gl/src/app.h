@@ -227,6 +227,7 @@ struct D2GLApp {
 		Range<float> unit_emissive = { 1.0f, 0.0f, 1.0f }; // auras/glows on players and monsters: share of spell emission + floor light
 		bool item_glow = false;                          // valuable ground items glow above paper white (needs emissive)
 		Range<float> item_glow_strength = { 1.0f, 0.25f, 3.0f };
+		Range<float> orb_glow = { 0.0f, 0.0f, 3.0f };      // health/mana orb liquid glows above paper white (needs emissive, 0 = off)
 		bool act_grading = false;                         // per-act exposure + colour tint in game
 		Range<float> act_tint = { 1.0f, 0.0f, 2.0f };     // tint strength (0 = exposure only)
 		Range<float> act_exposure[5] = { { 0.0f, -1.0f, 1.0f }, { -0.25f, -1.0f, 1.0f }, { 0.0f, -1.0f, 1.0f }, { 0.0f, -1.0f, 1.0f }, { 0.0f, -1.0f, 1.0f } }; // stops

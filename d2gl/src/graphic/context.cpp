@@ -620,7 +620,7 @@ void Context::renderThread(void* context)
 							ctx->m_game_pipeline->setUniform1f("u_SpellGlow", last_glow = st.spell_glow);
 						if (!same_pipe || last_filter != App.game.native_filter.selected)
 							ctx->m_game_pipeline->setUniform1i("u_NativeFilter", last_filter = App.game.native_filter.selected);
-						static float last_flicker = -1.0f, last_item_glow = -1.0f, last_hot = -1.0f, last_unit = -1.0f;
+						static float last_flicker = -1.0f, last_item_glow = -1.0f, last_orb = -1.0f, last_hot = -1.0f, last_unit = -1.0f;
 						const float unit_emit = ctx->m_emit_attached ? App.hdr.unit_emissive.value : 1.0f;
 						if (!same_pipe || last_unit != unit_emit)
 							ctx->m_game_pipeline->setUniform1f("u_UnitEmit", last_unit = unit_emit);
@@ -634,6 +634,9 @@ void Context::renderThread(void* context)
 						const float item_glow = (App.hdr.item_glow && ctx->m_emit_attached) ? App.hdr.item_glow_strength.value : 0.0f;
 						if (!same_pipe || last_item_glow != item_glow)
 							ctx->m_game_pipeline->setUniform1f("u_ItemGlow", last_item_glow = item_glow);
+						const float orb_glow = ctx->m_emit_attached ? App.hdr.orb_glow.value : 0.0f;
+						if (!same_pipe || last_orb != orb_glow)
+							ctx->m_game_pipeline->setUniform1f("u_OrbGlow", last_orb = orb_glow);
 					}
 					ctx->bindPipeline(ctx->m_game_pipeline, command->index);
 					break;
@@ -1556,6 +1559,8 @@ void Context::pushVertex(const GlideVertex* vertex, glm::vec2 fix, glm::ivec2 of
 		}
 		m_vertices.ptr->flags.z |= (uint8_t)(last_level << 4);
 	}
+	if (d2::drawing_orb && m_emit_attached)
+		m_vertices.ptr->flags.z |= 0x40; // [HDR] orb_glow: health/mana orb liquid
 	if (m_shadow_fx && App.game.draw_stage == DrawStage::World && m_shadow_draw != 2) {
 		// High nibble of flag x tags shadow-buffer writes (see glide.glsl).
 		const uint32_t blend = m_current_blend_index;

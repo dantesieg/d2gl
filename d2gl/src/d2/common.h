@@ -157,6 +157,7 @@ extern getLevelNoByRoom_t getLevelNoByRoom;
 extern uintptr_t getLevelName_Fn;
 
 extern UnitAny* currently_drawing_unit;
+extern bool drawing_orb; // [HDR] orb_glow: inside the health/mana orb liquid draw
 extern uint32_t currently_drawing_weather_particles;
 extern uintptr_t* currently_drawing_weather_particle_index_ptr;
 extern RECT* currently_drawing_rect;

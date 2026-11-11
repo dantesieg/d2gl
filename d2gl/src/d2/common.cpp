@@ -122,6 +122,7 @@ uintptr_t getLevelName_Fn = getProc((DLL_D2CLIENT), (0x88420), (0x839F0), (0x9DC
 // d2client + 0x3D88A 0x3DD72 0x3E69C 0x289C9 : keybindings
 
 UnitAny* currently_drawing_unit = nullptr;
+bool drawing_orb = false;
 uint32_t currently_drawing_weather_particles = 0;
 uint32_t* currently_drawing_weather_particle_index_ptr = nullptr;
 RECT* currently_drawing_rect = nullptr;

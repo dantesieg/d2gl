@@ -399,6 +399,8 @@ void saveIni()
 		"; Item glow: uniques, sets and runes on the ground glow above paper white (needs emissive, strength 0.25-3).\n"
 		"item_glow=%s\n"
 		"item_glow_strength=%.2f\n"
+		"; Orb glow: the health and mana orb liquid glows above paper white (needs emissive, 0 = off, up to 3).\n"
+		"orb_glow=%.2f\n"
 		"; Per-act grading: exposure offset in stops per act and a colour tint (strength 0-2).\n"
 		"act_grading=%s\n"
 		"act_tint=%.2f\n"
@@ -436,6 +438,7 @@ void saveIni()
 		App.hdr.unit_emissive.value,
 		boolString(App.hdr.item_glow),
 		App.hdr.item_glow_strength.value,
+		App.hdr.orb_glow.value,
 		boolString(App.hdr.act_grading),
 		App.hdr.act_tint.value,
 		App.hdr.act_exposure[0].value,
@@ -645,6 +648,7 @@ void loadIni()
 		App.hdr.unit_emissive.value = getFloat("HDR", "unit_emissive", App.hdr.unit_emissive);
 		App.hdr.item_glow = getBool("HDR", "item_glow", App.hdr.item_glow);
 		App.hdr.item_glow_strength.value = getFloat("HDR", "item_glow_strength", App.hdr.item_glow_strength);
+		App.hdr.orb_glow.value = getFloat("HDR", "orb_glow", App.hdr.orb_glow);
 		App.hdr.act_grading = getBool("HDR", "act_grading", App.hdr.act_grading);
 		App.hdr.act_tint.value = getFloat("HDR", "act_tint", App.hdr.act_tint);
 		for (int i = 0; i < 5; i++) {

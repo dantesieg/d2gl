@@ -67,6 +67,7 @@ uniform float u_LightFlicker; // [Graphic] light_flicker: 0 = off, spell/fire li
 uniform float u_Time;         // seconds, wraps every hour
 uniform float u_HotPixels;    // [HDR] hot_pixels: bright saturated warm pixels of opaque world sprites emit (0 = off)
 uniform float u_UnitEmit;     // [HDR] unit_emissive: additive draws on players/monsters (auras, glows) scale emission and floor light (1 = as spells)
+uniform float u_OrbGlow;      // [HDR] orb_glow: health/mana orb liquid (flag z bit 6, needs emissive)
 uniform float u_ItemGlow;     // [HDR] item_glow: emission of valuable ground items (needs emissive)
 uniform float u_SpellGlow; // additive draws feed the light buffer at this strength
 
@@ -221,6 +222,9 @@ void main()
 	uint ig = (v_Flags.z >> 4u) & 3u;
 	if (ig > 0u && u_ItemGlow > 0.0 && (u_BlendIndex == 0 || u_BlendIndex == 3) && sk == 0u)
 		FragEmit = vec4(dot(FragColor.rgb, vec3(0.299, 0.587, 0.114)) * u_ItemGlow * (0.5 + 0.25 * float(ig)), 0.0, 0.0, u_BlendIndex == 3 ? FragColor.a : 1.0);
+	// [HDR] orb_glow: the orb liquid emits by its brightest channel (blue mana counts as much as red life)
+	if ((v_Flags.z & 64u) != 0u && u_OrbGlow > 0.0 && u_BlendIndex == 0)
+		FragEmit = vec4(max(FragColor.r, max(FragColor.g, FragColor.b)) * u_OrbGlow, 0.0, 0.0, 1.0);
 
 	if (sk == 1u) {
 		FragColorShadow.r = 1.0 - dot(FragColor.rgb, vec3(0.299, 0.587, 0.114));
