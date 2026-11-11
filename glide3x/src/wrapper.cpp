@@ -229,8 +229,14 @@ void Wrapper::grTexDownloadMipMap(GrChipID_t tmu, FxU32 start_address, GrTexInfo
 
 	memcpy(g_glide_texture.memory + start_address, info->data, width * height);
 	g_glide_texture.hash[start_address] = helpers::hash(info->data, width * height);
-	if (hires::g_pack.count)
-		g_glide_texture.hires[start_address] = hires::find(g_glide_texture.hash[start_address], width, height);
+	if (hires::g_pack.count) {
+		const uint8_t* hi = hires::find(g_glide_texture.hash[start_address], width, height);
+		g_glide_texture.hires[start_address] = hi;
+		static uint32_t seen = 0, matched = 0;
+		seen++, matched += hi ? 1 : 0;
+		if ((seen & 1023) == 0)
+			trace_log("hires_textures: %u of %u downloads matched", matched, seen);
+	}
 }
 
 void Wrapper::grTexDownloadTable(void* data)

@@ -264,6 +264,7 @@ Context::Context()
 		hires_texture_ci.size = { hs, hs };
 		hires_texture_ci.layer_count = hires ? 512 : 1;
 		hires_texture_ci.format = { GL_R8, GL_RED };
+		hires_texture_ci.slot = TEXTURE_SLOT_HIRES;
 		m_hires_texture = std::make_unique<Texture>(hires_texture_ci);
 		if (hires)
 			trace_log("hires_textures: %u replacements, scale %u", hires::g_pack.count, hires::g_pack.scale);
