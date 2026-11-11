@@ -29,7 +29,7 @@ struct Command {
 	};
 };
 
-struct HiTexData { // [Graphic] hires_textures: data points into the memory-mapped pack (immutable)
+struct HiTexData { // [Graphic] hires_textures: data points into the command buffer's hi arena
 	const uint8_t* data;
 	uint16_t tex_num;
 	glm::vec<2, uint16_t> tex_size;
@@ -101,6 +101,8 @@ class CommandBuffer {
 	UBOUpdateQueue m_ubo_update_queue;
 	TexUpdateQueue m_tex_update_queue;
 	HiTexUpdateQueue m_hi_tex_update_queue;
+	std::vector<uint8_t> m_hi_arena; // expanded replacements of this frame (16 MB, allocated on first use)
+	size_t m_hi_used = 0;
 	uint32_t m_vertex_count = 0;
 	uint32_t m_vertex_mod_count = 0;
 	GameScreen m_screen = GameScreen::InGame;
@@ -143,6 +145,7 @@ public:
 
 	void colorUpdate(UBOType type, const void* data);
 	void textureUpdate(uint8_t* data, uint16_t tex_num, glm::vec<2, uint16_t> size, glm::vec<2, uint16_t> offset);
+	uint8_t* allocHi(size_t bytes);
 	void textureUpdateHi(const uint8_t* data, uint16_t tex_num, glm::vec<2, uint16_t> size, glm::vec<2, uint16_t> offset);
 	void gameTextureUpdate(uint8_t* data, glm::vec<2, uint16_t> size, uint32_t bit = 1);
 	void setHDTextMasking(bool masking, glm::vec4 metrics);

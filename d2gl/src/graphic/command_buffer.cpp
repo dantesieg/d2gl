@@ -22,6 +22,7 @@ void CommandBuffer::reset()
 	m_ubo_update_queue.count = 0;
 	m_tex_update_queue.count = 0;
 	m_hi_tex_update_queue.count = 0;
+	m_hi_used = 0;
 	m_tex_update_queue.data_offset = 0;
 	m_vertex_count = 0;
 	m_vertex_mod_count = 0;
@@ -92,6 +93,17 @@ void CommandBuffer::textureUpdate(uint8_t* data, uint16_t tex_num, glm::vec<2, u
 
 	m_tex_update_queue.data_offset += data_size;
 	m_tex_update_queue.count++;
+}
+
+uint8_t* CommandBuffer::allocHi(size_t bytes)
+{
+	if (m_hi_arena.empty())
+		m_hi_arena.resize(16u << 20);
+	if (m_hi_used + bytes > m_hi_arena.size() || m_hi_tex_update_queue.count >= m_hi_tex_update_queue.tex_data.size())
+		return nullptr;
+	uint8_t* p = m_hi_arena.data() + m_hi_used;
+	m_hi_used += (bytes + 15) & ~(size_t)15;
+	return p;
 }
 
 void CommandBuffer::textureUpdateHi(const uint8_t* data, uint16_t tex_num, glm::vec<2, uint16_t> size, glm::vec<2, uint16_t> offset)

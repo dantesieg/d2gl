@@ -109,7 +109,11 @@ const SubTextureInfo* TextureManager::getSubTextureInfo(uint32_t address, uint16
 		const auto hi = g_glide_texture.hires.find(address);
 		if (hi != g_glide_texture.hires.end() && hi->second) {
 			const uint16_t s = (uint16_t)hires::g_pack.scale;
-			command_buffer->textureUpdateHi(hi->second, texture_info->tex_num, { (uint16_t)(width * s), (uint16_t)(height * s) }, { (uint16_t)(texture_info->offset.x * s), (uint16_t)(texture_info->offset.y * s) });
+			uint8_t* dst = command_buffer->allocHi((size_t)width * s * height * s);
+			if (dst && hires::expand((const hires::PakEntry*)hi->second, dst))
+				command_buffer->textureUpdateHi(dst, texture_info->tex_num, { (uint16_t)(width * s), (uint16_t)(height * s) }, { (uint16_t)(texture_info->offset.x * s), (uint16_t)(texture_info->offset.y * s) });
+			else
+				hi->second = nullptr; // not uploaded: draw the original
 		}
 
 		cache.items.insert({ hash, id });
