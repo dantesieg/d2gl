@@ -222,9 +222,9 @@ void main()
 	uint ig = (v_Flags.z >> 4u) & 3u;
 	if (ig > 0u && u_ItemGlow > 0.0 && (u_BlendIndex == 0 || u_BlendIndex == 3) && sk == 0u)
 		FragEmit = vec4(dot(FragColor.rgb, vec3(0.299, 0.587, 0.114)) * u_ItemGlow * (0.5 + 0.25 * float(ig)), 0.0, 0.0, u_BlendIndex == 3 ? FragColor.a : 1.0);
-	// [HDR] orb_glow: the orb liquid emits by its brightest channel (blue mana counts as much as red life)
+	// [HDR] orb_glow: the orb liquid emits by its brightest channel (blue mana counts as much as red life); graded emission
 	if ((v_Flags.z & 64u) != 0u && u_OrbGlow > 0.0 && u_BlendIndex == 0)
-		FragEmit = vec4(max(FragColor.r, max(FragColor.g, FragColor.b)) * u_OrbGlow, 0.0, 0.0, 1.0);
+		FragEmit = vec4(max(FragColor.r, max(FragColor.g, FragColor.b)) * u_OrbGlow * 4.0, 0.0, 0.0, 1.0); // x4: orb liquid is dark, 1 ~ 200 nits
 
 	if (sk == 1u) {
 		FragColorShadow.r = 1.0 - dot(FragColor.rgb, vec3(0.299, 0.587, 0.114));

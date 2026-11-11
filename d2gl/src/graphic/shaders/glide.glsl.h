@@ -170,7 +170,7 @@
 "if (ig > 0u && u_ItemGlow > 0.0 && (u_BlendIndex == 0 || u_BlendIndex == 3) && sk == 0u) "
 "FragEmit = vec4(dot(FragColor.rgb, vec3(0.299, 0.587, 0.114)) * u_ItemGlow * (0.5 + 0.25 * float(ig)), 0.0, 0.0, u_BlendIndex == 3 ? FragColor.a : 1.0); "
 "if ((v_Flags.z & 64u) != 0u && u_OrbGlow > 0.0 && u_BlendIndex == 0) "
-"FragEmit = vec4(max(FragColor.r, max(FragColor.g, FragColor.b)) * u_OrbGlow, 0.0, 0.0, 1.0); "
+"FragEmit = vec4(max(FragColor.r, max(FragColor.g, FragColor.b)) * u_OrbGlow * 4.0, 0.0, 0.0, 1.0); "
 "if (sk == 1u) { "
 "FragColorShadow.r = 1.0 - dot(FragColor.rgb, vec3(0.299, 0.587, 0.114)); "
 "FragColor = vec4(1.0); "
