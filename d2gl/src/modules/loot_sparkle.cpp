@@ -197,6 +197,11 @@ void LootSparkle::record(d2::CellContext* cell, int x, int y)
 		return;
 
 	const uint32_t frame = App.context->getFrameCount();
+	if (unit == d2::player_unit) { // [HDR] light_pools anchor
+		d2::player_screen_x = x;
+		d2::player_screen_y = y;
+		d2::player_screen_frame = frame;
+	}
 	if (App.minion_ring && isVer(V_114d))
 		recordMinion(unit, isVerMin(V_113c) ? cell : nullptr, x, y, frame);
 	if (!App.loot_sparkle.active)

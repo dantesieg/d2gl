@@ -38,6 +38,10 @@ uniform int u_Graded; // 1 = R16F unbounded emission, alpha = 1 / (1 + e)
 uniform sampler2D u_VLightTexture;  // game vertex light of world draws (a = coverage)
 uniform sampler2D u_AmbientTexture; // 1x1 smoothed ambient (dynamic light)
 uniform float u_LightHi;            // [HDR] light_highlights: light above ambient adds emission (0 = off)
+uniform float u_LightPools;         // [HDR] light_pools: strength (0 = off)
+uniform int u_LightCount;
+uniform vec2 u_GameSize;            // game units (lights are in game units, y down)
+uniform vec4 u_Lights[32];          // x, y, core radius x (y = half), strength (rgb luma)
 
 in vec2 v_TexCoord;
 
@@ -54,9 +58,28 @@ float LightEmission()
 	return 0.6 * (1.0 - exp(-e / 0.6));
 }
 
+// pools centred on the game's lights: smooth falloff over an iso ellipse, only where the world drew (vertex-light coverage)
+float PoolEmission()
+{
+	if (u_LightPools <= 0.0)
+		return 0.0;
+	float cov = texture(u_VLightTexture, v_TexCoord).a;
+	if (cov <= 0.0)
+		return 0.0;
+	vec2 p = vec2(v_TexCoord.x, 1.0 - v_TexCoord.y) * u_GameSize;
+	float e = 0.0;
+	for (int i = 0; i < u_LightCount; i++) {
+		vec2 d = (p - u_Lights[i].xy) / vec2(u_Lights[i].z, u_Lights[i].z * 0.5);
+		float f = max(1.0 - dot(d, d), 0.0);
+		e += f * f * u_Lights[i].w;
+	}
+	e *= 0.5 * u_LightPools * cov;
+	return 0.6 * (1.0 - exp(-e / 0.6)); // same soft shoulder as light_highlights
+}
+
 void main()
 {
-	float le = LightEmission();
+	float le = LightEmission() + PoolEmission();
 	if (u_Graded == 1) {
 		float g = max(texture(u_EmitTexture, v_TexCoord).r * u_Gain, 0.0) + le;
 		FragColor = vec4(0.0, 0.0, 0.0, 1.0 / (1.0 + g));

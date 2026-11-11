@@ -15,6 +15,7 @@ cbuffer P : register(b0) {
 	int calib; int flip_y; float width; float height;
 	float emit_scale; int graded; float gamut; float dither;
 	float3 tint; float itm;
+	float desat; float3 pad3;
 };
 Texture2D<float4> src : register(t0);
 SamplerState smp : register(s0);
@@ -142,6 +143,14 @@ float4 ps_main(VO i) : SV_Target {
 		}
 	}
 	n = max(n, 0);
+	// [HDR] highlight_desat: colours fade toward white (BT.2020 luminance kept) from half the peak to the peak
+	if (desat > 0) {
+		float dm = max(n.r, max(n.g, n.b));
+		float dt = saturate((dm - 0.5 * peak) / (0.5 * peak));
+		float dw = desat * dt * dt;
+		float dy = dot(n, float3(0.2627, 0.6780, 0.0593));
+		n = lerp(n, float3(dy, dy, dy), dw);
+	}
 	if (tonemap == 0) {
 		n = min(n, peak);
 	} else {
@@ -173,14 +182,15 @@ struct ShaderConstants {
 	int calib, flip_y; float width, height;
 	float emit_scale; int graded; float gamut, dither;
 	float tint_r, tint_g, tint_b, itm;
+	float desat, pad0, pad1, pad2;
 };
-static_assert(sizeof(ShaderConstants) == 96, "cbuffer layout");
+static_assert(sizeof(ShaderConstants) == 112, "cbuffer layout");
 
 inline ShaderConstants makeConstants(const Params& p, int out_mode, bool calib, bool flip_y, float w, float h, float emit_scale = 0.0f, bool graded = false)
 {
 	return { p.sdr_white_nits, p.peak_nits, p.src_peak_nits, p.highlight_strength, p.highlight_knee, (int)p.transfer,
 		(int)p.tonemap, out_mode, std::exp2(p.brightness_stops), p.black_level, p.contrast, p.saturation,
-		calib ? 1 : 0, flip_y ? 1 : 0, w, h, emit_scale, graded ? 1 : 0, p.gamut_expand, p.dither, p.tint[0], p.tint[1], p.tint[2], p.itm };
+		calib ? 1 : 0, flip_y ? 1 : 0, w, h, emit_scale, graded ? 1 : 0, p.gamut_expand, p.dither, p.tint[0], p.tint[1], p.tint[2], p.itm, p.highlight_desat, 0.0f, 0.0f, 0.0f };
 }
 
 }

@@ -28,6 +28,7 @@ struct Params {
 	float gamut_expand = 0.0f; // 0 = off; saturated colours move from Rec.709 toward P3 (neutrals unchanged)
 	float itm = 0.0f;          // 0 = off; BT.2446 Method A inverse tone mapping blend (luminance only)
 	float dither = 0.0f;       // shader only: noise in LSBs of the 8-bit composite before decoding
+	float highlight_desat = 0.0f; // 0 = off; colours fade toward white (luminance kept) from half the peak to the peak
 };
 
 constexpr float CONTRAST_PIVOT = 0.18f;
@@ -164,6 +165,18 @@ inline float3 to2020_expanded(float3 c, float strength) {
 	return {a.r + (b.r - a.r) * t, a.g + (b.g - a.g) * t, a.b + (b.b - a.b) * t};
 }
 
+// [HDR] highlight_desat: like real bright light, saturated highlights lose colour near the display peak.
+// Weight desat * t^2 with t from half the peak (max channel) to the peak; luminance (BT.2020) is kept.
+inline float3 desat_highlights(float3 n, float desat, float peak_nits) {
+	if (desat <= 0.0f) return n;
+	float m = std::max({n.r, n.g, n.b});
+	float t = std::clamp((m - 0.5f * peak_nits) / (0.5f * peak_nits), 0.0f, 1.0f);
+	float w = desat * t * t;
+	if (w <= 0.0f) return n;
+	float y = luma2020(n);
+	return {n.r + (y - n.r) * w, n.g + (y - n.g) * w, n.b + (y - n.b) * w};
+}
+
 // [HDR] rolloff_content: the EETF source peak from what the game can produce (4x the exposed paper
 // white, at least 1.25x the display peak) instead of 10000 nits, so the roll-off starts near the
 // display peak and highlights keep their headroom.
@@ -188,6 +201,7 @@ inline float3 encode_pixel(float3 rgb, const Params& p) {
 	lin = expand_highlights(lin, p);
 	float3 n = to2020_expanded({lin.r * p.sdr_white_nits, lin.g * p.sdr_white_nits, lin.b * p.sdr_white_nits}, p.gamut_expand);
 	n = {std::max(n.r, 0.0f), std::max(n.g, 0.0f), std::max(n.b, 0.0f)};
+	n = desat_highlights(n, p.highlight_desat, p.peak_nits);
 	n = tonemap_nits(n, p);
 	return {pq_encode(n.r), pq_encode(n.g), pq_encode(n.b)};
 }

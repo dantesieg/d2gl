@@ -849,6 +849,12 @@ void Context::renderThread(void* context)
 							ctx->m_emit_pipeline->setUniform1i("u_Graded", ctx->m_emit_graded ? 1 : 0); // 0: output as before
 							// [HDR] light_highlights: needs the smoothed ambient, which the vertex-light dynamic light pass keeps
 							ctx->m_emit_pipeline->setUniform1f("u_LightHi", (App.dynamic_light.active && App.dynamic_light.source.selected == 1 && cmd->m_screen == GameScreen::InGame) ? App.hdr.light_highlights.value : 0.0f);
+							ctx->m_emit_pipeline->setUniform1f("u_LightPools", cmd->m_light_count ? App.hdr.light_pools.value : 0.0f);
+							if (cmd->m_light_count) {
+								ctx->m_emit_pipeline->setUniform1i("u_LightCount", cmd->m_light_count);
+								ctx->m_emit_pipeline->setUniformVec2f("u_GameSize", glm::vec2(cmd->m_logical_size));
+								ctx->m_emit_pipeline->setUniformVec4fArray("u_Lights", cmd->m_lights.data(), (uint32_t)cmd->m_light_count);
+							}
 							ctx->bindPipeline(ctx->m_emit_pipeline);
 							glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_TRUE);
 							ctx->drawQuad();
@@ -1474,6 +1480,7 @@ void Context::presentFrame()
 
 	CommandBuffer& cb = m_command_buffer[m_frame_index];
 	captureSettings(cb.m_settings);
+	captureLights(cb);
 	if (m_perf) {
 		const int64_t now = qpcNow();
 		const double cpu = perf::threadCpuMs(GetCurrentThread());
@@ -1524,6 +1531,44 @@ void Context::setViewport(glm::ivec2 size, glm::ivec2 offset)
 
 	glViewport(offset.x, offset.y, size.x, size.y);
 	viewport_metrics = metrics;
+}
+
+// [HDR] light_pools: the game's light list (1.14d D2Client gpLightMap 0x7B5668, D2LightMapStrc per Redivivus:
+// +0x00 unit type, +0x04 guid, +0x10/+0x14 grid x/y in 1/8 subtiles, +0x18 radius (diameter * 8), +0x25 rgb,
+// +0x28 next). Positions relative to the player's own light, anchored at the player's last draw position;
+// iso: screen x = (dx - dy) * 2, y = dx + dy per 1/8 subtile.
+void Context::captureLights(CommandBuffer& cb)
+{
+	cb.m_light_count = 0;
+	if (App.hdr.light_pools.value <= 0.0f || !m_emit_attached || App.game.screen != GameScreen::InGame || isVerNot(V_114d) || !d2::player_unit)
+		return;
+	if (m_frame.frame_count - d2::player_screen_frame > 2)
+		return;
+	const uintptr_t base = (uintptr_t)GetModuleHandle(NULL);
+	const uint8_t* head = *(const uint8_t**)(base + 0x3B5668);
+	const uint32_t guid = d2::player_unit->dwUnitId;
+	int pgx = INT_MIN, pgy = 0;
+	int n = 0;
+	for (const uint8_t* l = head; l && n < 256; l = *(const uint8_t* const*)(l + 0x28), n++)
+		if (*(const uint32_t*)l == 0 && *(const uint32_t*)(l + 4) == guid) {
+			pgx = *(const int*)(l + 0x10), pgy = *(const int*)(l + 0x14);
+			break;
+		}
+	if (pgx == INT_MIN)
+		return;
+	n = 0;
+	for (const uint8_t* l = head; l && n < 256 && cb.m_light_count < (int)cb.m_lights.size(); l = *(const uint8_t* const*)(l + 0x28), n++) {
+		if (*(const uint32_t*)l == 0 && *(const uint32_t*)(l + 4) == guid)
+			continue; // the player's own light radius is the area light, not a pool
+		const int dx = *(const int*)(l + 0x10) - pgx, dy = *(const int*)(l + 0x14) - pgy;
+		const float sx = (float)d2::player_screen_x + (float)(dx - dy) * 2.0f;
+		const float sy = (float)d2::player_screen_y + (float)(dx + dy);
+		const float r = (float)*(const int*)(l + 0x18) * 0.5f * 2.83f; // core = half the reach; 1/8 subtile -> px (2 * sqrt 2)
+		const float s = (0.299f * l[0x25] + 0.587f * l[0x26] + 0.114f * l[0x27]) / 255.0f;
+		if (r < 4.0f || s <= 0.02f || sx < -r || sy < -r || sx > (float)App.game.size.x + r || sy > (float)App.game.size.y + r)
+			continue;
+		cb.m_lights[cb.m_light_count++] = { sx, sy, r, s };
+	}
 }
 
 void Context::pushVertex(const GlideVertex* vertex, glm::vec2 fix, glm::ivec2 offset)

@@ -76,6 +76,7 @@ Params Presenter::currentParams()
 	p.transfer = (Transfer)App.hdr.eotf.selected;
 	p.gamut_expand = App.hdr.gamut_expand.value;
 	p.itm = App.hdr.itm.value;
+	p.highlight_desat = App.hdr.highlight_desat.value;
 	p.dither = App.hdr.dither ? 1.0f : 0.0f;
 	return p;
 }

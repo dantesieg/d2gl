@@ -264,6 +264,7 @@ public:
 	inline void bindPipeline(const std::unique_ptr<Pipeline>& pipeline, uint32_t index = 0) { pipeline->bind(index); }
 
 	void pushVertex(const GlideVertex* vertex, glm::vec2 fix = { 0.0f, 0.0f }, glm::ivec2 offset = { 0, 0 });
+	void captureLights(CommandBuffer& cb);
 	bool pushFlatQuad(glm::vec2 pos, glm::vec2 size, uint32_t color);
 	void flushVertices();
 	void drawQuad(int8_t flag_x = 0, int8_t flag_y = 0, int16_t tex_id = 0);

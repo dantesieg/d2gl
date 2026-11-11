@@ -123,6 +123,8 @@ uintptr_t getLevelName_Fn = getProc((DLL_D2CLIENT), (0x88420), (0x839F0), (0x9DC
 
 UnitAny* currently_drawing_unit = nullptr;
 bool drawing_orb = false;
+int player_screen_x = 0, player_screen_y = 0;
+uint32_t player_screen_frame = 0;
 uint32_t currently_drawing_weather_particles = 0;
 uint32_t* currently_drawing_weather_particle_index_ptr = nullptr;
 RECT* currently_drawing_rect = nullptr;
@@ -256,7 +258,7 @@ void initHooks()
 		patch_motion_prediction->add(PatchType::Auto, getOffset((DLL_D2CLIENT, 0xC7442450), (), (), (0xB754D), (0x5DB8D), (0x775BD), (0x5921D), (0x4E7AD), (0xC0A58, 0xC745BC01)), isVer(V_114d) ? 7 : 8, (uintptr_t)altItemsTextStub);
 	modules::MotionPrediction::Instance().toggle(App.motion_prediction);
 
-	modules::LootSparkle::Instance().toggle(App.loot_sparkle.active || App.minion_ring || App.hdr.item_glow);
+	modules::LootSparkle::Instance().toggle(App.loot_sparkle.active || App.minion_ring || App.hdr.item_glow || App.hdr.light_pools.value > 0.0f);
 
 	patch_hd_text = std::make_unique<Patch>();
 	patch_hd_text->add(PatchType::Auto, getOffset((DLL_D2CLIENT, 0x2D8C0000), (0x86952), (0x81EEF), (0x9EC05), (0x628E5), (0x8C015), (0xBF345), (0x19095), (0x556F2)), 5, (uintptr_t)levelEntryTextStub);

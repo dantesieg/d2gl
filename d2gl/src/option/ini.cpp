@@ -390,10 +390,14 @@ void saveIni()
 		"gamut_expand=%.2f\n"
 		"; BT.2446 Method A inverse tone mapping: SDR expanded toward the peak on luminance (0 = off, 1 = full).\n"
 		"itm=%.2f\n"
+		"; Highlight whitening: very bright colours fade toward white near the display peak, like real light (0 = off, 1 = full).\n"
+		"highlight_desat=%.2f\n"
 		"; Dither the 8-bit image before the HDR encode (smooth dark gradients).\n"
 		"dither=%s\n"
 		"; Light highlights: floors and walls lit above the area's ambient glow (needs emissive and dynamic_light, 0-2).\n"
 		"light_highlights=%.2f\n"
+		"; Light pools: glow centred on the game's own light sources with their real radius and colour strength (1.14d, needs emissive, 0-2).\n"
+		"light_pools=%.2f\n"
 		"; Hot pixels: bright saturated warm pixels of opaque sprites (torches, braziers, lava) glow (needs emissive, 0-2).\n"
 		"hot_pixels=%.2f\n"
 		"; Unit glow: auras and glows drawn on players, mercs, summons and monsters, as a share of spell emission\n"
@@ -435,8 +439,10 @@ void saveIni()
 		boolString(App.hdr.rolloff_content),
 		App.hdr.gamut_expand.value,
 		App.hdr.itm.value,
+		App.hdr.highlight_desat.value,
 		boolString(App.hdr.dither),
 		App.hdr.light_highlights.value,
+		App.hdr.light_pools.value,
 		App.hdr.hot_pixels.value,
 		App.hdr.unit_emissive.value,
 		boolString(App.hdr.item_glow),
@@ -646,8 +652,10 @@ void loadIni()
 		App.hdr.rolloff_content = getBool("HDR", "rolloff_content", App.hdr.rolloff_content);
 		App.hdr.gamut_expand.value = getFloat("HDR", "gamut_expand", App.hdr.gamut_expand);
 		App.hdr.itm.value = getFloat("HDR", "itm", App.hdr.itm);
+		App.hdr.highlight_desat.value = getFloat("HDR", "highlight_desat", App.hdr.highlight_desat);
 		App.hdr.dither = getBool("HDR", "dither", App.hdr.dither);
 		App.hdr.light_highlights.value = getFloat("HDR", "light_highlights", App.hdr.light_highlights);
+		App.hdr.light_pools.value = getFloat("HDR", "light_pools", App.hdr.light_pools);
 		App.hdr.hot_pixels.value = getFloat("HDR", "hot_pixels", App.hdr.hot_pixels);
 		App.hdr.unit_emissive.value = getFloat("HDR", "unit_emissive", App.hdr.unit_emissive);
 		App.hdr.item_glow = getBool("HDR", "item_glow", App.hdr.item_glow);

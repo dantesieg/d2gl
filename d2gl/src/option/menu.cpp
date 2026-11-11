@@ -508,7 +508,7 @@ void Menu::draw()
 			ImGui::BeginDisabled(!ISGLIDE3X());
 				drawCheckbox_m("Loot Sparkle", App.loot_sparkle.active, "Short sparkle when a valuable item drops (glide only).", loot_sparkle)
 				{
-					modules::LootSparkle::Instance().toggle(App.loot_sparkle.active || App.minion_ring || App.hdr.item_glow);
+					modules::LootSparkle::Instance().toggle(App.loot_sparkle.active || App.minion_ring || App.hdr.item_glow || App.hdr.light_pools.value > 0.0f);
 					saveBool("Feature", "loot_sparkle", App.loot_sparkle.active);
 				}
 				ImGui::BeginDisabled(!App.loot_sparkle.active);
@@ -522,7 +522,7 @@ void Menu::draw()
 				ImGui::BeginDisabled(!(isVer(V_114d)));
 					drawCheckbox_m("Minion Ring", App.minion_ring, "Soft green ring under your summons (glide only, 1.14d).", minion_ring)
 					{
-						modules::LootSparkle::Instance().toggle(App.loot_sparkle.active || App.minion_ring || App.hdr.item_glow);
+						modules::LootSparkle::Instance().toggle(App.loot_sparkle.active || App.minion_ring || App.hdr.item_glow || App.hdr.light_pools.value > 0.0f);
 						saveBool("Feature", "minion_ring", App.minion_ring);
 					}
 				ImGui::EndDisabled();
@@ -617,6 +617,8 @@ void Menu::draw()
 				saveFloat("HDR", "gamut_expand", App.hdr.gamut_expand.value);
 			drawSlider_m(float, "Inverse Tone Map", App.hdr.itm, "%.2f", "BT.2446 SDR to HDR expansion toward the peak. 0 = off.", hdr_itm)
 				saveFloat("HDR", "itm", App.hdr.itm.value);
+			drawSlider_m(float, "Highlight Whitening", App.hdr.highlight_desat, "%.2f", "Very bright colours fade toward white near the peak, like real light. 0 = off.", hdr_highlight_desat)
+				saveFloat("HDR", "highlight_desat", App.hdr.highlight_desat.value);
 			drawCheckbox_m("Dither", App.hdr.dither, "Smooths banding in dark gradients.", hdr_dither)
 				saveBool("HDR", "dither", App.hdr.dither);
 			childSeparator("##hdr1");
@@ -640,13 +642,18 @@ void Menu::draw()
 			ImGui::EndDisabled();
 			drawSlider_m(float, "Light Highlights", App.hdr.light_highlights, "%.2f", "Floors and walls lit above the area's ambient glow (needs Emissive + Dynamic Light). 0 = off.", hdr_light_highlights)
 				saveFloat("HDR", "light_highlights", App.hdr.light_highlights.value);
+			drawSlider_m(float, "Light Pools", App.hdr.light_pools, "%.2f", "Glow centred on the game's own lights (torches, spells, auras) with their real radius (1.14d, needs Emissive). 0 = off.", hdr_light_pools)
+			{
+				saveFloat("HDR", "light_pools", App.hdr.light_pools.value);
+				modules::LootSparkle::Instance().toggle(App.loot_sparkle.active || App.minion_ring || App.hdr.item_glow || App.hdr.light_pools.value > 0.0f);
+			}
 			drawSlider_m(float, "Hot Pixels", App.hdr.hot_pixels, "%.2f", "Torches, braziers and lava glow (bright warm pixels, needs Emissive). 0 = off.", hdr_hot_pixels)
 				saveFloat("HDR", "hot_pixels", App.hdr.hot_pixels.value);
 			drawSlider_m(float, "Aura & Unit Glow", App.hdr.unit_emissive, "%.2f", "Auras and glows on players, mercs, summons and monsters vs spells (1 = same). Needs Emissive.", hdr_unit_emissive)
 				saveFloat("HDR", "unit_emissive", App.hdr.unit_emissive.value);
 			drawCheckbox_m("Item Glow", App.hdr.item_glow, "Uniques, sets and runes on the ground glow in HDR (needs Emissive).", hdr_item_glow) {
 				saveBool("HDR", "item_glow", App.hdr.item_glow);
-				modules::LootSparkle::Instance().toggle(App.loot_sparkle.active || App.minion_ring || App.hdr.item_glow);
+				modules::LootSparkle::Instance().toggle(App.loot_sparkle.active || App.minion_ring || App.hdr.item_glow || App.hdr.light_pools.value > 0.0f);
 			}
 			ImGui::BeginDisabled(!App.hdr.item_glow);
 				drawSlider_m(float, "Item Glow Strength", App.hdr.item_glow_strength, "%.2f", "", hdr_item_glow_strength)

@@ -119,6 +119,13 @@ int main()
 	  near("rolloff_content src peak", r.src_peak_nits, 1920.0, 0.5);
 	  check(nits_of(1.0f, r) > 470.0, "rolloff_content keeps 480-nit white", nits_of(1.0f, r), 480, 0);
 	  Params q3 = r; q3.src_peak_nits = 10000; check(nits_of(1.0f, q3) < nits_of(1.0f, r), "10000-nit source compresses white more", 0, 0, 0); }
+	// highlight whitening: off = identity, below half peak untouched, at the peak colour goes, luminance kept
+	{ float3 hc = {900, 100, 50}, lo = {400, 40, 20};
+	  float3 o0 = desat_highlights(hc, 0.0f, 1000), o1 = desat_highlights(hc, 1.0f, 1000), ol = desat_highlights(lo, 1.0f, 1000);
+	  near("desat off = identity", o0.g, 100.0, 1e-4);
+	  near("desat below half peak untouched", ol.g, 40.0, 1e-4);
+	  check(o1.g > hc.g && o1.r < hc.r, "desat near peak toward white", o1.g, hc.g, 0);
+	  near("desat keeps luminance", luma2020(o1), luma2020(hc), 1e-2); }
 	near("EETF(src peak) -> dst peak", bt2390_eetf_nits(10000, 10000, 1000), 1000.0, 1.0);
 	near("EETF identity at paper white", bt2390_eetf_nits(200, 10000, 1000), 200.0, 0.05);
 	q = p; q.peak_nits = 400; q.brightness_stops = 2.0f;

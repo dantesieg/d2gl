@@ -158,6 +158,8 @@ extern uintptr_t getLevelName_Fn;
 
 extern UnitAny* currently_drawing_unit;
 extern bool drawing_orb; // [HDR] orb_glow: inside the health/mana orb liquid draw
+extern int player_screen_x, player_screen_y; // [HDR] light_pools: last world draw position of the player (game units)
+extern uint32_t player_screen_frame;
 extern uint32_t currently_drawing_weather_particles;
 extern uintptr_t* currently_drawing_weather_particle_index_ptr;
 extern RECT* currently_drawing_rect;

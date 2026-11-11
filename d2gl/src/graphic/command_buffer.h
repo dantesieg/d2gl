@@ -111,6 +111,9 @@ class CommandBuffer {
 	perf::FrameSettings m_settings;
 	// R0: game-thread timings for this frame (only written when App.perf.log is on).
 	perf::GameTiming m_game_timing;
+	// [HDR] light_pools: game lights in game units (x, y, radius x, strength), written by the game thread in presentFrame()
+	std::array<glm::vec4, 32> m_lights;
+	int m_light_count = 0;
 
 	friend class Context;
 
