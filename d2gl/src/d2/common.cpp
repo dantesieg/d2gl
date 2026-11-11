@@ -133,6 +133,49 @@ std::unique_ptr<Patch> patch_minimap;
 std::unique_ptr<Patch> patch_motion_prediction;
 std::unique_ptr<Patch> patch_hd_text;
 
+// [Graphic] aura_light_color: light colour of player/monster units (auras, minions) pulled toward grey where the
+// game sets it (1.14d D2Client LightMap AllocLightMap 0x474160 / SetRGB 0x474390, per Redivivus). Lights of objects,
+// missiles and levels keep their colour. 1.0 = unchanged; changes apply to lights created or recoloured afterwards.
+typedef void*(__fastcall* allocLightMap_t)(UnitAny* unit, int type, int diameter, uint8_t gamma, uint8_t r, uint8_t g, uint8_t b);
+typedef void(__fastcall* setLightRGB_t)(void* light, uint8_t r, uint8_t g, uint8_t b);
+static allocLightMap_t allocLightMap = nullptr;
+static setLightRGB_t setLightRGB = nullptr;
+
+static void auraLightColor(uint32_t unit_type, uint8_t& r, uint8_t& g, uint8_t& b)
+{
+	const float s = App.dynamic_light.aura_color.value;
+	if (s >= 1.0f || (unit_type != (uint32_t)UnitType::Player && unit_type != (uint32_t)UnitType::Monster))
+		return;
+	const float y = 0.299f * r + 0.587f * g + 0.114f * b;
+	auto f = [&](uint8_t c) { return (uint8_t)std::clamp(y + ((float)c - y) * s + 0.5f, 0.0f, 255.0f); };
+	r = f(r), g = f(g), b = f(b);
+}
+static void* __fastcall allocLightMapHooked(UnitAny* unit, int type, int diameter, uint8_t gamma, uint8_t r, uint8_t g, uint8_t b)
+{
+	if (unit)
+		auraLightColor((uint32_t)unit->dwType, r, g, b);
+	return allocLightMap(unit, type, diameter, gamma, r, g, b);
+}
+static void __fastcall setLightRGBHooked(void* light, uint8_t r, uint8_t g, uint8_t b)
+{
+	if (light)
+		auraLightColor(*(uint32_t*)light, r, g, b); // D2LightMapStrc +0x00: owner unit type
+	setLightRGB(light, r, g, b);
+}
+static bool lightHooksValid()
+{
+	if (!isVer(V_114d))
+		return false;
+	const uintptr_t base = (uintptr_t)GetModuleHandle(NULL);
+	static const uint8_t alloc_sig[] = { 0x55, 0x8B, 0xEC, 0x51, 0x53, 0x8B, 0x5D, 0x08 };
+	static const uint8_t rgb_sig[] = { 0x55, 0x8B, 0xEC, 0x85, 0xC9, 0x75, 0x1F, 0x68 };
+	if (memcmp((void*)(base + 0x74160), alloc_sig, sizeof(alloc_sig)) || memcmp((void*)(base + 0x74390), rgb_sig, sizeof(rgb_sig)))
+		return false;
+	allocLightMap = (allocLightMap_t)(base + 0x74160);
+	setLightRGB = (setLightRGB_t)(base + 0x74390);
+	return true;
+}
+
 void initHooks()
 {
 	*is_in_game = 0;
@@ -258,6 +301,10 @@ void initHooks()
 	DetourAttach(&(PVOID&)getFramedTextSize, getFramedTextSizeHooked);
 	DetourAttach(&(PVOID&)getFontHeight, getFontHeightHooked);
 	DetourAttach(&(PVOID&)setTextSize, setTextSizeHooked);
+	if (lightHooksValid()) {
+		DetourAttach(&(PVOID&)allocLightMap, allocLightMapHooked);
+		DetourAttach(&(PVOID&)setLightRGB, setLightRGBHooked);
+	}
 	DetourTransactionCommit();
 }
 
@@ -289,6 +336,10 @@ void destroyHooks()
 	DetourDetach(&(PVOID&)getFramedTextSize, getFramedTextSizeHooked);
 	DetourDetach(&(PVOID&)getFontHeight, getFontHeightHooked);
 	DetourDetach(&(PVOID&)setTextSize, setTextSizeHooked);
+	if (allocLightMap) {
+		DetourDetach(&(PVOID&)allocLightMap, allocLightMapHooked);
+		DetourDetach(&(PVOID&)setLightRGB, setLightRGBHooked);
+	}
 	DetourTransactionCommit();
 }
 

@@ -167,6 +167,7 @@ struct D2GLApp {
 		Range<float> depth_haze_strength = { 0.5f, 0.0f, 1.0f };
 		Range<float> spell_glow = { 0.5f, 0.0f, 1.5f };
 		Range<float> flicker = { 0.0f, 0.0f, 1.0f }; // [Graphic] light_flicker: spell/fire light pulses (0 = off)
+		Range<float> aura_color = { 1.0f, 0.0f, 1.0f }; // [Graphic] aura_light_color: colour of player/monster light (1 = unchanged, 0 = white)
 	} dynamic_light;
 
 	struct {

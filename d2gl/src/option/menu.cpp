@@ -385,6 +385,8 @@ void Menu::draw()
 						saveFloat("Graphic", "spell_glow", App.dynamic_light.spell_glow.value);
 					drawSlider_m(float, "Light Flicker", App.dynamic_light.flicker, "%.2f", "Spell and fire light pulses unevenly over the room. 0 = off.", light_flicker)
 						saveFloat("Graphic", "light_flicker", App.dynamic_light.flicker.value);
+					drawSlider_m(float, "Aura Light Colour", App.dynamic_light.aura_color, "%.2f", "Colour of the light players, minions and monsters cast (auras). 1 = unchanged, 0 = white. New lights only (1.14d).", aura_light_color)
+						saveFloat("Graphic", "aura_light_color", App.dynamic_light.aura_color.value);
 					drawCheckbox_m("Normal-Mapped Lighting", App.dynamic_light.normals, "Shade sprites and walls toward nearby lights for a 3D look.", light_normals)
 						saveBool("Graphic", "light_normals", App.dynamic_light.normals);
 					ImGui::BeginDisabled(!App.dynamic_light.normals);
