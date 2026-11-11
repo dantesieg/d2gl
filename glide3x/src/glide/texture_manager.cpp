@@ -18,6 +18,7 @@
 
 #include "pch.h"
 #include "texture_manager.h"
+#include "graphic/hires_pack.h"
 
 namespace d2gl {
 
@@ -105,6 +106,11 @@ const SubTextureInfo* TextureManager::getSubTextureInfo(uint32_t address, uint16
 		const auto command_buffer = App.context->getCommandBuffer();
 
 		command_buffer->textureUpdate(g_glide_texture.memory + address, texture_info->tex_num, { width, height }, texture_info->offset);
+		const auto hi = g_glide_texture.hires.find(address);
+		if (hi != g_glide_texture.hires.end() && hi->second) {
+			const uint16_t s = (uint16_t)hires::g_pack.scale;
+			command_buffer->textureUpdateHi(hi->second, texture_info->tex_num, { (uint16_t)(width * s), (uint16_t)(height * s) }, { (uint16_t)(texture_info->offset.x * s), (uint16_t)(texture_info->offset.y * s) });
+		}
 
 		cache.items.insert({ hash, id });
 		data.available.erase(id);

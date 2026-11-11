@@ -62,6 +62,7 @@ layout(std140) uniform ubo_Colors {
 };
 
 uniform sampler2DArray u_Texture;
+uniform sampler2DArray u_HiTexture; // [Graphic] hires_textures: same coordinates, used when v_TexIds.y == 1
 uniform int u_BlendIndex; // pipeline blend index: 0 opaque, 1 multiply, 2 additive, 3 alpha
 uniform float u_LightFlicker; // [Graphic] light_flicker: 0 = off, spell/fire light pulses up to +-45 %
 uniform float u_Time;         // seconds, wraps every hour
@@ -132,7 +133,7 @@ void main()
 		FragColor = v_Color2;
 	else if (v_Flags.y == 2u) // local = iterated (per-vertex colour)
 		FragColor = v_Color1;
-	else if (max(u_NativeScale.x, u_NativeScale.y) > 1.0 && u_NativeFilter > 0 && v_TexRect.z > 0u)
+	else if (max(u_NativeScale.x, u_NativeScale.y) > 1.0 && u_NativeFilter > 0 && v_TexRect.z > 0u && v_TexIds.y == 0)
 	{
 		vec4 pal;
 		if (!nativeSample(pal))
@@ -141,7 +142,7 @@ void main()
 	}
 	else
 	{
-		float red = texture(u_Texture, vec3(v_TexCoord, v_TexIds.x)).r;
+		float red = v_TexIds.y == 1 ? texture(u_HiTexture, vec3(v_TexCoord, v_TexIds.x)).r : texture(u_Texture, vec3(v_TexCoord, v_TexIds.x)).r;
 
 		if ((v_Flags.x & 15u) == 1u && red == 0.0)
 			discard;

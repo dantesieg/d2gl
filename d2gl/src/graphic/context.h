@@ -60,6 +60,7 @@ namespace d2gl {
 #define TEXTURE_SLOT_SHADOW1 16
 #define TEXTURE_SLOT_SHADOW2 17
 #define TEXTURE_SLOT_VLIGHT 18 // game framebuffer attachment 4 (needs > 18 texture units)
+#define TEXTURE_SLOT_HIRES 20 // [Graphic] hires_textures atlas
 #define TEXTURE_SLOT_AMBIENT 19 // 1x1 time-smoothed ambient for game vertex lighting
 #define TEXTURE_SLOT_GI_SCENE 21 // radiance GI: 1/4-res emitters + occluders
 #define TEXTURE_SLOT_GI_C0 22    // radiance GI cascades 0..3 (22..25)
@@ -183,6 +184,7 @@ class Context {
 
 	// Glide only
 	std::unique_ptr<Texture> m_glide_texture;
+	std::unique_ptr<Texture> m_hires_texture; // [Graphic] hires_textures: scale x atlas, same layers (1x1 dummy when off)
 	std::map<uint32_t, std::pair<uint32_t, BlendType>> m_blend_types;
 	uint32_t m_current_blend_index = 0;
 	bool m_blend_locked = false;

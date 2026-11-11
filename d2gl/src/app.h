@@ -178,6 +178,7 @@ struct D2GLApp {
 	} loot_sparkle;
 
 	bool minion_ring = false;
+	bool hires_textures = false; // [Graphic] hires_textures: AI-upscaled texture pack d2gl_hires.pak (restart)
 
 
 	struct {

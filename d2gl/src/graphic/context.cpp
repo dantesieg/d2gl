@@ -19,6 +19,7 @@
 #include "pch.h"
 #include "context.h"
 #include "d2/common.h"
+#include "graphic/hires_pack.h"
 #include "helpers.h"
 #include "modules/hd_cursor.h"
 #include "modules/hd_text.h"
@@ -256,6 +257,17 @@ Context::Context()
 		glide_texture_ci.format = { GL_R8, GL_RED };
 		m_glide_texture = std::make_unique<Texture>(glide_texture_ci);
 
+		// [Graphic] hires_textures: AI-upscaled replacements in a scale x atlas with the same layers and coordinates
+		TextureCreateInfo hires_texture_ci;
+		const bool hires = App.hires_textures && hires::load("d2gl_hires.pak");
+		const uint32_t hs = hires ? 512 * hires::g_pack.scale : 1;
+		hires_texture_ci.size = { hs, hs };
+		hires_texture_ci.layer_count = hires ? 512 : 1;
+		hires_texture_ci.format = { GL_R8, GL_RED };
+		m_hires_texture = std::make_unique<Texture>(hires_texture_ci);
+		if (hires)
+			trace_log("hires_textures: %u replacements, scale %u", hires::g_pack.count, hires::g_pack.scale);
+
 		TextureCreateInfo movie_texture_ci;
 		movie_texture_ci.size = { 640, 480 };
 		movie_texture_ci.filter = { GL_LINEAR, GL_LINEAR };
@@ -272,6 +284,7 @@ Context::Context()
 		game_pipeline_ci.bindings = {
 			{ BindingType::UniformBuffer, "ubo_Colors", m_game_color_ubo->getBinding() },
 			{ BindingType::Texture, "u_Texture", TEXTURE_SLOT_DEFAULT, &m_glide_texture },
+			{ BindingType::Texture, "u_HiTexture", TEXTURE_SLOT_HIRES, &m_hires_texture },
 		};
 		game_pipeline_ci.attachment_blends.clear();
 		for (auto& blend : g_blend_types) {
@@ -585,6 +598,11 @@ void Context::renderThread(void* context)
 				ctx->m_glide_texture->fill((uint8_t*)data->offset, data->tex_size.x, data->tex_size.y, data->tex_offset.x, data->tex_offset.y, data->tex_num);
 			}
 			glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+		}
+		// [Graphic] hires_textures: straight from the mapped pack (no unpack buffer bound)
+		for (uint32_t i = 0; i < cmd->m_hi_tex_update_queue.count; i++) {
+			const auto data = &cmd->m_hi_tex_update_queue.tex_data[i];
+			ctx->m_hires_texture->fill(data->data, data->tex_size.x, data->tex_size.y, data->tex_offset.x, data->tex_offset.y, data->tex_num);
 		}
 
 		if (cmd->m_tex_update.bit && ctx->m_game_texture) {

@@ -29,6 +29,17 @@ struct Command {
 	};
 };
 
+struct HiTexData { // [Graphic] hires_textures: data points into the memory-mapped pack (immutable)
+	const uint8_t* data;
+	uint16_t tex_num;
+	glm::vec<2, uint16_t> tex_size;
+	glm::vec<2, uint16_t> tex_offset;
+};
+struct HiTexUpdateQueue {
+	uint32_t count = 0;
+	std::array<HiTexData, 2048> tex_data = {};
+};
+
 struct TexData {
 	uint32_t offset;
 	uint16_t tex_num;
@@ -89,6 +100,7 @@ class CommandBuffer {
 
 	UBOUpdateQueue m_ubo_update_queue;
 	TexUpdateQueue m_tex_update_queue;
+	HiTexUpdateQueue m_hi_tex_update_queue;
 	uint32_t m_vertex_count = 0;
 	uint32_t m_vertex_mod_count = 0;
 	GameScreen m_screen = GameScreen::InGame;
@@ -131,6 +143,7 @@ public:
 
 	void colorUpdate(UBOType type, const void* data);
 	void textureUpdate(uint8_t* data, uint16_t tex_num, glm::vec<2, uint16_t> size, glm::vec<2, uint16_t> offset);
+	void textureUpdateHi(const uint8_t* data, uint16_t tex_num, glm::vec<2, uint16_t> size, glm::vec<2, uint16_t> offset);
 	void gameTextureUpdate(uint8_t* data, glm::vec<2, uint16_t> size, uint32_t bit = 1);
 	void setHDTextMasking(bool masking, glm::vec4 metrics);
 };

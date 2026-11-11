@@ -19,6 +19,7 @@
 #include "pch.h"
 #include "wrapper.h"
 #include "d2/common.h"
+#include "graphic/hires_pack.h"
 #include "helpers.h"
 #include "modules/motion_prediction.h"
 #include "win32.h"
@@ -211,7 +212,8 @@ void Wrapper::grTexSource(GrChipID_t tmu, FxU32 start_address, GrTexInfo* info)
 	const auto frame_count = ctx->getFrameCount();
 	const auto sub_tex_info = m_texture_manager->getSubTextureInfo(start_address, size, width, height, frame_count);
 	if (sub_tex_info) {
-		ctx->setVertexTexNum({ sub_tex_info->tex_num, 0 });
+		const auto hi = hires::g_pack.count ? g_glide_texture.hires.find(start_address) : g_glide_texture.hires.end();
+		ctx->setVertexTexNum({ sub_tex_info->tex_num, (uint16_t)((hi != g_glide_texture.hires.end() && hi->second) ? 1 : 0) });
 		ctx->setVertexOffset(sub_tex_info->offset);
 		ctx->setVertexTexShift(sub_tex_info->shift);
 		ctx->setVertexTexRect({ sub_tex_info->offset.x, sub_tex_info->offset.y, (uint16_t)glm::min(width, 512u), (uint16_t)glm::min(height, 512u) });
@@ -227,6 +229,8 @@ void Wrapper::grTexDownloadMipMap(GrChipID_t tmu, FxU32 start_address, GrTexInfo
 
 	memcpy(g_glide_texture.memory + start_address, info->data, width * height);
 	g_glide_texture.hash[start_address] = helpers::hash(info->data, width * height);
+	if (hires::g_pack.count)
+		g_glide_texture.hires[start_address] = hires::find(g_glide_texture.hash[start_address], width, height);
 }
 
 void Wrapper::grTexDownloadTable(void* data)
