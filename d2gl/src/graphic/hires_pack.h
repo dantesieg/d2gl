@@ -1,12 +1,12 @@
 /*
 	[Graphic] hires_textures: AI-upscaled replacements for glide textures (tools/upscale in median-2026).
 	d2gl_hires.pak next to the game; header, index and chunk table are memory-mapped read-only:
-	  header  { u32 magic 'D2HR', u32 version 3, u32 count, u32 scale, u32 chunks }
+	  header  { u32 magic 'D2HR', u32 version 3 (LZMA) | 4 (LZ4), u32 count, u32 scale, u32 chunks }
 	  entries { u32 hash, u16 tw, u16 th, u16 fw, u16 fh, u16 flags, u16 pad, u32 chunk, u32 offset }[count],
 	          sorted by hash, tw, th; flags bit 0 = frame at the top of the download (else bottom),
 	          bit 1 = stored XOR the nearest-neighbour upscale of the (un-remapped) download
 	  chunks  { u64 offset, u32 csize, u32 usize }[chunks]
-	  data    LZMA chunks (5 props bytes + raw stream) of several frames' scale*fw x scale*fh 8-bit palette indices;
+	  data    LZMA chunks (5 props bytes + raw stream) or LZ4 blocks of several frames' scale*fw x scale*fh 8-bit palette indices;
 	          an entry's frame is at offset inside its decoded chunk (entries may share frames)
 	hash = helpers::hash (MurmurHash3 x86_32, seed 0) of the tw*th glide download.
 */
@@ -20,6 +20,7 @@
 #include <windows.h>
 
 #include "lzma/LzmaDec.h"
+#include "lz4/lz4.h"
 
 namespace d2gl::hires {
 
@@ -43,7 +44,7 @@ struct Pack {
 	HANDLE file = INVALID_HANDLE_VALUE;
 	const PakEntry* entries = nullptr;
 	const PakChunk* chunks = nullptr;
-	uint32_t count = 0, scale = 0, nchunks = 0;
+	uint32_t count = 0, scale = 0, nchunks = 0, version = 0;
 	uint64_t size = 0;
 };
 
@@ -104,7 +105,7 @@ inline bool load(int pi, const char* path)
 	GetFileSizeEx(f, &sz);
 	PakHeader hd = {};
 	DWORD got = 0;
-	if (!ReadFile(f, &hd, sizeof(hd), &got, nullptr) || got != sizeof(hd) || hd.magic != 0x52483244 || hd.version != 3 || (hd.scale != 2 && hd.scale != 4) || (g_scale && hd.scale != g_scale)) {
+	if (!ReadFile(f, &hd, sizeof(hd), &got, nullptr) || got != sizeof(hd) || hd.magic != 0x52483244 || (hd.version != 3 && hd.version != 4) || (hd.scale != 2 && hd.scale != 4) || (g_scale && hd.scale != g_scale)) {
 		CloseHandle(f);
 		return false;
 	}
@@ -119,6 +120,7 @@ inline bool load(int pi, const char* path)
 	}
 	const PakEntry* ents = (const PakEntry*)(p + sizeof(PakHeader));
 	P = { p, f, ents, (const PakChunk*)(ents + hd.count), hd.count, hd.scale, hd.chunks, (uint64_t)sz.QuadPart };
+	P.version = hd.version;
 	g_scale = hd.scale, g_count += hd.count;
 	return true;
 }
@@ -182,7 +184,7 @@ inline const uint8_t* chunkData(int pi, uint32_t ci)
 			lru = &sl;
 	}
 	const PakChunk& c = P.chunks[ci & 0x7FFFFFFF];
-	if (c.csize < 5 || c.offset + c.csize > P.size)
+	if (c.csize < 1 || c.offset + c.csize > P.size)
 		return nullptr;
 	static std::vector<uint8_t> comp;
 	comp.resize(c.csize);
@@ -193,6 +195,14 @@ inline const uint8_t* chunkData(int pi, uint32_t ci)
 		return nullptr;
 	lru->chunk = UINT32_MAX;
 	lru->data.resize(c.usize);
+	if (P.version == 4) {
+		if (LZ4_decompress_safe((const char*)comp.data(), (char*)lru->data.data(), (int)c.csize, (int)c.usize) != (int)c.usize)
+			return nullptr;
+		lru->chunk = ci, lru->tick = ++tick;
+		return lru->data.data();
+	}
+	if (c.csize < 5)
+		return nullptr;
 	static const ISzAlloc alloc = { [](ISzAllocPtr, size_t n) -> void* { return malloc(n); }, [](ISzAllocPtr, void* p) { free(p); } };
 	SizeT dlen = c.usize, slen = c.csize - 5;
 	ELzmaStatus st;

@@ -18,6 +18,7 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)vendor\include\imgui\imgui_tables.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)vendor\include\imgui\imgui_widgets.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)vendor\include\lzma\LzmaDec.c" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)vendor\include\lz4\lz4.c" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\modules\motion_prediction.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\graphic\uniform_buffer.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)src\graphic\texture.cpp" />
