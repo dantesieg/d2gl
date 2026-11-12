@@ -234,6 +234,9 @@ void Wrapper::grTexDownloadMipMap(GrChipID_t tmu, FxU32 start_address, GrTexInfo
 		const hires::PakEntry* hi = App.hires_textures ? hires::find(g_glide_texture.hash[start_address], width, height) : nullptr;
 		hires::g_luts.erase(start_address);
 		auto& pd = hires::g_pending;
+		static uint32_t pend = 0, pend_size = 0;
+		pend += !hi && pd.active ? 1 : 0;
+		pend_size += !hi && pd.active && (pd.tw != width || pd.th != height) ? 1 : 0;
 		if (!hi && App.hires_textures && pd.active && pd.tw == width && pd.th == height) {
 			hi = hires::find(pd.hash, width, height);
 			if (hi) {
@@ -253,7 +256,7 @@ void Wrapper::grTexDownloadMipMap(GrChipID_t tmu, FxU32 start_address, GrTexInfo
 			remapped += hires::g_luts.count(start_address) ? 1 : 0;
 		}
 		if ((seen & 1023) == 0)
-			trace_log("hires_textures: %u of %u downloads matched (top %u, remapped %u, tiles %u)", matched, seen, top, remapped, tiles);
+			trace_log("hires_textures: %u of %u downloads matched (top %u, remapped %u of %u pending, %u size mismatch, tiles %u)", matched, seen, top, remapped, pend, pend_size, tiles);
 	}
 }
 

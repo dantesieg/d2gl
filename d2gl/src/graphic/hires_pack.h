@@ -120,7 +120,7 @@ inline const uint8_t* chunkData(uint32_t ci)
 		uint32_t chunk = UINT32_MAX, tick = 0;
 		std::vector<uint8_t> data;
 	};
-	static Slot slots[8];
+	static Slot slots[64];
 	static uint32_t tick = 0;
 	Slot* lru = &slots[0];
 	for (auto& sl : slots) {
