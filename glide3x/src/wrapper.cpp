@@ -241,10 +241,15 @@ void Wrapper::grTexDownloadMipMap(GrChipID_t tmu, FxU32 start_address, GrTexInfo
 		}
 		pd.active = false;
 		g_glide_texture.hires[start_address] = hi;
-		static uint32_t seen = 0, matched = 0;
+		static uint32_t seen = 0, matched = 0, top = 0, remapped = 0, tiles = 0;
 		seen++, matched += hi ? 1 : 0;
+		if (hi) {
+			top += (hi->flags & 1) && hi->fh != hi->th ? 1 : 0;
+			tiles += hi->fw == hi->tw && hi->fh == hi->th && (hi->tw == 32 || hi->tw == 256) ? 1 : 0;
+			remapped += hires::g_luts.count(start_address) ? 1 : 0;
+		}
 		if ((seen & 1023) == 0)
-			trace_log("hires_textures: %u of %u downloads matched", matched, seen);
+			trace_log("hires_textures: %u of %u downloads matched (top %u, remapped %u, tiles %u)", matched, seen, top, remapped, tiles);
 	}
 }
 
