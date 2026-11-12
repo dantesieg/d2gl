@@ -245,7 +245,7 @@ void Wrapper::grTexDownloadMipMap(GrChipID_t tmu, FxU32 start_address, GrTexInfo
 			// d2gl_hires_dump.bin (u16 tw, th, un-remapped download)
 			static int dump = GetFileAttributesA("d2gl_hires_dump") != INVALID_FILE_ATTRIBUTES ? 2000 : 0;
 			if (!hi && dump > 0 && pd.src) {
-				static FILE* df = fopen("d2gl_hires_dump.bin", "wb");
+				static FILE* df = [] { FILE* f = nullptr; fopen_s(&f, "d2gl_hires_dump.bin", "wb"); return f; }();
 				if (df) {
 					const uint16_t d[2] = { (uint16_t)width, (uint16_t)height };
 					fwrite(d, 2, 2, df);
