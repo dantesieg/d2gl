@@ -11,6 +11,8 @@
 
 #include <cstdint>
 #include <cstring>
+#include <array>
+#include <map>
 #include <vector>
 #include <windows.h>
 
@@ -39,6 +41,16 @@ struct Pack {
 };
 
 inline Pack g_pack;
+
+// remapped sprites (unit palettes, item tints): the game bakes the remap into the download, so the upload hook
+// keys the un-remapped frame and the remap is applied to the replacement's indices
+struct Pending {
+	bool active = false;
+	uint32_t hash = 0, tw = 0, th = 0;
+	uint8_t lut[256] = {};
+};
+inline Pending g_pending;
+inline std::map<uint32_t, std::array<uint8_t, 256>> g_luts; // download address -> remap of its replacement
 
 inline bool load(const char* path)
 {

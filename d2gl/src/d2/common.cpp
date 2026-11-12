@@ -18,6 +18,8 @@
 
 #include "pch.h"
 #include "common.h"
+#include "graphic/hires_pack.h"
+#include "helpers.h"
 #include "funcs.h"
 #include "helpers.h"
 #include "modules/motion_prediction.h"
@@ -179,6 +181,57 @@ static bool lightHooksValid()
 	return true;
 }
 
+// [Graphic] hires_textures: D2Glide RENDERER_GLIDE_UploadTextureToCache (1.14d 0x50A450, per Redivivus; pTexInfo in
+// ESI, stdcall pPalette, nOutlineColor, nMode). A remapped upload (palette, mode 1/4) is redrawn un-remapped with
+// CELCMP_DrawCelFrame (0x6014C0) to key the replacement; the remap goes to the download hook.
+struct GlideTexInfo {
+	void* sprite;
+	int32_t w, h, left, top, tex_w, tex_h, tex_area;
+};
+typedef void(__stdcall* drawCelFrame_t)(void* gfx, int32_t x, int32_t y, int32_t clip_l, int32_t clip_r, uint8_t* dst, int32_t dst_h, uint32_t pitch, uint8_t* a1, uint8_t* a2, uint8_t* pal);
+static drawCelFrame_t drawCelFrame = nullptr;
+static void* uploadTexture = nullptr;
+
+static void __stdcall uploadTexturePre(GlideTexInfo* ti, uint8_t* pal, int32_t mode)
+{
+	auto& pd = hires::g_pending;
+	pd.active = false;
+	if (!pal || !ti || (mode != 1 && mode != 4) || !App.hires_textures || !hires::g_pack.count || ti->tex_area <= 0 || ti->tex_area > 0x10000)
+		return;
+	static uint8_t buf[0x10000];
+	memset(buf, 0, ti->tex_area);
+	drawCelFrame(ti->sprite, -ti->left, ti->tex_h - ti->top - 1, 0, 0, buf, ti->tex_h, ti->tex_w, nullptr, nullptr, nullptr);
+	pd.hash = helpers::hash(buf, ti->tex_area);
+	pd.tw = ti->tex_w, pd.th = ti->tex_h;
+	memcpy(pd.lut, pal, 256);
+	pd.active = true;
+}
+static __declspec(naked) void uploadTextureStub()
+{
+	__asm {
+		pushad
+		push dword ptr [esp + 44] // nMode
+		push dword ptr [esp + 40] // pPalette
+		push esi                  // pTexInfo
+		call uploadTexturePre
+		popad
+		jmp dword ptr [uploadTexture]
+	}
+}
+static bool uploadHookValid()
+{
+	if (isVerNot(V_114d) || !App.hires_textures)
+		return false;
+	const uintptr_t base = (uintptr_t)GetModuleHandle(NULL);
+	static const uint8_t up_sig[] = { 0x55, 0x8B, 0xEC, 0x8B, 0x06, 0x8B, 0x40, 0x3C, 0x83, 0xEC, 0x1C, 0x85 };
+	static const uint8_t cel_sig[] = { 0x55, 0x8B, 0xEC, 0x51, 0x8B, 0x4D, 0x08, 0x8B, 0x41, 0x34, 0x85, 0xC0 };
+	if (memcmp((void*)(base + 0x10A450), up_sig, sizeof(up_sig)) || memcmp((void*)(base + 0x2014C0), cel_sig, sizeof(cel_sig)))
+		return false;
+	uploadTexture = (void*)(base + 0x10A450);
+	drawCelFrame = (drawCelFrame_t)(base + 0x2014C0);
+	return true;
+}
+
 void initHooks()
 {
 	*is_in_game = 0;
@@ -308,6 +361,8 @@ void initHooks()
 		DetourAttach(&(PVOID&)allocLightMap, allocLightMapHooked);
 		DetourAttach(&(PVOID&)setLightRGB, setLightRGBHooked);
 	}
+	if (uploadHookValid())
+		DetourAttach(&(PVOID&)uploadTexture, uploadTextureStub);
 	DetourTransactionCommit();
 }
 
@@ -343,6 +398,8 @@ void destroyHooks()
 		DetourDetach(&(PVOID&)allocLightMap, allocLightMapHooked);
 		DetourDetach(&(PVOID&)setLightRGB, setLightRGBHooked);
 	}
+	if (uploadTexture)
+		DetourDetach(&(PVOID&)uploadTexture, uploadTextureStub);
 	DetourTransactionCommit();
 }
 

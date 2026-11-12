@@ -110,7 +110,12 @@ const SubTextureInfo* TextureManager::getSubTextureInfo(uint32_t address, uint16
 		if (hi != g_glide_texture.hires.end() && hi->second) {
 			const uint16_t s = (uint16_t)hires::g_pack.scale;
 			uint8_t* dst = command_buffer->allocHi((size_t)width * s * height * s);
-			if (dst && hires::expand((const hires::PakEntry*)hi->second, dst))
+			const bool ok = dst && hires::expand((const hires::PakEntry*)hi->second, dst);
+			const auto lut = ok ? hires::g_luts.find(address) : hires::g_luts.end();
+			if (lut != hires::g_luts.end())
+				for (size_t i = 0, n = (size_t)width * s * height * s; i < n; i++)
+					dst[i] = dst[i] ? lut->second[dst[i]] : 0;
+			if (ok)
 				command_buffer->textureUpdateHi(dst, texture_info->tex_num, { (uint16_t)(width * s), (uint16_t)(height * s) }, { (uint16_t)(texture_info->offset.x * s), (uint16_t)(texture_info->offset.y * s) });
 			else
 				hi->second = nullptr; // not uploaded: draw the original
