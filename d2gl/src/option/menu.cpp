@@ -387,6 +387,8 @@ void Menu::draw()
 						saveFloat("Graphic", "light_flicker", App.dynamic_light.flicker.value);
 					drawSlider_m(float, "Aura Light Colour", App.dynamic_light.aura_color, "%.2f", "Colour of the light players, minions and monsters cast (auras). 1 = unchanged, 0 = white. New lights only (1.14d).", aura_light_color)
 						saveFloat("Graphic", "aura_light_color", App.dynamic_light.aura_color.value);
+					drawCheckbox_m("Hi-Res Interface", App.hires_ui, "AI-upscaled interface from d2gl_hires_ui.pak (glide). Off applies at once; on needs it enabled at game start.", hires_ui)
+						saveBool("Graphic", "hires_ui", App.hires_ui);
 					drawCheckbox_m("Hi-Res Textures", App.hires_textures, "AI-upscaled textures from d2gl_hires.pak (glide). Off applies at once; on needs it enabled at game start.", hires_textures)
 						saveBool("Graphic", "hires_textures", App.hires_textures);
 					drawCheckbox_m("Normal-Mapped Lighting", App.dynamic_light.normals, "Shade sprites and walls toward nearby lights for a 3D look.", light_normals)

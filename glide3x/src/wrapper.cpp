@@ -213,8 +213,9 @@ void Wrapper::grTexSource(GrChipID_t tmu, FxU32 start_address, GrTexInfo* info)
 	hires::g_pending.active = false;
 	const auto sub_tex_info = m_texture_manager->getSubTextureInfo(start_address, size, width, height, frame_count);
 	if (sub_tex_info) {
-		const auto hi = (hires::g_pack.count && App.hires_textures && !d2::drawing_orb_liquid) ? g_glide_texture.hires.find(start_address) : g_glide_texture.hires.end();
-		ctx->setVertexTexNum({ sub_tex_info->tex_num, (uint16_t)((hi != g_glide_texture.hires.end() && hi->second) ? 1 : 0) });
+		hires::g_on[0] = App.hires_ui, hires::g_on[1] = App.hires_textures;
+		const auto hi = (hires::g_count && !d2::drawing_orb_liquid) ? g_glide_texture.hires.find(start_address) : g_glide_texture.hires.end();
+		ctx->setVertexTexNum({ sub_tex_info->tex_num, (uint16_t)((hi != g_glide_texture.hires.end() && hires::active(hi->second)) ? 1 : 0) });
 		ctx->setVertexOffset(sub_tex_info->offset);
 		ctx->setVertexTexShift(sub_tex_info->shift);
 		ctx->setVertexTexRect({ sub_tex_info->offset.x, sub_tex_info->offset.y, (uint16_t)glm::min(width, 512u), (uint16_t)glm::min(height, 512u) });
@@ -230,14 +231,15 @@ void Wrapper::grTexDownloadMipMap(GrChipID_t tmu, FxU32 start_address, GrTexInfo
 
 	memcpy(g_glide_texture.memory + start_address, info->data, width * height);
 	g_glide_texture.hash[start_address] = helpers::hash(info->data, width * height);
-	if (hires::g_pack.count) {
-		const hires::PakEntry* hi = App.hires_textures ? hires::find(g_glide_texture.hash[start_address], width, height) : nullptr;
+	if (hires::g_count) {
+		hires::g_on[0] = App.hires_ui, hires::g_on[1] = App.hires_textures;
+		const hires::PakEntry* hi = hires::find(g_glide_texture.hash[start_address], width, height);
 		hires::g_luts.erase(start_address);
 		auto& pd = hires::g_pending;
 		static uint32_t pend = 0, pend_size = 0;
 		pend += !hi && pd.active ? 1 : 0;
 		pend_size += !hi && pd.active && (pd.tw != width || pd.th != height) ? 1 : 0;
-		if (!hi && App.hires_textures && pd.active && pd.tw == width && pd.th == height) {
+		if (!hi && pd.active && pd.tw == width && pd.th == height) {
 			hi = hires::find(pd.hash, width, height);
 			if (hi) {
 				auto& rm = hires::g_luts[start_address];

@@ -108,7 +108,7 @@ const SubTextureInfo* TextureManager::getSubTextureInfo(uint32_t address, uint16
 		command_buffer->textureUpdate(g_glide_texture.memory + address, texture_info->tex_num, { width, height }, texture_info->offset);
 		const auto hi = g_glide_texture.hires.find(address);
 		if (hi != g_glide_texture.hires.end() && hi->second) {
-			const uint16_t s = (uint16_t)hires::g_pack.scale;
+			const uint16_t s = (uint16_t)hires::g_scale;
 			uint8_t* dst = command_buffer->allocHi((size_t)width * s * height * s);
 			const auto he = (const hires::PakEntry*)hi->second;
 			bool ok = dst && hires::expand(he, dst);

@@ -259,15 +259,19 @@ Context::Context()
 
 		// [Graphic] hires_textures: AI-upscaled replacements in a scale x atlas with the same layers and coordinates
 		TextureCreateInfo hires_texture_ci;
-		const bool hires = App.hires_textures && hires::load("d2gl_hires.pak");
-		const uint32_t hs = hires ? 512 * hires::g_pack.scale : 1;
+		if (App.hires_ui)
+			hires::load(0, "d2gl_hires_ui.pak");
+		if (App.hires_textures)
+			hires::load(1, "d2gl_hires.pak");
+		const bool hires = hires::g_count > 0;
+		const uint32_t hs = hires ? 512 * hires::g_scale : 1;
 		hires_texture_ci.size = { hs, hs };
 		hires_texture_ci.layer_count = hires ? 512 : 1;
 		hires_texture_ci.format = { GL_R8, GL_RED };
 		hires_texture_ci.slot = TEXTURE_SLOT_HIRES;
 		m_hires_texture = std::make_unique<Texture>(hires_texture_ci);
 		if (hires)
-			trace_log("hires_textures: %u replacements, scale %u", hires::g_pack.count, hires::g_pack.scale);
+			trace_log("hires_textures: %u interface + %u world replacements, scale %u", hires::g_packs[0].count, hires::g_packs[1].count, hires::g_scale);
 
 		TextureCreateInfo movie_texture_ci;
 		movie_texture_ci.size = { 640, 480 };

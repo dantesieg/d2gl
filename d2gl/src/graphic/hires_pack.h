@@ -47,7 +47,9 @@ struct Pack {
 	uint64_t size = 0;
 };
 
-inline Pack g_pack;
+inline Pack g_packs[2]; // 0 = interface (d2gl_hires_ui.pak, [Graphic] hires_ui), 1 = world (d2gl_hires.pak, hires_textures)
+inline uint32_t g_scale = 0, g_count = 0; // shared scale of the loaded packs, total entries
+inline bool g_on[2] = {}; // packs enabled right now (off applies at once)
 
 // remapped sprites (unit palettes, item tints): the game bakes the remap into the download, so the upload hook
 // keys the un-remapped frame and the remap is applied to the replacement's indices
@@ -64,9 +66,10 @@ struct Remap {
 };
 inline std::map<uint32_t, Remap> g_luts; // download address -> remap of its replacement
 
-inline bool load(const char* path)
+inline bool load(int pi, const char* path)
 {
-	if (g_pack.base)
+	Pack& P = g_packs[pi];
+	if (P.base)
 		return true;
 	HANDLE f = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
 	if (f == INVALID_HANDLE_VALUE)
@@ -75,7 +78,7 @@ inline bool load(const char* path)
 	GetFileSizeEx(f, &sz);
 	PakHeader hd = {};
 	DWORD got = 0;
-	if (!ReadFile(f, &hd, sizeof(hd), &got, nullptr) || got != sizeof(hd) || hd.magic != 0x52483244 || hd.version != 3 || (hd.scale != 2 && hd.scale != 4)) {
+	if (!ReadFile(f, &hd, sizeof(hd), &got, nullptr) || got != sizeof(hd) || hd.magic != 0x52483244 || hd.version != 3 || (hd.scale != 2 && hd.scale != 4) || (g_scale && hd.scale != g_scale)) {
 		CloseHandle(f);
 		return false;
 	}
@@ -89,33 +92,54 @@ inline bool load(const char* path)
 		return false;
 	}
 	const PakEntry* ents = (const PakEntry*)(p + sizeof(PakHeader));
-	g_pack = { p, f, ents, (const PakChunk*)(ents + hd.count), hd.count, hd.scale, hd.chunks, (uint64_t)sz.QuadPart };
+	P = { p, f, ents, (const PakChunk*)(ents + hd.count), hd.count, hd.scale, hd.chunks, (uint64_t)sz.QuadPart };
+	g_scale = hd.scale, g_count += hd.count;
 	return true;
+}
+
+inline int packOf(const PakEntry* e)
+{
+	for (int i = 0; i < 2; i++)
+		if (g_packs[i].count && e >= g_packs[i].entries && e < g_packs[i].entries + g_packs[i].count)
+			return i;
+	return -1;
+}
+
+// is the pack of this entry enabled right now
+inline bool active(const void* e)
+{
+	const int i = e ? packOf((const PakEntry*)e) : -1;
+	return i >= 0 && g_on[i];
 }
 
 inline const PakEntry* find(uint32_t hash, uint32_t tw, uint32_t th)
 {
-	if (!g_pack.count)
-		return nullptr;
-	uint32_t lo = 0, hi = g_pack.count;
-	while (lo < hi) {
-		const uint32_t mid = (lo + hi) / 2;
-		if (g_pack.entries[mid].hash < hash)
-			lo = mid + 1;
-		else
-			hi = mid;
-	}
-	for (uint32_t i = lo; i < g_pack.count && g_pack.entries[i].hash == hash; i++) {
-		const PakEntry& e = g_pack.entries[i];
-		if (e.tw == tw && e.th == th && e.fw <= tw && e.fh <= th && e.chunk < g_pack.nchunks)
-			return &e;
+	for (int pi = 0; pi < 2; pi++) {
+		const Pack& P = g_packs[pi];
+		if (!P.count || !g_on[pi])
+			continue;
+		uint32_t lo = 0, hi = P.count;
+		while (lo < hi) {
+			const uint32_t mid = (lo + hi) / 2;
+			if (P.entries[mid].hash < hash)
+				lo = mid + 1;
+			else
+				hi = mid;
+		}
+		for (uint32_t i = lo; i < P.count && P.entries[i].hash == hash; i++) {
+			const PakEntry& e = P.entries[i];
+			if (e.tw == tw && e.th == th && e.fw <= tw && e.fh <= th && e.chunk < P.nchunks)
+				return &e;
+		}
 	}
 	return nullptr;
 }
 
 // decoded chunk (small LRU: frames of one sprite share a chunk); nullptr on a corrupt chunk
-inline const uint8_t* chunkData(uint32_t ci)
+inline const uint8_t* chunkData(int pi, uint32_t ci)
 {
+	const Pack& P = g_packs[pi];
+	ci |= (uint32_t)pi << 31; // slot key
 	struct Slot {
 		uint32_t chunk = UINT32_MAX, tick = 0;
 		std::vector<uint8_t> data;
@@ -131,15 +155,15 @@ inline const uint8_t* chunkData(uint32_t ci)
 		if (sl.tick < lru->tick)
 			lru = &sl;
 	}
-	const PakChunk& c = g_pack.chunks[ci];
-	if (c.csize < 5 || c.offset + c.csize > g_pack.size)
+	const PakChunk& c = P.chunks[ci & 0x7FFFFFFF];
+	if (c.csize < 5 || c.offset + c.csize > P.size)
 		return nullptr;
 	static std::vector<uint8_t> comp;
 	comp.resize(c.csize);
 	OVERLAPPED ov = {};
 	ov.Offset = (DWORD)(c.offset & 0xFFFFFFFF), ov.OffsetHigh = (DWORD)(c.offset >> 32);
 	DWORD got = 0;
-	if (!ReadFile(g_pack.file, comp.data(), c.csize, &got, &ov) || got != c.csize)
+	if (!ReadFile(P.file, comp.data(), c.csize, &got, &ov) || got != c.csize)
 		return nullptr;
 	lru->chunk = UINT32_MAX;
 	lru->data.resize(c.usize);
@@ -155,10 +179,13 @@ inline const uint8_t* chunkData(uint32_t ci)
 // expands an entry into dst (scale*tw x scale*th, zero-filled around the frame); false on a corrupt chunk
 inline bool expand(const PakEntry* e, uint8_t* dst)
 {
-	const uint32_t s = g_pack.scale, w = e->fw * s, h = e->fh * s, dw = e->tw * s, dh = e->th * s;
-	if ((uint64_t)e->offset + (uint64_t)w * h > g_pack.chunks[e->chunk].usize)
+	const int pi = packOf(e);
+	if (pi < 0)
 		return false;
-	const uint8_t* src = chunkData(e->chunk);
+	const uint32_t s = g_scale, w = e->fw * s, h = e->fh * s, dw = e->tw * s, dh = e->th * s;
+	if ((uint64_t)e->offset + (uint64_t)w * h > g_packs[pi].chunks[e->chunk].usize)
+		return false;
+	const uint8_t* src = chunkData(pi, e->chunk);
 	if (!src)
 		return false;
 	src += e->offset;
@@ -172,7 +199,7 @@ inline bool expand(const PakEntry* e, uint8_t* dst)
 // undoes XOR coding: dst (scale*tw x scale*th) ^= nearest-neighbour upscale of the tw x th download
 inline void unxor(const PakEntry* e, uint8_t* dst, const uint8_t* src)
 {
-	const uint32_t s = g_pack.scale, dw = e->tw * s, dh = e->th * s;
+	const uint32_t s = g_scale, dw = e->tw * s, dh = e->th * s;
 	for (uint32_t y = 0; y < dh; y++) {
 		const uint8_t* sr = src + (size_t)(y / s) * e->tw;
 		uint8_t* d = dst + (size_t)y * dw;
