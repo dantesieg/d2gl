@@ -110,11 +110,19 @@ const SubTextureInfo* TextureManager::getSubTextureInfo(uint32_t address, uint16
 		if (hi != g_glide_texture.hires.end() && hi->second) {
 			const uint16_t s = (uint16_t)hires::g_pack.scale;
 			uint8_t* dst = command_buffer->allocHi((size_t)width * s * height * s);
-			const bool ok = dst && hires::expand((const hires::PakEntry*)hi->second, dst);
+			const auto he = (const hires::PakEntry*)hi->second;
+			bool ok = dst && hires::expand(he, dst);
 			const auto lut = ok ? hires::g_luts.find(address) : hires::g_luts.end();
-			if (lut != hires::g_luts.end())
+			if (ok && (he->flags & 2)) {
+				const bool remapped = lut != hires::g_luts.end();
+				if (remapped && lut->second.src.size() != (size_t)width * height)
+					ok = false;
+				else
+					hires::unxor(he, dst, remapped ? lut->second.src.data() : g_glide_texture.memory + address);
+			}
+			if (ok && lut != hires::g_luts.end())
 				for (size_t i = 0, n = (size_t)width * s * height * s; i < n; i++)
-					dst[i] = dst[i] ? lut->second[dst[i]] : 0;
+					dst[i] = dst[i] ? lut->second.lut[dst[i]] : 0;
 			if (ok)
 				command_buffer->textureUpdateHi(dst, texture_info->tex_num, { (uint16_t)(width * s), (uint16_t)(height * s) }, { (uint16_t)(texture_info->offset.x * s), (uint16_t)(texture_info->offset.y * s) });
 			else

@@ -204,6 +204,7 @@ static void __stdcall uploadTexturePre(GlideTexInfo* ti, uint8_t* pal, int32_t m
 	pd.hash = helpers::hash(buf, ti->tex_area);
 	pd.tw = ti->tex_w, pd.th = ti->tex_h;
 	memcpy(pd.lut, pal, 256);
+	pd.src = buf;
 	pd.active = true;
 }
 static __declspec(naked) void uploadTextureStub()

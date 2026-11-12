@@ -236,8 +236,12 @@ void Wrapper::grTexDownloadMipMap(GrChipID_t tmu, FxU32 start_address, GrTexInfo
 		auto& pd = hires::g_pending;
 		if (!hi && App.hires_textures && pd.active && pd.tw == width && pd.th == height) {
 			hi = hires::find(pd.hash, width, height);
-			if (hi)
-				memcpy(hires::g_luts[start_address].data(), pd.lut, 256);
+			if (hi) {
+				auto& rm = hires::g_luts[start_address];
+				memcpy(rm.lut.data(), pd.lut, 256);
+				if (hi->flags & 2)
+					rm.src.assign(pd.src, pd.src + (size_t)width * height);
+			}
 		}
 		pd.active = false;
 		g_glide_texture.hires[start_address] = hi;

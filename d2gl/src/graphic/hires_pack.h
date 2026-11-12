@@ -3,7 +3,8 @@
 	d2gl_hires.pak next to the game; header, index and chunk table are memory-mapped read-only:
 	  header  { u32 magic 'D2HR', u32 version 3, u32 count, u32 scale, u32 chunks }
 	  entries { u32 hash, u16 tw, u16 th, u16 fw, u16 fh, u16 flags, u16 pad, u32 chunk, u32 offset }[count],
-	          sorted by hash, tw, th; flags bit 0 = frame at the top of the download (else bottom)
+	          sorted by hash, tw, th; flags bit 0 = frame at the top of the download (else bottom),
+	          bit 1 = stored XOR the nearest-neighbour upscale of the (un-remapped) download
 	  chunks  { u64 offset, u32 csize, u32 usize }[chunks]
 	  data    LZMA chunks (5 props bytes + raw stream) of several frames' scale*fw x scale*fh 8-bit palette indices;
 	          an entry's frame is at offset inside its decoded chunk (entries may share frames)
@@ -54,9 +55,14 @@ struct Pending {
 	bool active = false;
 	uint32_t hash = 0, tw = 0, th = 0;
 	uint8_t lut[256] = {};
+	const uint8_t* src = nullptr; // un-remapped download, valid until the download hook
 };
 inline Pending g_pending;
-inline std::map<uint32_t, std::array<uint8_t, 256>> g_luts; // download address -> remap of its replacement
+struct Remap {
+	std::array<uint8_t, 256> lut;
+	std::vector<uint8_t> src; // the un-remapped download (XOR-coded entries)
+};
+inline std::map<uint32_t, Remap> g_luts; // download address -> remap of its replacement
 
 inline bool load(const char* path)
 {
@@ -161,6 +167,18 @@ inline bool expand(const PakEntry* e, uint8_t* dst)
 	for (uint32_t y = 0; y < h; y++)
 		memcpy(dst + (size_t)(y0 + y) * dw, src + (size_t)y * w, w);
 	return true;
+}
+
+// undoes XOR coding: dst (scale*tw x scale*th) ^= nearest-neighbour upscale of the tw x th download
+inline void unxor(const PakEntry* e, uint8_t* dst, const uint8_t* src)
+{
+	const uint32_t s = g_pack.scale, dw = e->tw * s, dh = e->th * s;
+	for (uint32_t y = 0; y < dh; y++) {
+		const uint8_t* sr = src + (size_t)(y / s) * e->tw;
+		uint8_t* d = dst + (size_t)y * dw;
+		for (uint32_t x = 0; x < dw; x++)
+			d[x] ^= sr[x / s];
+	}
 }
 
 }
