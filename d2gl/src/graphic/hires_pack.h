@@ -1,11 +1,13 @@
 /*
 	[Graphic] hires_textures: AI-upscaled replacements for glide textures (tools/upscale in median-2026).
-	d2gl_hires.pak next to the game, memory-mapped read-only:
-	  header  { u32 magic 'D2HR', u32 version 2, u32 count, u32 scale }
-	  entries { u32 hash, u16 tw, u16 th, u16 fw, u16 fh, u16 flags, u16 pad, u64 offset, u32 csize }[count],
+	d2gl_hires.pak next to the game; header, index and chunk table are memory-mapped read-only:
+	  header  { u32 magic 'D2HR', u32 version 3, u32 count, u32 scale, u32 chunks }
+	  entries { u32 hash, u16 tw, u16 th, u16 fw, u16 fh, u16 flags, u16 pad, u32 chunk, u32 offset }[count],
 	          sorted by hash, tw, th; flags bit 0 = frame at the top of the download (else bottom)
-	  data    zlib(scale*fw x scale*fh 8-bit palette indices); several entries may share one blob
-	hash = helpers::hash (MurmurHash3 x86_32, seed 0) of the tw*th glide download (frame at x 0).
+	  chunks  { u64 offset, u32 csize, u32 usize }[chunks]
+	  data    LZMA chunks (5 props bytes + raw stream) of several frames' scale*fw x scale*fh 8-bit palette indices;
+	          an entry's frame is at offset inside its decoded chunk (entries may share frames)
+	hash = helpers::hash (MurmurHash3 x86_32, seed 0) of the tw*th glide download.
 */
 #pragma once
 
@@ -16,19 +18,22 @@
 #include <vector>
 #include <windows.h>
 
-extern "C" int stbi_zlib_decode_buffer(char* obuffer, int olen, char const* ibuffer, int ilen);
+#include "lzma/LzmaDec.h"
 
 namespace d2gl::hires {
 
 #pragma pack(push, 1)
 struct PakHeader {
-	uint32_t magic, version, count, scale;
+	uint32_t magic, version, count, scale, chunks;
 };
 struct PakEntry {
 	uint32_t hash;
 	uint16_t tw, th, fw, fh, flags, pad;
+	uint32_t chunk, offset;
+};
+struct PakChunk {
 	uint64_t offset;
-	uint32_t csize;
+	uint32_t csize, usize;
 };
 #pragma pack(pop)
 
@@ -36,7 +41,8 @@ struct Pack {
 	const uint8_t* base = nullptr; // mapped header + index only (32-bit process: blobs are read on demand)
 	HANDLE file = INVALID_HANDLE_VALUE;
 	const PakEntry* entries = nullptr;
-	uint32_t count = 0, scale = 0;
+	const PakChunk* chunks = nullptr;
+	uint32_t count = 0, scale = 0, nchunks = 0;
 	uint64_t size = 0;
 };
 
@@ -63,11 +69,11 @@ inline bool load(const char* path)
 	GetFileSizeEx(f, &sz);
 	PakHeader hd = {};
 	DWORD got = 0;
-	if (!ReadFile(f, &hd, sizeof(hd), &got, nullptr) || got != sizeof(hd) || hd.magic != 0x52483244 || hd.version != 2 || (hd.scale != 2 && hd.scale != 4)) {
+	if (!ReadFile(f, &hd, sizeof(hd), &got, nullptr) || got != sizeof(hd) || hd.magic != 0x52483244 || hd.version != 3 || (hd.scale != 2 && hd.scale != 4)) {
 		CloseHandle(f);
 		return false;
 	}
-	const uint64_t need = sizeof(PakHeader) + (uint64_t)hd.count * sizeof(PakEntry);
+	const uint64_t need = sizeof(PakHeader) + (uint64_t)hd.count * sizeof(PakEntry) + (uint64_t)hd.chunks * sizeof(PakChunk);
 	HANDLE m = need <= (uint64_t)sz.QuadPart ? CreateFileMappingA(f, nullptr, PAGE_READONLY, 0, 0, nullptr) : nullptr;
 	const uint8_t* p = m ? (const uint8_t*)MapViewOfFile(m, FILE_MAP_READ, 0, 0, (SIZE_T)need) : nullptr;
 	if (m)
@@ -76,7 +82,8 @@ inline bool load(const char* path)
 		CloseHandle(f);
 		return false;
 	}
-	g_pack = { p, f, (const PakEntry*)(p + sizeof(PakHeader)), hd.count, hd.scale, (uint64_t)sz.QuadPart };
+	const PakEntry* ents = (const PakEntry*)(p + sizeof(PakHeader));
+	g_pack = { p, f, ents, (const PakChunk*)(ents + hd.count), hd.count, hd.scale, hd.chunks, (uint64_t)sz.QuadPart };
 	return true;
 }
 
@@ -94,30 +101,65 @@ inline const PakEntry* find(uint32_t hash, uint32_t tw, uint32_t th)
 	}
 	for (uint32_t i = lo; i < g_pack.count && g_pack.entries[i].hash == hash; i++) {
 		const PakEntry& e = g_pack.entries[i];
-		if (e.tw == tw && e.th == th && e.fw <= tw && e.fh <= th && e.offset + e.csize <= g_pack.size)
+		if (e.tw == tw && e.th == th && e.fw <= tw && e.fh <= th && e.chunk < g_pack.nchunks)
 			return &e;
 	}
 	return nullptr;
 }
 
-// expands an entry into dst (scale*tw x scale*th, zero-filled around the frame); false on a corrupt blob
+// decoded chunk (small LRU: frames of one sprite share a chunk); nullptr on a corrupt chunk
+inline const uint8_t* chunkData(uint32_t ci)
+{
+	struct Slot {
+		uint32_t chunk = UINT32_MAX, tick = 0;
+		std::vector<uint8_t> data;
+	};
+	static Slot slots[8];
+	static uint32_t tick = 0;
+	Slot* lru = &slots[0];
+	for (auto& sl : slots) {
+		if (sl.chunk == ci) {
+			sl.tick = ++tick;
+			return sl.data.data();
+		}
+		if (sl.tick < lru->tick)
+			lru = &sl;
+	}
+	const PakChunk& c = g_pack.chunks[ci];
+	if (c.csize < 5 || c.offset + c.csize > g_pack.size)
+		return nullptr;
+	static std::vector<uint8_t> comp;
+	comp.resize(c.csize);
+	OVERLAPPED ov = {};
+	ov.Offset = (DWORD)(c.offset & 0xFFFFFFFF), ov.OffsetHigh = (DWORD)(c.offset >> 32);
+	DWORD got = 0;
+	if (!ReadFile(g_pack.file, comp.data(), c.csize, &got, &ov) || got != c.csize)
+		return nullptr;
+	lru->chunk = UINT32_MAX;
+	lru->data.resize(c.usize);
+	static const ISzAlloc alloc = { [](ISzAllocPtr, size_t n) -> void* { return malloc(n); }, [](ISzAllocPtr, void* p) { free(p); } };
+	SizeT dlen = c.usize, slen = c.csize - 5;
+	ELzmaStatus st;
+	if (LzmaDecode(lru->data.data(), &dlen, comp.data() + 5, &slen, comp.data(), 5, LZMA_FINISH_ANY, &st, &alloc) != SZ_OK || dlen != c.usize)
+		return nullptr;
+	lru->chunk = ci, lru->tick = ++tick;
+	return lru->data.data();
+}
+
+// expands an entry into dst (scale*tw x scale*th, zero-filled around the frame); false on a corrupt chunk
 inline bool expand(const PakEntry* e, uint8_t* dst)
 {
 	const uint32_t s = g_pack.scale, w = e->fw * s, h = e->fh * s, dw = e->tw * s, dh = e->th * s;
-	static thread_local std::vector<uint8_t> tmp, comp;
-	tmp.resize((size_t)w * h);
-	comp.resize(e->csize);
-	OVERLAPPED ov = {};
-	ov.Offset = (DWORD)(e->offset & 0xFFFFFFFF), ov.OffsetHigh = (DWORD)(e->offset >> 32);
-	DWORD got = 0;
-	if (!ReadFile(g_pack.file, comp.data(), e->csize, &got, &ov) || got != e->csize)
+	if ((uint64_t)e->offset + (uint64_t)w * h > g_pack.chunks[e->chunk].usize)
 		return false;
-	if (stbi_zlib_decode_buffer((char*)tmp.data(), (int)tmp.size(), (const char*)comp.data(), (int)e->csize) != (int)tmp.size())
+	const uint8_t* src = chunkData(e->chunk);
+	if (!src)
 		return false;
+	src += e->offset;
 	memset(dst, 0, (size_t)dw * dh);
 	const uint32_t y0 = (e->flags & 1) ? 0 : dh - h;
 	for (uint32_t y = 0; y < h; y++)
-		memcpy(dst + (size_t)(y0 + y) * dw, tmp.data() + (size_t)y * w, w);
+		memcpy(dst + (size_t)(y0 + y) * dw, src + (size_t)y * w, w);
 	return true;
 }
 
