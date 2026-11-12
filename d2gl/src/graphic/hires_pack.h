@@ -119,8 +119,7 @@ inline bool load(int pi, const char* path)
 		return false;
 	}
 	const PakEntry* ents = (const PakEntry*)(p + sizeof(PakHeader));
-	P = { p, f, ents, (const PakChunk*)(ents + hd.count), hd.count, hd.scale, hd.chunks, (uint64_t)sz.QuadPart };
-	P.version = hd.version;
+	P = { p, f, ents, (const PakChunk*)(ents + hd.count), hd.count, hd.scale, hd.chunks, hd.version, (uint64_t)sz.QuadPart };
 	g_scale = hd.scale, g_count += hd.count;
 	return true;
 }
