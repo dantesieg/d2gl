@@ -241,6 +241,21 @@ void Wrapper::grTexDownloadMipMap(GrChipID_t tmu, FxU32 start_address, GrTexInfo
 		pend_size += !hi && pd.active && (pd.tw != width || pd.th != height) ? 1 : 0;
 		if (!hi && pd.active && pd.tw == width && pd.th == height) {
 			hi = hires::find(pd.hash, width, height);
+			// debug: with a file d2gl_hires_dump next to the game, the first 2000 unmatched remapped frames go to
+			// d2gl_hires_dump.bin (u16 tw, th, un-remapped download)
+			static int dump = GetFileAttributesA("d2gl_hires_dump") != INVALID_FILE_ATTRIBUTES ? 2000 : 0;
+			if (!hi && dump > 0 && pd.src) {
+				static FILE* df = fopen("d2gl_hires_dump.bin", "wb");
+				if (df) {
+					const uint16_t d[2] = { (uint16_t)width, (uint16_t)height };
+					fwrite(d, 2, 2, df);
+					fwrite(pd.src, 1, (size_t)width * height, df);
+					if (--dump == 0)
+						fclose(df);
+					else
+						fflush(df);
+				}
+			}
 			if (hi) {
 				auto& rm = hires::g_luts[start_address];
 				memcpy(rm.lut.data(), pd.lut, 256);
