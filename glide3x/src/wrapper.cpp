@@ -212,7 +212,7 @@ void Wrapper::grTexSource(GrChipID_t tmu, FxU32 start_address, GrTexInfo* info)
 	const auto frame_count = ctx->getFrameCount();
 	const auto sub_tex_info = m_texture_manager->getSubTextureInfo(start_address, size, width, height, frame_count);
 	if (sub_tex_info) {
-		const auto hi = (hires::g_pack.count && App.hires_textures) ? g_glide_texture.hires.find(start_address) : g_glide_texture.hires.end();
+		const auto hi = (hires::g_pack.count && App.hires_textures && !d2::drawing_orb_liquid) ? g_glide_texture.hires.find(start_address) : g_glide_texture.hires.end();
 		ctx->setVertexTexNum({ sub_tex_info->tex_num, (uint16_t)((hi != g_glide_texture.hires.end() && hi->second) ? 1 : 0) });
 		ctx->setVertexOffset(sub_tex_info->offset);
 		ctx->setVertexTexShift(sub_tex_info->shift);

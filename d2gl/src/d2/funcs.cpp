@@ -258,11 +258,14 @@ void __stdcall drawVerticalCropImageHooked(CellContext* cell, int x, int y, int 
 	const auto pos = modules::MotionPrediction::Instance().drawImage(x, y, D2DrawFn::VerticalCropImage);
 	// [HDR] orb_glow: the orb liquid is a solid vertical crop at (0x1C/0x1D | width - 0x6F, height - 13)
 	// (D2Client PANEL_DrawHealthOrb 0x496F80 / PANEL_DrawManaOrb 0x497110, per Redivivus)
-	const bool orb = App.hdr.orb_glow.value > 0.0f && draw_mode == 5 && y == (int)*d2::screen_height - 13 &&
+	const bool orb_liquid = draw_mode == 5 && y == (int)*d2::screen_height - 13 &&
 		(x == 0x1C || x == 0x1D || x == (int)*d2::screen_width - 0x6F);
+	const bool orb = orb_liquid && App.hdr.orb_glow.value > 0.0f;
 	d2::drawing_orb = orb;
+	d2::drawing_orb_liquid = orb_liquid;
 	drawVerticalCropImage(cell, pos.x, pos.y, skip_lines, draw_lines, draw_mode);
 	d2::drawing_orb = false;
+	d2::drawing_orb_liquid = false;
 }
 
 void __stdcall drawClippedImageHooked(CellContext* cell, int x, int y, void* crop_rect, int draw_mode)

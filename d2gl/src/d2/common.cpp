@@ -123,6 +123,7 @@ uintptr_t getLevelName_Fn = getProc((DLL_D2CLIENT), (0x88420), (0x839F0), (0x9DC
 
 UnitAny* currently_drawing_unit = nullptr;
 bool drawing_orb = false;
+bool drawing_orb_liquid = false;
 int player_screen_x = 0, player_screen_y = 0;
 uint32_t player_screen_frame = 0;
 uint32_t currently_drawing_weather_particles = 0;

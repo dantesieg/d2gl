@@ -157,6 +157,7 @@ extern getLevelNoByRoom_t getLevelNoByRoom;
 extern uintptr_t getLevelName_Fn;
 
 extern UnitAny* currently_drawing_unit;
+extern bool drawing_orb_liquid; // [Graphic] hires_textures: the orb liquid keeps its original texture
 extern bool drawing_orb; // [HDR] orb_glow: inside the health/mana orb liquid draw
 extern int player_screen_x, player_screen_y; // [HDR] light_pools: last world draw position of the player (game units)
 extern uint32_t player_screen_frame;
