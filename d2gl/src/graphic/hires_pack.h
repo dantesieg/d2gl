@@ -65,6 +65,32 @@ struct Remap {
 	std::vector<uint8_t> src; // the un-remapped download (XOR-coded entries)
 };
 inline std::map<uint32_t, Remap> g_luts; // download address -> remap of its replacement
+inline uint32_t g_pal[256] = {}; // current glide palette (ARGB), for remapped replacements
+
+// remapped replacement: the upscaler picked indices by their un-remapped colours; where the remap pulls a picked index
+// far from the remapped colour of the source pixel (tint ramps that are not monotonic), keep the source pixel
+inline void remap(const PakEntry* e, uint8_t* dst, const uint8_t* src, const uint8_t* lut)
+{
+	auto dist = [](uint32_t a, uint32_t b) {
+		const int dr = (int)((a >> 16) & 0xFF) - (int)((b >> 16) & 0xFF), dg = (int)((a >> 8) & 0xFF) - (int)((b >> 8) & 0xFF), db = (int)(a & 0xFF) - (int)(b & 0xFF);
+		return dr * dr + dg * dg + db * db;
+	};
+	const uint32_t s = g_scale, dw = e->tw * s, dh = e->th * s;
+	for (uint32_t y = 0; y < dh; y++) {
+		const uint8_t* sr = src + (size_t)(y / s) * e->tw;
+		uint8_t* d = dst + (size_t)y * dw;
+		for (uint32_t x = 0; x < dw; x++) {
+			uint8_t q = d[x];
+			const uint8_t o = sr[x / s];
+			if (!q) {
+				continue;
+			}
+			if (o && q != o && dist(g_pal[lut[q]], g_pal[lut[o]]) > 2 * dist(g_pal[q], g_pal[o]) + 300)
+				q = o;
+			d[x] = lut[q];
+		}
+	}
+}
 
 inline bool load(int pi, const char* path)
 {

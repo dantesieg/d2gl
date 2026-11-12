@@ -259,8 +259,7 @@ void Wrapper::grTexDownloadMipMap(GrChipID_t tmu, FxU32 start_address, GrTexInfo
 			if (hi) {
 				auto& rm = hires::g_luts[start_address];
 				memcpy(rm.lut.data(), pd.lut, 256);
-				if (hi->flags & 2)
-					rm.src.assign(pd.src, pd.src + (size_t)width * height);
+				rm.src.assign(pd.src, pd.src + (size_t)width * height);
 			}
 		}
 		pd.active = false;
@@ -288,6 +287,7 @@ void Wrapper::grTexDownloadTable(void* data)
 
 	glm::vec4 palette[256];
 	uint32_t* pal = (uint32_t*)data;
+	memcpy(hires::g_pal, pal, sizeof(hires::g_pal));
 
 	for (int32_t i = 0; i < 256; i++) {
 		palette[i].a = (float)((pal[i] >> 24) & 0xFF) / 255;

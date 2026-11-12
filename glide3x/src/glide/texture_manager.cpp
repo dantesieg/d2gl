@@ -120,9 +120,13 @@ const SubTextureInfo* TextureManager::getSubTextureInfo(uint32_t address, uint16
 				else
 					hires::unxor(he, dst, remapped ? lut->second.src.data() : g_glide_texture.memory + address);
 			}
-			if (ok && lut != hires::g_luts.end())
-				for (size_t i = 0, n = (size_t)width * s * height * s; i < n; i++)
-					dst[i] = dst[i] ? lut->second.lut[dst[i]] : 0;
+			if (ok && lut != hires::g_luts.end()) {
+				if (lut->second.src.size() == (size_t)width * height)
+					hires::remap(he, dst, lut->second.src.data(), lut->second.lut.data());
+				else
+					for (size_t i = 0, n = (size_t)width * s * height * s; i < n; i++)
+						dst[i] = dst[i] ? lut->second.lut[dst[i]] : 0;
+			}
 			if (ok)
 				command_buffer->textureUpdateHi(dst, texture_info->tex_num, { (uint16_t)(width * s), (uint16_t)(height * s) }, { (uint16_t)(texture_info->offset.x * s), (uint16_t)(texture_info->offset.y * s) });
 			else
