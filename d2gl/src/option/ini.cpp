@@ -227,7 +227,12 @@ void saveIni()
 		"; Hi-res interface: AI-upscaled interface from d2gl_hires_ui.pak (glide, restart needed).\n"
 		"hires_ui=%s\n"
 		"; Hi-res items: AI-upscaled inventory items from d2gl_hires_items.pak (glide, restart needed).\n"
-		"hires_items=%s\n\n"
+		"hires_items=%s\n"
+		"; Ground item glow: soft coloured halo under dropped magic, rare, set and unique items and runes (glide, 1.14d+; strength: 0.25-3.0).\n"
+		"item_glow=%s\n"
+		"item_glow_strength=%.2f\n"
+		"; Wall silhouettes: the player shows as a tinted shape where walls, trees or buildings hide it (glide).\n"
+		"silhouettes=%s\n\n"
 		"; HDR-style tonemapping (world only, exposure: 0.2-1.0).\n"
 		"tonemap=%s\n"
 		"tonemap_exposure=%.3f\n\n"
@@ -274,6 +279,9 @@ void saveIni()
 		boolString(App.hires_textures),
 		boolString(App.hires_ui),
 		boolString(App.hires_items),
+		boolString(App.item_glow),
+		App.item_glow_strength.value,
+		boolString(App.silhouettes),
 		boolString(App.tonemap.active),
 		App.tonemap.exposure.value,
 		boolString(App.soft_shadows.active),
@@ -590,6 +598,9 @@ void loadIni()
 		App.hires_textures = getBool("Graphic", "hires_textures", App.hires_textures);
 		App.hires_ui = getBool("Graphic", "hires_ui", App.hires_ui);
 		App.hires_items = getBool("Graphic", "hires_items", App.hires_items);
+		App.item_glow = getBool("Graphic", "item_glow", App.item_glow);
+		App.item_glow_strength.value = getFloat("Graphic", "item_glow_strength", App.item_glow_strength);
+		App.silhouettes = getBool("Graphic", "silhouettes", App.silhouettes);
 		App.tonemap.active = getBool("Graphic", "tonemap", App.tonemap.active);
 		App.tonemap.exposure.value = getFloat("Graphic", "tonemap_exposure", App.tonemap.exposure);
 		App.soft_shadows.active = getBool("Graphic", "soft_shadows", App.soft_shadows.active);

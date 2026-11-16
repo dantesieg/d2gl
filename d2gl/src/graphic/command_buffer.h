@@ -10,6 +10,7 @@ enum class CommandType {
 	Begin,
 	UBOUpdate,
 	SetBlendState,
+	SetStencil, // [Graphic] silhouettes: 0 off, 1 player mark, 2 occluder mark, 3 hidden-player test
 	DrawIndexed,
 	PreFx,
 	SoftShadow,

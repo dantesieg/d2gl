@@ -32,10 +32,12 @@ struct FrameBufferAttachment {
 struct FrameBufferCreateInfo {
 	glm::uvec2 size = { 0, 0 };
 	std::vector<FrameBufferAttachment> attachments;
+	bool stencil = false; // depth24/stencil8 renderbuffer, cleared with the colours ([Graphic] silhouettes)
 };
 
 class FrameBuffer {
 	GLuint m_id = 0;
+	GLuint m_stencil_rb = 0;
 	uint32_t m_width, m_height, m_attachment_count;
 	std::vector<std::unique_ptr<Texture>> m_textures;
 	std::vector<std::array<float, 4>> m_clear_colors;

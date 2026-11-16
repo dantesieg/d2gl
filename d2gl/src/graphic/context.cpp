@@ -585,7 +585,7 @@ void Context::renderThread(void* context)
 
 		if (cmd->m_resized)
 			ctx->onResize(cmd->m_window_size, cmd->m_game_size, cmd->m_logical_size, cmd->m_game_tex_bpp);
-		else if (ctx->m_game_framebuffer && (ctx->emitWanted() != ctx->m_emit_attached || (ctx->m_emit_attached && ctx->emitGradedWanted() != ctx->m_emit_graded)))
+		else if (ctx->m_game_framebuffer && (ctx->emitWanted() != ctx->m_emit_attached || (ctx->m_emit_attached && ctx->emitGradedWanted() != ctx->m_emit_graded) || ctx->stencilWanted() != ctx->m_stencil_attached))
 			ctx->onResize(cmd->m_window_size, cmd->m_game_size, cmd->m_logical_size, ctx->m_color_bpp); // [HDR] emissive toggled: rebuild the game framebuffer
 
 		if (ctx->m_hdr && !ctx->m_hdr->beginFrame(st.window_w, st.window_h))
@@ -664,6 +664,32 @@ void Context::renderThread(void* context)
 							ctx->m_game_pipeline->setUniform1f("u_OrbGlow", last_orb = orb_glow);
 					}
 					ctx->bindPipeline(ctx->m_game_pipeline, command->index);
+					break;
+				case CommandType::SetStencil:
+					// [Graphic] silhouettes. Bit 0: player pixel, bit 1: occluder drawn over it later (the player
+					// writes 1 to both bits, so it clears an earlier occluder). Without a stencil buffer (toggle
+					// frame) the test pass draws nothing.
+					glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+					if (command->index == 0 || !ctx->m_stencil_attached) {
+						glDisable(GL_STENCIL_TEST);
+						if (command->index == 3)
+							glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+						break;
+					}
+					glEnable(GL_STENCIL_TEST);
+					if (command->index == 1) {
+						glStencilFunc(GL_ALWAYS, 1, 0xFF);
+						glStencilMask(0x03);
+						glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
+					} else if (command->index == 2) {
+						glStencilFunc(GL_ALWAYS, 2, 0xFF);
+						glStencilMask(0x02);
+						glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
+					} else {
+						glStencilFunc(GL_EQUAL, 3, 0x03);
+						glStencilMask(0x00);
+						glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+					}
 					break;
 				case CommandType::DrawIndexed:
 					if (command->draw.count > 0)
@@ -795,6 +821,8 @@ void Context::renderThread(void* context)
 					break;
 				case CommandType::Begin:
 					ctx->m_world_ready = false;
+					glDisable(GL_STENCIL_TEST); // [Graphic] silhouettes: never left on across frames
+					glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 					if (cmd->m_screen == GameScreen::Movie) {
 						ctx->bindDefaultFrameBuffer();
 						ctx->setViewport({ st.window_w, st.window_h });
@@ -1101,7 +1129,7 @@ void Context::onResize(glm::uvec2 w_size, glm::uvec2 g_size, glm::uvec2 l_size, 
 	color_bpp = bpp;
 	m_color_bpp = bpp;
 	const bool emit_want = emitWanted();
-	if (emit_want != m_emit_attached || (emit_want && emitGradedWanted() != m_emit_graded))
+	if (emit_want != m_emit_attached || (emit_want && emitGradedWanted() != m_emit_graded) || stencilWanted() != m_stencil_attached)
 		game_resized = true;
 
 	static glm::uvec2 window_size = { 0, 0 };
@@ -1133,6 +1161,7 @@ void Context::onResize(glm::uvec2 w_size, glm::uvec2 g_size, glm::uvec2 l_size, 
 		}
 		m_emit_attached = ISGLIDE3X() && m_vlight_supported && emit_want;
 		m_emit_graded = m_emit_attached && emitGradedWanted();
+		frambuffer_ci.stencil = m_stencil_attached = stencilWanted();
 		m_game_framebuffer = Context::createFrameBuffer(frambuffer_ci);
 
 		if (ISGLIDE3X()) {
@@ -1360,6 +1389,11 @@ bool Context::emitGradedWanted() const
 	return App.hdr.emissive_graded;
 }
 
+bool Context::stencilWanted() const
+{
+	return ISGLIDE3X() && App.silhouettes;
+}
+
 bool Context::emitWanted() const
 {
 	return ISGLIDE3X() && m_emit_supported && m_hdr && App.hdr.mode && App.hdr.emissive;
@@ -1474,6 +1508,9 @@ void Context::beginFrame()
 	m_shadow_fx = ISGLIDE3X() && m_shadow_supported && App.game.screen == GameScreen::InGame && App.soft_shadows.active;
 	m_shadow_seen = false;
 	m_shadow_draw = 0;
+	m_stencil_mode = m_stencil_class = m_quad_vtx = 0;
+	m_player_drawn = false;
+	m_silhouette_verts.clear();
 	modules::HDText::Instance().reset();
 	modules::MotionPrediction::Instance().update();
 
@@ -1601,6 +1638,8 @@ void Context::captureLights(CommandBuffer& cb)
 
 void Context::pushVertex(const GlideVertex* vertex, glm::vec2 fix, glm::ivec2 offset)
 {
+	if ((m_stencil_class | m_stencil_mode) && m_quad_vtx == 0)
+		updateStencil(vertex->x - (float)offset.x, vertex->y - (float)offset.y);
 	if (m_vertices.count >= MAX_VERTICES - 4)
 		flushVertices();
 
@@ -1647,6 +1686,13 @@ void Context::pushVertex(const GlideVertex* vertex, glm::vec2 fix, glm::ivec2 of
 			m_shadow_seen = true;
 		m_vertices.ptr->flags.x |= (uint8_t)(kind << 4);
 	}
+	if (m_stencil_mode == 1 && m_silhouette_verts.size() < 8192) { // [Graphic] silhouettes: whole quads (8192 % 4 == 0)
+		m_silhouette_verts.push_back(*m_vertices.ptr);
+		const float x = vertex->x - (float)offset.x, y = vertex->y - (float)offset.y;
+		m_player_box = m_player_drawn ? glm::vec4(glm::min(m_player_box.x, x), glm::min(m_player_box.y, y), glm::max(m_player_box.z, x), glm::max(m_player_box.w, y)) : glm::vec4(x, y, x, y);
+		m_player_drawn = true;
+	}
+	m_quad_vtx = (m_quad_vtx + 1) & 3;
 
 	m_vertices.ptr++;
 	m_vertices.count++;
@@ -1663,6 +1709,7 @@ bool Context::pushFlatQuad(glm::vec2 pos, glm::vec2 size, uint32_t color)
 
 	// Flat fills need SAlpha_OneMinusSAlpha (glide blend 5 = pipeline index 3). While the
 	// blend state is locked it is already bound to 3, so no state switch is needed there.
+	stencilOff();
 	const bool switch_blend = !m_blend_locked && m_current_blend_index != 3;
 	if (switch_blend) {
 		flushVertices();
@@ -1696,9 +1743,10 @@ bool Context::pushFlatQuad(glm::vec2 pos, glm::vec2 size, uint32_t color)
 // Untextured per-vertex coloured quads (0xAARRGGBB, rgb premultiplied), One_One blend (pipeline 2).
 void Context::pushAdditiveQuads(const glm::vec2* pos, const uint32_t* colors, uint32_t quad_count)
 {
-	if (!ISGLIDE3X() || !pos || !colors || quad_count == 0 || m_blend_locked)
-		return;
+	if (!ISGLIDE3X() || !pos || !colors || quad_count == 0 || m_blend_locked || m_command_buffer[m_frame_index].m_count > 1536)
+		return; // 1536: the 2048-entry command buffer has no overflow check (per-item ground glows can add many)
 
+	stencilOff();
 	flushVertices();
 	m_command_buffer[m_frame_index].pushCommand(CommandType::SetBlendState, 2);
 
@@ -1720,6 +1768,73 @@ void Context::pushAdditiveQuads(const glm::vec2* pos, const uint32_t* colors, ui
 
 	flushVertices();
 	m_command_buffer[m_frame_index].pushCommand(CommandType::SetBlendState, m_current_blend_index);
+}
+
+// [Graphic] silhouettes: called before each hooked world draw (no GL work, just the class of what follows).
+void Context::setStencilClass(uint8_t c)
+{
+	if (!App.silhouettes || !ISGLIDE3X() || App.game.screen != GameScreen::InGame || App.game.draw_stage != DrawStage::World || m_blend_locked)
+		c = 0;
+	m_stencil_class = c;
+}
+
+void Context::stencilOff()
+{
+	if (!m_stencil_mode)
+		return;
+	flushVertices();
+	m_stencil_mode = 0;
+	m_command_buffer[m_frame_index].pushCommand(CommandType::SetStencil, 0);
+}
+
+#define STENCIL_CMD_BUDGET 1536 // the command buffer holds 2048 and has no overflow check
+// Quad start: switch the stencil write mode. Occluders only count once the player is drawn and only near it
+// (a glide quad is at most 256 px, so one whose first corner is farther out cannot overlap), which keeps the
+// extra flushes and commands to a few per frame.
+void Context::updateStencil(float x, float y)
+{
+	uint8_t mode = m_stencil_class;
+	if (mode == 2 && (!m_player_drawn || x < m_player_box.x - 256.0f || x > m_player_box.z + 256.0f || y < m_player_box.y - 256.0f || y > m_player_box.w + 256.0f))
+		mode = 0;
+	if (mode && m_command_buffer[m_frame_index].m_count > STENCIL_CMD_BUDGET)
+		mode = 0;
+	if (mode == m_stencil_mode)
+		return;
+	flushVertices();
+	m_stencil_mode = mode;
+	m_command_buffer[m_frame_index].pushCommand(CommandType::SetStencil, mode);
+}
+
+// [Graphic] silhouettes: end of the world stage; the player's quads again, tinted, where stencil == 3.
+void Context::drawSilhouettes()
+{
+	m_stencil_class = 0;
+	stencilOff();
+	if (m_silhouette_verts.empty() || !App.silhouettes || !ISGLIDE3X() || App.game.screen != GameScreen::InGame || m_blend_locked ||
+		m_command_buffer[m_frame_index].m_count > STENCIL_CMD_BUDGET) {
+		m_silhouette_verts.clear();
+		return;
+	}
+	flushVertices();
+	auto& cb = m_command_buffer[m_frame_index];
+	cb.pushCommand(CommandType::SetStencil, 3);
+	cb.pushCommand(CommandType::SetBlendState, 3);
+	const uint32_t tint = 0x8C64B4FF; // a 0.55, light blue
+	for (size_t i = 0; i < m_silhouette_verts.size(); i++) {
+		if (i % 4 == 0 && m_vertices.count >= MAX_VERTICES - 4)
+			flushVertices();
+		Vertex v = m_silhouette_verts[i];
+		v.color1 = tint;
+		v.flags = { (uint8_t)(v.flags.x & 15), 3, 0, 0 }; // y 3: keyed sprite shape, colour = tint (glide.glsl)
+		*m_vertices.ptr = v;
+		m_vertices.ptr++;
+		m_vertices.count++;
+		m_frame.vertex_count++;
+	}
+	flushVertices();
+	cb.pushCommand(CommandType::SetStencil, 0);
+	cb.pushCommand(CommandType::SetBlendState, m_current_blend_index);
+	m_silhouette_verts.clear();
 }
 
 void Context::flushVertices()

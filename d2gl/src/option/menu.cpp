@@ -393,6 +393,18 @@ void Menu::draw()
 						saveBool("Graphic", "hires_items", App.hires_items);
 					drawCheckbox_m("Hi-Res Textures", App.hires_textures, "AI-upscaled textures from d2gl_hires.pak (glide). Off applies at once; on needs it enabled at game start.", hires_textures)
 						saveBool("Graphic", "hires_textures", App.hires_textures);
+					drawCheckbox_m("Ground Item Glow", App.item_glow, "Soft coloured halo on the ground under dropped items: unique gold, set green, rare yellow, magic blue, runes orange (glide).", item_glow) {
+						saveBool("Graphic", "item_glow", App.item_glow);
+						modules::LootSparkle::Instance().toggle(modules::LootSparkle::wanted());
+					}
+					ImGui::BeginDisabled(!App.item_glow);
+						drawSlider_m(float, "Ground Item Glow Strength", App.item_glow_strength, "%.2f", "", item_glow_strength)
+							saveFloat("Graphic", "item_glow_strength", App.item_glow_strength.value);
+					ImGui::EndDisabled();
+					drawCheckbox_m("Wall Silhouettes", App.silhouettes, "Your character shows as a tinted shape where walls, trees or buildings hide it (glide).", silhouettes) {
+						saveBool("Graphic", "silhouettes", App.silhouettes);
+						modules::LootSparkle::Instance().toggle(modules::LootSparkle::wanted());
+					}
 					drawCheckbox_m("Normal-Mapped Lighting", App.dynamic_light.normals, "Shade sprites and walls toward nearby lights for a 3D look.", light_normals)
 						saveBool("Graphic", "light_normals", App.dynamic_light.normals);
 					ImGui::BeginDisabled(!App.dynamic_light.normals);
@@ -514,7 +526,7 @@ void Menu::draw()
 			ImGui::BeginDisabled(!ISGLIDE3X());
 				drawCheckbox_m("Loot Sparkle", App.loot_sparkle.active, "Short sparkle when a valuable item drops (glide only).", loot_sparkle)
 				{
-					modules::LootSparkle::Instance().toggle(App.loot_sparkle.active || App.minion_ring || App.hdr.item_glow || App.hdr.light_pools.value > 0.0f);
+					modules::LootSparkle::Instance().toggle(modules::LootSparkle::wanted());
 					saveBool("Feature", "loot_sparkle", App.loot_sparkle.active);
 				}
 				ImGui::BeginDisabled(!App.loot_sparkle.active);
@@ -528,7 +540,7 @@ void Menu::draw()
 				ImGui::BeginDisabled(!(isVer(V_114d)));
 					drawCheckbox_m("Minion Ring", App.minion_ring, "Soft green ring under your summons (glide only, 1.14d).", minion_ring)
 					{
-						modules::LootSparkle::Instance().toggle(App.loot_sparkle.active || App.minion_ring || App.hdr.item_glow || App.hdr.light_pools.value > 0.0f);
+						modules::LootSparkle::Instance().toggle(modules::LootSparkle::wanted());
 						saveBool("Feature", "minion_ring", App.minion_ring);
 					}
 				ImGui::EndDisabled();
@@ -651,7 +663,7 @@ void Menu::draw()
 			drawSlider_m(float, "Light Pools", App.hdr.light_pools, "%.2f", "Glow centred on the game's own lights (torches, spells, auras) with their real radius (1.14d, needs Emissive). 0 = off.", hdr_light_pools)
 			{
 				saveFloat("HDR", "light_pools", App.hdr.light_pools.value);
-				modules::LootSparkle::Instance().toggle(App.loot_sparkle.active || App.minion_ring || App.hdr.item_glow || App.hdr.light_pools.value > 0.0f);
+				modules::LootSparkle::Instance().toggle(modules::LootSparkle::wanted());
 			}
 			drawSlider_m(float, "Hot Pixels", App.hdr.hot_pixels, "%.2f", "Torches, braziers and lava glow (bright warm pixels, needs Emissive). 0 = off.", hdr_hot_pixels)
 				saveFloat("HDR", "hot_pixels", App.hdr.hot_pixels.value);
@@ -659,7 +671,7 @@ void Menu::draw()
 				saveFloat("HDR", "unit_emissive", App.hdr.unit_emissive.value);
 			drawCheckbox_m("Item Glow", App.hdr.item_glow, "Uniques, sets and runes on the ground glow in HDR (needs Emissive).", hdr_item_glow) {
 				saveBool("HDR", "item_glow", App.hdr.item_glow);
-				modules::LootSparkle::Instance().toggle(App.loot_sparkle.active || App.minion_ring || App.hdr.item_glow || App.hdr.light_pools.value > 0.0f);
+				modules::LootSparkle::Instance().toggle(modules::LootSparkle::wanted());
 			}
 			ImGui::BeginDisabled(!App.hdr.item_glow);
 				drawSlider_m(float, "Item Glow Strength", App.hdr.item_glow_strength, "%.2f", "", hdr_item_glow_strength)

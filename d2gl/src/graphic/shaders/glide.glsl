@@ -94,7 +94,7 @@ bool nativeSample(out vec4 col)
 		f = clamp((f - 0.5) * u_NativeScale + 0.5, 0.0, 1.0);
 	vec2 lo = vec2(v_TexRect.xy);
 	vec2 hi = lo + vec2(v_TexRect.zw) - 1.0;
-	bool key = (v_Flags.x & 15u) == 1u;
+	bool key = (v_Flags.x & 15u) == 1u || v_Flags.y == 3u;
 	vec4 acc = vec4(0.0);
 	float wsum = 0.0;
 	for (int k = 0; k < 4; k++) {
@@ -144,7 +144,7 @@ void main()
 	{
 		float red = v_TexIds.y == 1 ? texture(u_HiTexture, vec3(v_TexCoord, v_TexIds.x)).r : texture(u_Texture, vec3(v_TexCoord, v_TexIds.x)).r;
 
-		if ((v_Flags.x & 15u) == 1u && red == 0.0)
+		if (((v_Flags.x & 15u) == 1u || v_Flags.y == 3u) && red == 0.0)
 			discard;
 
 		FragColor = v_Color1 * u_Palette[int(red * 255)];
@@ -154,6 +154,8 @@ void main()
 	FragColor.g = u_Gamma[int(FragColor.g * 255)].g;
 	FragColor.b = u_Gamma[int(FragColor.b * 255)].b;
 	FragColor.a = (v_Flags.z & 15u) == 1u ? v_Color2.a : ((v_Flags.z & 15u) == 2u ? v_Color1.a : 1.0); // z >> 4: item glow level
+	if (v_Flags.y == 3u) // [Graphic] silhouettes: keyed sprite shape in the iterated tint (hidden player)
+		FragColor = v_Color1;
 
 	FragColorMap = vec4(0.0);
 	if (v_Flags.w > 0u && v_Flags.w < 10u)

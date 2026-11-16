@@ -227,6 +227,19 @@ class Context {
 	std::unique_ptr<Pipeline> m_emit_pipeline;
 	bool emitWanted() const;
 
+	// [Graphic] silhouettes: stencil on the game framebuffer; the player's quads of this frame are replayed
+	// (tinted, stencil == 3) where a wall tile or object was drawn over them afterwards.
+	bool m_stencil_attached = false;
+	uint8_t m_stencil_mode = 0;  // game thread: last SetStencil mode pushed
+	uint8_t m_stencil_class = 0; // game thread: class of the current hooked draw (0 other, 1 player, 2 occluder)
+	uint8_t m_quad_vtx = 0;      // vertex index inside the current quad (modes switch on quad starts only)
+	bool m_player_drawn = false;
+	glm::vec4 m_player_box = { 0.0f, 0.0f, 0.0f, 0.0f }; // min x, min y, max x, max y of the player's quads
+	std::vector<Vertex> m_silhouette_verts;
+	void updateStencil(float x, float y);
+	void stencilOff();
+	bool stencilWanted() const;
+
 	// 2D radiance-cascade GI ([Graphic] radiance_gi), PreFx stage, allocated on first use
 	bool m_gi_supported = false;
 	std::unique_ptr<Pipeline> m_gi_pipeline;
@@ -287,6 +300,8 @@ public:
 	inline void setVertexFlagZ(uint8_t flag) { m_vertex_params.flags.z = flag; }
 	inline void setVertexFlagW(uint8_t flag) { m_vertex_params.flags.w = flag; }
 	void pushAdditiveQuads(const glm::vec2* pos, const uint32_t* colors, uint32_t quad_count);
+	void setStencilClass(uint8_t c); // [Graphic] silhouettes: 0 other, 1 player, 2 occluder (before each hooked draw)
+	void drawSilhouettes();
 	inline void setShadowDraw(uint8_t mode) { m_shadow_draw = mode; }
 	inline bool isShadowFxActive() { return m_shadow_fx; }
 

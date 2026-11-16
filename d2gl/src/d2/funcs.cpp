@@ -191,6 +191,7 @@ void gameDrawBegin()
 
 void automapDrawBegin()
 {
+	App.context->drawSilhouettes(); // [Graphic] silhouettes: end of the world draws (also at uiDrawBegin)
 	App.game.draw_stage = DrawStage::Map;
 	App.context->onStageChange();
 }
@@ -204,6 +205,7 @@ void automapDrawEnd()
 void uiDrawBegin()
 {
 	modules::LootSparkle::Instance().draw();
+	App.context->drawSilhouettes();
 	App.game.draw_stage = DrawStage::UI;
 	App.context->onStageChange();
 }
@@ -220,13 +222,26 @@ void uiDrawEnd()
 	App.context->onStageChange();
 }
 
+// [Graphic] silhouettes: stencil class of a unit sprite (1 the player, 2 objects such as trees and doors)
+static uint8_t silhouetteClass()
+{
+	const UnitAny* unit = currently_drawing_unit;
+	if (!App.silhouettes || !unit)
+		return 0;
+	if (unit == getPlayerUnit())
+		return 1;
+	return unit->dwType == UnitType::Object ? 2 : 0;
+}
+
 void __stdcall drawImageHooked(CellContext* cell, int x, int y, uint32_t gamma, int draw_mode, uint8_t* palette)
 {
+	App.context->setStencilClass(silhouetteClass());
 	if (App.hd_cursor && App.game.draw_stage >= DrawStage::Cursor)
 		return;
 
 	if (modules::HDText::Instance().drawImage(cell, x, y, draw_mode)) {
 		const auto pos = modules::MotionPrediction::Instance().drawImage(x, y, D2DrawFn::Image, gamma, draw_mode);
+		modules::LootSparkle::Instance().groundGlow(cell, pos.x, pos.y); // [Graphic] item_glow: under the item sprite
 		drawImage(cell, pos.x, pos.y, gamma, draw_mode, palette);
 		modules::LootSparkle::Instance().record(cell, pos.x, pos.y);
 	}
@@ -236,12 +251,14 @@ void __stdcall drawImageHooked(CellContext* cell, int x, int y, uint32_t gamma, 
 
 void __stdcall drawPerspectiveImageHooked(CellContext* cell, int x, int y, uint32_t gamma, int draw_mode, int screen_mode, uint8_t* palette)
 {
+	App.context->setStencilClass(0);
 	const auto pos = modules::MotionPrediction::Instance().drawImage(x, y, D2DrawFn::PerspectiveImage);
 	drawPerspectiveImage(cell, pos.x, pos.y, gamma, draw_mode, screen_mode, palette);
 }
 
 void __stdcall drawShiftedImageHooked(CellContext* cell, int x, int y, uint32_t gamma, int draw_mode, int global_palette_shift)
 {
+	App.context->setStencilClass(0);
 	if (modules::HDText::Instance().drawShiftedImage(cell, x, y)) {
 		auto pos = modules::MotionPrediction::Instance().drawImage(x, y, D2DrawFn::ShiftedImage);
 		drawShiftedImage(cell, pos.x, pos.y, gamma, draw_mode, global_palette_shift);
@@ -250,6 +267,7 @@ void __stdcall drawShiftedImageHooked(CellContext* cell, int x, int y, uint32_t 
 
 void __stdcall drawVerticalCropImageHooked(CellContext* cell, int x, int y, int skip_lines, int draw_lines, int draw_mode)
 {
+	App.context->setStencilClass(0);
 	if (modules::HDText::Instance().isActive() && App.game.draw_stage >= DrawStage::UI) {
 		if (y < 150 || (*d2::screen_shift >= SCREENPANEL_LEFT && y < (int)*d2::screen_height - 100 && x < (int)*d2::screen_width / 2))
 			return;
@@ -270,18 +288,21 @@ void __stdcall drawVerticalCropImageHooked(CellContext* cell, int x, int y, int 
 
 void __stdcall drawClippedImageHooked(CellContext* cell, int x, int y, void* crop_rect, int draw_mode)
 {
+	App.context->setStencilClass(0);
 	const auto pos = modules::MotionPrediction::Instance().drawImage(x, y, D2DrawFn::ClippedImage);
 	drawClippedImage(cell, pos.x, pos.y, crop_rect, draw_mode);
 }
 
 void __stdcall drawImageFastHooked(CellContext* cell, int x, int y, uint8_t palette_index)
 {
+	App.context->setStencilClass(0);
 	const auto pos = modules::MotionPrediction::Instance().drawImage(x, y, D2DrawFn::ImageFast);
 	drawImageFast(cell, pos.x, pos.y, palette_index);
 }
 
 void __stdcall drawShadowHooked(CellContext* cell, int x, int y)
 {
+	App.context->setStencilClass(0);
 	const auto pos = modules::MotionPrediction::Instance().drawImage(x, y, D2DrawFn::Shadow);
 	if (!App.context->isShadowFxActive()) {
 		drawShadow(cell, pos.x, pos.y);
@@ -295,6 +316,7 @@ void __stdcall drawShadowHooked(CellContext* cell, int x, int y)
 
 void __stdcall drawSolidRectExHooked(int left, int top, int right, int bottom, uint32_t color, int draw_mode)
 {
+	App.context->setStencilClass(0);
 	auto offset = modules::MotionPrediction::Instance().drawSolidRect();
 	if (!modules::HDText::Instance().drawSolidRect(left - offset.x, top - offset.y, right - offset.x, bottom - offset.y, color, draw_mode))
 		drawSolidRectEx(left - offset.x, top - offset.y, right - offset.x, bottom - offset.y, color, draw_mode);
@@ -304,12 +326,14 @@ void __stdcall drawSolidRectExHooked(int left, int top, int right, int bottom, u
 
 void __stdcall drawLineHooked(int x_start, int y_start, int x_end, int y_end, uint8_t color, uint8_t alpha)
 {
+	App.context->setStencilClass(0);
 	const auto offset = modules::MotionPrediction::Instance().drawLine(x_start, y_start);
 	drawLine(x_start - offset.x, y_start - offset.y, x_end - offset.x, y_end - offset.y, color, alpha);
 }
 
 bool __stdcall drawGroundTileHooked(TileContext* tile, GFXLight* light, int x, int y, int world_x, int world_y, uint8_t alpha, int screen_panels, bool tile_data)
 {
+	App.context->setStencilClass(0);
 	// Drawing invisible tile crashes on glide mode.
 	if (ISGLIDE3X() && tile) {
 		const auto len = strlen(tile->szTileName);
@@ -329,18 +353,21 @@ bool __stdcall drawGroundTileHooked(TileContext* tile, GFXLight* light, int x, i
 
 bool __stdcall drawWallTileHooked(TileContext* tile, int x, int y, GFXLight* light, int screen_panels)
 {
+	App.context->setStencilClass(2);
 	const auto offset = modules::MotionPrediction::Instance().getGlobalOffset(true);
 	return drawWallTile(tile, x - offset.x, y - offset.y, light, screen_panels);
 }
 
 bool __stdcall drawTransWallTileHooked(TileContext* tile, int x, int y, GFXLight* light, int screen_panels, uint8_t alpha)
 {
+	App.context->setStencilClass(0);
 	const auto offset = modules::MotionPrediction::Instance().getGlobalOffset(true);
 	return drawTransWallTile(tile, x - offset.x, y - offset.y, light, screen_panels, alpha);
 }
 
 bool __stdcall drawShadowTileHooked(TileContext* tile, int x, int y, int draw_mode, int screen_panels)
 {
+	App.context->setStencilClass(0);
 	const auto offset = modules::MotionPrediction::Instance().getGlobalOffset(true);
 	App.context->setShadowDraw(2);
 	const bool ret = drawShadowTile(tile, x - offset.x, y - offset.y, draw_mode, screen_panels);

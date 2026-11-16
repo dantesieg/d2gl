@@ -47,6 +47,14 @@ FrameBuffer::FrameBuffer(const FrameBufferCreateInfo& info)
 	}
 	setDrawBuffers(m_attachment_count);
 
+	if (info.stencil) {
+		glGenRenderbuffers(1, &m_stencil_rb);
+		glBindRenderbuffer(GL_RENDERBUFFER, m_stencil_rb);
+		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, m_width, m_height);
+		glBindRenderbuffer(GL_RENDERBUFFER, 0);
+		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, m_stencil_rb);
+	}
+
 	auto status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
 	if (status != GL_FRAMEBUFFER_COMPLETE) {
 		error_log("(%d) Framebuffer is not complete!", status);
@@ -64,6 +72,8 @@ FrameBuffer::~FrameBuffer()
 	for (auto& texture : m_textures)
 		texture.reset();
 	glDeleteFramebuffers(1, &m_id);
+	if (m_stencil_rb)
+		glDeleteRenderbuffers(1, &m_stencil_rb);
 }
 
 void FrameBuffer::bind(bool clear)
@@ -107,6 +117,10 @@ void FrameBuffer::clearBuffer()
 	} else {
 		for (size_t i = 0; i < count; i++)
 			glClearBufferfv(GL_COLOR, i, m_clear_colors[i].data());
+	}
+	if (m_stencil_rb) {
+		glStencilMask(0xFF);
+		glClearBufferfi(GL_DEPTH_STENCIL, 0, 1.0f, 0);
 	}
 }
 
