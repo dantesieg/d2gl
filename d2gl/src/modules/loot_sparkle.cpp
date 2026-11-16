@@ -140,7 +140,7 @@ void LootSparkle::groundGlow(d2::CellContext* cell, int x, int y)
 
 	float cx = (float)x;
 	glm::vec2 size = { 28.0f, 20.0f };
-	if (!cell || !isVerMin(V_113c) || !spriteCenter(cell, x, &cx, &size)) {
+	if (!cell || !(isVerMin(V_113c)) || !spriteCenter(cell, x, &cx, &size)) {
 		cx = (float)x;
 		size = { 28.0f, 20.0f };
 	}
