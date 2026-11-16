@@ -263,6 +263,8 @@ Context::Context()
 			hires::load(0, "d2gl_hires_ui.pak");
 		if (App.hires_textures)
 			hires::load(1, "d2gl_hires.pak");
+		if (App.hires_items)
+			hires::load(2, "d2gl_hires_items.pak");
 		const bool hires = hires::g_count > 0;
 		const uint32_t hs = hires ? 512 * hires::g_scale : 1;
 		hires_texture_ci.size = { hs, hs };
@@ -271,7 +273,7 @@ Context::Context()
 		hires_texture_ci.slot = TEXTURE_SLOT_HIRES;
 		m_hires_texture = std::make_unique<Texture>(hires_texture_ci);
 		if (hires)
-			trace_log("hires_textures: %u interface + %u world replacements, scale %u", hires::g_packs[0].count, hires::g_packs[1].count, hires::g_scale);
+			trace_log("hires_textures: %u interface + %u world + %u item replacements, scale %u", hires::g_packs[0].count, hires::g_packs[1].count, hires::g_packs[2].count, hires::g_scale);
 
 		TextureCreateInfo movie_texture_ci;
 		movie_texture_ci.size = { 640, 480 };

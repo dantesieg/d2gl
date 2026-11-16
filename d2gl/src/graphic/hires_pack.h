@@ -48,9 +48,11 @@ struct Pack {
 	uint64_t size = 0;
 };
 
-inline Pack g_packs[2]; // 0 = interface (d2gl_hires_ui.pak, [Graphic] hires_ui), 1 = world (d2gl_hires.pak, hires_textures)
+constexpr int NPACK = 3;
+inline Pack g_packs[NPACK]; // 0 = interface (d2gl_hires_ui.pak, [Graphic] hires_ui), 1 = world (d2gl_hires.pak, hires_textures),
+                           // 2 = items (d2gl_hires_items.pak, hires_items)
 inline uint32_t g_scale = 0, g_count = 0; // shared scale of the loaded packs, total entries
-inline bool g_on[2] = {}; // packs enabled right now (off applies at once)
+inline bool g_on[NPACK] = {}; // packs enabled right now (off applies at once)
 
 // remapped sprites (unit palettes, item tints): the game bakes the remap into the download, so the upload hook
 // keys the un-remapped frame and the remap is applied to the replacement's indices
@@ -126,7 +128,7 @@ inline bool load(int pi, const char* path)
 
 inline int packOf(const PakEntry* e)
 {
-	for (int i = 0; i < 2; i++)
+	for (int i = 0; i < NPACK; i++)
 		if (g_packs[i].count && e >= g_packs[i].entries && e < g_packs[i].entries + g_packs[i].count)
 			return i;
 	return -1;
@@ -141,7 +143,7 @@ inline bool active(const void* e)
 
 inline const PakEntry* find(uint32_t hash, uint32_t tw, uint32_t th)
 {
-	for (int pi = 0; pi < 2; pi++) {
+	for (int pi = 0; pi < NPACK; pi++) {
 		const Pack& P = g_packs[pi];
 		if (!P.count || !g_on[pi])
 			continue;

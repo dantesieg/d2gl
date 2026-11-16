@@ -179,6 +179,7 @@ struct D2GLApp {
 
 	bool minion_ring = false;
 	bool hires_ui = false; // [Graphic] hires_ui: AI-upscaled interface pack d2gl_hires_ui.pak (restart)
+	bool hires_items = false; // [Graphic] hires_items: AI-upscaled inventory items d2gl_hires_items.pak (restart)
 	bool hires_textures = false; // [Graphic] hires_textures: AI-upscaled texture pack d2gl_hires.pak (restart)
 
 

@@ -389,6 +389,8 @@ void Menu::draw()
 						saveFloat("Graphic", "aura_light_color", App.dynamic_light.aura_color.value);
 					drawCheckbox_m("Hi-Res Interface", App.hires_ui, "AI-upscaled interface from d2gl_hires_ui.pak (glide). Off applies at once; on needs it enabled at game start.", hires_ui)
 						saveBool("Graphic", "hires_ui", App.hires_ui);
+					drawCheckbox_m("Hi-Res Items", App.hires_items, "AI-upscaled inventory items from d2gl_hires_items.pak (glide). Off applies at once; on needs it enabled at game start.", hires_items)
+						saveBool("Graphic", "hires_items", App.hires_items);
 					drawCheckbox_m("Hi-Res Textures", App.hires_textures, "AI-upscaled textures from d2gl_hires.pak (glide). Off applies at once; on needs it enabled at game start.", hires_textures)
 						saveBool("Graphic", "hires_textures", App.hires_textures);
 					drawCheckbox_m("Normal-Mapped Lighting", App.dynamic_light.normals, "Shade sprites and walls toward nearby lights for a 3D look.", light_normals)

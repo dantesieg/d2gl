@@ -221,7 +221,7 @@ static __declspec(naked) void uploadTextureStub()
 }
 static bool uploadHookValid()
 {
-	if (isVerNot(V_114d) || !(App.hires_textures || App.hires_ui))
+	if (isVerNot(V_114d) || !(App.hires_textures || App.hires_ui || App.hires_items))
 		return false;
 	const uintptr_t base = (uintptr_t)GetModuleHandle(NULL);
 	static const uint8_t up_sig[] = { 0x55, 0x8B, 0xEC, 0x8B, 0x06, 0x8B, 0x40, 0x3C, 0x83, 0xEC, 0x1C, 0x85 };

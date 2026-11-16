@@ -225,7 +225,9 @@ void saveIni()
 		"; Hi-res textures: AI-upscaled replacements from d2gl_hires.pak next to the game (glide, restart needed).\n"
 		"hires_textures=%s\n"
 		"; Hi-res interface: AI-upscaled interface from d2gl_hires_ui.pak (glide, restart needed).\n"
-		"hires_ui=%s\n\n"
+		"hires_ui=%s\n"
+		"; Hi-res items: AI-upscaled inventory items from d2gl_hires_items.pak (glide, restart needed).\n"
+		"hires_items=%s\n\n"
 		"; HDR-style tonemapping (world only, exposure: 0.2-1.0).\n"
 		"tonemap=%s\n"
 		"tonemap_exposure=%.3f\n\n"
@@ -271,6 +273,7 @@ void saveIni()
 		App.dynamic_light.aura_color.value,
 		boolString(App.hires_textures),
 		boolString(App.hires_ui),
+		boolString(App.hires_items),
 		boolString(App.tonemap.active),
 		App.tonemap.exposure.value,
 		boolString(App.soft_shadows.active),
@@ -586,6 +589,7 @@ void loadIni()
 		App.dynamic_light.aura_color.value = getFloat("Graphic", "aura_light_color", App.dynamic_light.aura_color);
 		App.hires_textures = getBool("Graphic", "hires_textures", App.hires_textures);
 		App.hires_ui = getBool("Graphic", "hires_ui", App.hires_ui);
+		App.hires_items = getBool("Graphic", "hires_items", App.hires_items);
 		App.tonemap.active = getBool("Graphic", "tonemap", App.tonemap.active);
 		App.tonemap.exposure.value = getFloat("Graphic", "tonemap_exposure", App.tonemap.exposure);
 		App.soft_shadows.active = getBool("Graphic", "soft_shadows", App.soft_shadows.active);

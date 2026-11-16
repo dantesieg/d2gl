@@ -213,7 +213,7 @@ void Wrapper::grTexSource(GrChipID_t tmu, FxU32 start_address, GrTexInfo* info)
 	hires::g_pending.active = false;
 	const auto sub_tex_info = m_texture_manager->getSubTextureInfo(start_address, size, width, height, frame_count);
 	if (sub_tex_info) {
-		hires::g_on[0] = App.hires_ui, hires::g_on[1] = App.hires_textures;
+		hires::g_on[0] = App.hires_ui, hires::g_on[1] = App.hires_textures, hires::g_on[2] = App.hires_items;
 		const auto hi = (hires::g_count && !d2::drawing_orb_liquid) ? g_glide_texture.hires.find(start_address) : g_glide_texture.hires.end();
 		ctx->setVertexTexNum({ sub_tex_info->tex_num, (uint16_t)((hi != g_glide_texture.hires.end() && hires::active(hi->second)) ? 1 : 0) });
 		ctx->setVertexOffset(sub_tex_info->offset);
@@ -232,7 +232,7 @@ void Wrapper::grTexDownloadMipMap(GrChipID_t tmu, FxU32 start_address, GrTexInfo
 	memcpy(g_glide_texture.memory + start_address, info->data, width * height);
 	g_glide_texture.hash[start_address] = helpers::hash(info->data, width * height);
 	if (hires::g_count) {
-		hires::g_on[0] = App.hires_ui, hires::g_on[1] = App.hires_textures;
+		hires::g_on[0] = App.hires_ui, hires::g_on[1] = App.hires_textures, hires::g_on[2] = App.hires_items;
 		const hires::PakEntry* hi = hires::find(g_glide_texture.hash[start_address], width, height);
 		hires::g_luts.erase(start_address);
 		auto& pd = hires::g_pending;
