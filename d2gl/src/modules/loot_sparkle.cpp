@@ -43,7 +43,18 @@ void toggleUnitDrawHooks(bool active)
 namespace d2gl::modules {
 
 // Item unit modes (D2MOO / d2bs): 3 = on ground, 5 = dropping.
-// Rune class ids (vanilla misc.txt r01..r33): 610..642.
+// Runes: item code r01..r33. On 1.14d the code comes from the items table (ItemsBIN 0x6335F0, code at +0x80), since
+// mods renumber the rows (Median 2012: 1665..1697); other versions use the vanilla class ids 610..642.
+static bool isRune(DWORD class_id)
+{
+	if (isVer(V_114d)) {
+		const auto bin = ((BYTE*(__stdcall*)(DWORD))0x6335F0)(class_id);
+		const char* c = bin ? (const char*)(bin + 0x80) : nullptr;
+		return c && c[0] == 'r' && c[1] >= '0' && c[1] <= '9' && c[2] >= '0' && c[2] <= '9' && (c[3] == ' ' || !c[3]);
+	}
+	return class_id >= 610 && class_id <= 642;
+}
+
 static int classifyItem(d2::UnitAny* unit)
 {
 	__try {
@@ -58,7 +69,7 @@ static int classifyItem(d2::UnitAny* unit)
 			if ((mode != 3 && mode != 5) || !unit->v110.pItemData)
 				return -1;
 			const DWORD class_id = unit->v110.dwClassId;
-			if (class_id >= 610 && class_id <= 642)
+			if (isRune(class_id))
 				return 2; // Rune
 		}
 
