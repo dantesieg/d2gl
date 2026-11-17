@@ -1747,8 +1747,10 @@ void Context::pushAdditiveQuads(const glm::vec2* pos, const uint32_t* colors, ui
 		return;
 	if (m_command_buffer[m_frame_index].m_count > 1536) { // the 2048-entry command buffer has no overflow check
 		static bool logged = false;
-		if (!logged)
-			logged = true, trace_log("pushAdditiveQuads: command budget full (%u), quads skipped", m_command_buffer[m_frame_index].m_count);
+		if (!logged) {
+			logged = true;
+			trace_log("pushAdditiveQuads: command budget full (%u), quads skipped", m_command_buffer[m_frame_index].m_count);
+		}
 		return;
 	}
 
