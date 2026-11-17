@@ -155,8 +155,11 @@ void LootSparkle::groundGlow(d2::CellContext* cell, int x, int y)
 		cx = (float)x;
 		size = { 28.0f, 20.0f };
 	}
-	const float rx = glm::clamp(size.x * 0.75f, 16.0f, 40.0f), ry = rx * 0.5f;
-	const glm::vec2 c = { cx, (float)y - glm::min(size.y * 0.5f, ry) };
+	// The item sprite is drawn over the halo, so it has to reach well past the sprite to be seen: the bright
+	// band sits around the sprite's edge (r 0.55) and fades out about 20 px beyond it.
+	const float hx = glm::clamp(size.x * 0.5f, 8.0f, 48.0f), hy = glm::clamp(size.y * 0.5f, 6.0f, 40.0f);
+	const float rx = hx / 0.55f + 12.0f, ry = glm::max(hy / 0.55f + 6.0f, rx * 0.45f);
+	const glm::vec2 c = { cx, (float)y - hy };
 
 	static const glm::vec3 colors[5] = {
 		{ 0.30f, 0.45f, 1.00f }, // magic: blue
@@ -170,7 +173,7 @@ void LootSparkle::groundGlow(d2::CellContext* cell, int x, int y)
 		return 0xFF000000 | ((uint32_t)(c.r * 255.0f + 0.5f) << 16) | ((uint32_t)(c.g * 255.0f + 0.5f) << 8) | (uint32_t)(c.b * 255.0f + 0.5f);
 	};
 	const float s = glm::clamp(App.item_glow_strength.value, 0.0f, 3.0f);
-	const uint32_t inner = pack(colors[kind], 0.42f * s), mid = pack(colors[kind], 0.22f * s), outer = 0xFF000000;
+	const uint32_t inner = pack(colors[kind], 0.45f * s), mid = pack(colors[kind], 0.40f * s), outer = 0xFF000000;
 
 	const int N = 20;
 	glm::vec2 pos[N * 8];
@@ -179,12 +182,17 @@ void LootSparkle::groundGlow(d2::CellContext* cell, int x, int y)
 	for (int i = 0; i < N; i++) {
 		const float a0 = glm::two_pi<float>() * i / N, a1 = glm::two_pi<float>() * (i + 1) / N;
 		auto P = [&](float a, float r) { return c + glm::vec2(cosf(a) * rx * r, sinf(a) * ry * r); };
-		const glm::vec2 q[8] = { c, c, P(a1, 0.45f), P(a0, 0.45f), P(a0, 0.45f), P(a1, 0.45f), P(a1, 1.0f), P(a0, 1.0f) };
+		const glm::vec2 q[8] = { c, c, P(a1, 0.55f), P(a0, 0.55f), P(a0, 0.55f), P(a1, 0.55f), P(a1, 1.0f), P(a0, 1.0f) };
 		const uint32_t k[8] = { inner, inner, mid, mid, mid, mid, outer, outer };
 		for (int j = 0; j < 8; j++)
 			pos[n] = q[j], col[n++] = k[j];
 	}
 	App.context->pushAdditiveQuads(pos, col, (uint32_t)(n / 4));
+	static bool logged = false;
+	if (!logged) {
+		logged = true;
+		trace_log("item_glow: first halo, kind %d at %.0f,%.0f, %.0fx%.0f", kind, c.x, c.y, rx, ry);
+	}
 }
 
 void LootSparkle::toggle(bool active)

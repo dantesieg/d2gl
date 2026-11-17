@@ -1743,8 +1743,14 @@ bool Context::pushFlatQuad(glm::vec2 pos, glm::vec2 size, uint32_t color)
 // Untextured per-vertex coloured quads (0xAARRGGBB, rgb premultiplied), One_One blend (pipeline 2).
 void Context::pushAdditiveQuads(const glm::vec2* pos, const uint32_t* colors, uint32_t quad_count)
 {
-	if (!ISGLIDE3X() || !pos || !colors || quad_count == 0 || m_blend_locked || m_command_buffer[m_frame_index].m_count > 1536)
-		return; // 1536: the 2048-entry command buffer has no overflow check (per-item ground glows can add many)
+	if (!ISGLIDE3X() || !pos || !colors || quad_count == 0 || m_blend_locked)
+		return;
+	if (m_command_buffer[m_frame_index].m_count > 1536) { // the 2048-entry command buffer has no overflow check
+		static bool logged = false;
+		if (!logged)
+			logged = true, trace_log("pushAdditiveQuads: command budget full (%u), quads skipped", m_command_buffer[m_frame_index].m_count);
+		return;
+	}
 
 	stencilOff();
 	flushVertices();
