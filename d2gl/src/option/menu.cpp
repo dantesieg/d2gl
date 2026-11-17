@@ -393,14 +393,6 @@ void Menu::draw()
 						saveBool("Graphic", "hires_items", App.hires_items);
 					drawCheckbox_m("Hi-Res Textures", App.hires_textures, "AI-upscaled textures from d2gl_hires.pak (glide). Off applies at once; on needs it enabled at game start.", hires_textures)
 						saveBool("Graphic", "hires_textures", App.hires_textures);
-					drawCheckbox_m("Ground Item Glow", App.item_glow, "Soft coloured halo on the ground under dropped items: unique gold, set green, rare yellow, magic blue, runes orange (glide).", item_glow) {
-						saveBool("Graphic", "item_glow", App.item_glow);
-						modules::LootSparkle::Instance().toggle(modules::LootSparkle::wanted());
-					}
-					ImGui::BeginDisabled(!App.item_glow);
-						drawSlider_m(float, "Ground Item Glow Strength", App.item_glow_strength, "%.2f", "", item_glow_strength)
-							saveFloat("Graphic", "item_glow_strength", App.item_glow_strength.value);
-					ImGui::EndDisabled();
 					drawCheckbox_m("Wall Silhouettes", App.silhouettes, "Your character shows as a tinted shape where walls, trees or buildings hide it (glide).", silhouettes) {
 						saveBool("Graphic", "silhouettes", App.silhouettes);
 						modules::LootSparkle::Instance().toggle(modules::LootSparkle::wanted());

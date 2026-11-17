@@ -126,73 +126,7 @@ uint8_t LootSparkle::itemGlowLevel(d2::UnitAny* unit)
 
 bool LootSparkle::wanted()
 {
-	return App.loot_sparkle.active || App.minion_ring || App.hdr.item_glow || App.hdr.light_pools.value > 0.0f || App.item_glow || App.silhouettes;
-}
-
-// [Graphic] item_glow: a flat soft ellipse on the ground under a dropped item, coloured by quality. Pushed right
-// before the item's own sprite (glide draw order is the depth order), so the item and anything in front cover it.
-// Ground items only (unit mode 3/5 in the world stage); inventory and cursor items are not units being drawn.
-void LootSparkle::groundGlow(d2::CellContext* cell, int x, int y)
-{
-	if (!App.item_glow || !m_hooked || App.game.screen != GameScreen::InGame || App.game.draw_stage != DrawStage::World)
-		return;
-	d2::UnitAny* unit = d2::currently_drawing_unit;
-	if (!unit || unit->dwType != d2::UnitType::Item)
-		return;
-	static d2::UnitAny* last_unit = nullptr;
-	static uint32_t last_frame = 0;
-	const uint32_t frame = App.context->getFrameCount();
-	if (unit == last_unit && frame == last_frame)
-		return; // one halo per item and frame
-	last_unit = unit, last_frame = frame;
-	const int kind = classifyItem(unit);
-	if (kind < 0)
-		return;
-
-	float cx = (float)x;
-	glm::vec2 size = { 28.0f, 20.0f };
-	if (!cell || !(isVerMin(V_113c)) || !spriteCenter(cell, x, &cx, &size)) {
-		cx = (float)x;
-		size = { 28.0f, 20.0f };
-	}
-	// The item sprite is drawn over the halo, so it has to reach well past the sprite to be seen: the bright
-	// band sits around the sprite's edge (r 0.55) and fades out about 20 px beyond it.
-	const float hx = glm::clamp(size.x * 0.5f, 8.0f, 48.0f), hy = glm::clamp(size.y * 0.5f, 6.0f, 40.0f);
-	const float rx = hx / 0.55f + 12.0f, ry = glm::max(hy / 0.55f + 6.0f, rx * 0.45f);
-	const glm::vec2 c = { cx, (float)y - hy };
-
-	static const glm::vec3 colors[5] = {
-		{ 0.30f, 0.45f, 1.00f }, // magic: blue
-		{ 1.00f, 1.00f, 0.25f }, // rare / crafted: yellow
-		{ 1.00f, 0.50f, 0.10f }, // rune: orange
-		{ 0.20f, 1.00f, 0.25f }, // set: green
-		{ 1.00f, 0.72f, 0.15f }, // unique: gold
-	};
-	auto pack = [](glm::vec3 c, float a) -> uint32_t {
-		c = glm::clamp(c * a, 0.0f, 1.0f);
-		return 0xFF000000 | ((uint32_t)(c.r * 255.0f + 0.5f) << 16) | ((uint32_t)(c.g * 255.0f + 0.5f) << 8) | (uint32_t)(c.b * 255.0f + 0.5f);
-	};
-	const float s = glm::clamp(App.item_glow_strength.value, 0.0f, 3.0f);
-	const uint32_t inner = pack(colors[kind], 0.45f * s), mid = pack(colors[kind], 0.40f * s), outer = 0xFF000000;
-
-	const int N = 20;
-	glm::vec2 pos[N * 8];
-	uint32_t col[N * 8];
-	int n = 0;
-	for (int i = 0; i < N; i++) {
-		const float a0 = glm::two_pi<float>() * i / N, a1 = glm::two_pi<float>() * (i + 1) / N;
-		auto P = [&](float a, float r) { return c + glm::vec2(cosf(a) * rx * r, sinf(a) * ry * r); };
-		const glm::vec2 q[8] = { c, c, P(a1, 0.55f), P(a0, 0.55f), P(a0, 0.55f), P(a1, 0.55f), P(a1, 1.0f), P(a0, 1.0f) };
-		const uint32_t k[8] = { inner, inner, mid, mid, mid, mid, outer, outer };
-		for (int j = 0; j < 8; j++)
-			pos[n] = q[j], col[n++] = k[j];
-	}
-	App.context->pushAdditiveQuads(pos, col, (uint32_t)(n / 4));
-	static bool logged = false;
-	if (!logged) {
-		logged = true;
-		trace_log("item_glow: first halo, kind %d at %.0f,%.0f, %.0fx%.0f", kind, c.x, c.y, rx, ry);
-	}
+	return App.loot_sparkle.active || App.minion_ring || App.hdr.item_glow || App.hdr.light_pools.value > 0.0f || App.silhouettes;
 }
 
 void LootSparkle::toggle(bool active)

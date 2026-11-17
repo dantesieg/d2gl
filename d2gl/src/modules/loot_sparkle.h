@@ -47,7 +47,6 @@ public:
 	void toggle(bool active);
 	static uint8_t itemGlowLevel(d2::UnitAny* unit); // [HDR] item_glow: 0 none, 1 rune, 2 set, 3 unique (ground items)
 	void record(d2::CellContext* cell, int x, int y);
-	void groundGlow(d2::CellContext* cell, int x, int y); // [Graphic] item_glow: halo pushed before a ground item's sprite
 	static bool wanted(); // any feature that needs the unit draw hooks
 	void draw();
 };

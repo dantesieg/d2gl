@@ -241,7 +241,6 @@ void __stdcall drawImageHooked(CellContext* cell, int x, int y, uint32_t gamma, 
 
 	if (modules::HDText::Instance().drawImage(cell, x, y, draw_mode)) {
 		const auto pos = modules::MotionPrediction::Instance().drawImage(x, y, D2DrawFn::Image, gamma, draw_mode);
-		modules::LootSparkle::Instance().groundGlow(cell, pos.x, pos.y); // [Graphic] item_glow: under the item sprite
 		drawImage(cell, pos.x, pos.y, gamma, draw_mode, palette);
 		modules::LootSparkle::Instance().record(cell, pos.x, pos.y);
 	}
