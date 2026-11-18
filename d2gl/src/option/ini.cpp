@@ -234,12 +234,8 @@ void saveIni()
 		"orb_style=%d\n"
 		"; Orb motion: waves, swirl and bubbles of orb style 1 (0.0 = static, up to 2.0).\n"
 		"orb_motion=%.2f\n"
-		"; Liquid bars: experience and stamina bars drawn as glowing flowing liquid (glide).\n"
-		"liquid_bars=%s\n"
 		"; Liquid potions: animated liquid inside potion bottles in belt, inventory and on the cursor (glide, 1.14d).\n"
-		"liquid_potions=%s\n"
-		"; Liquid portals: town portals drawn as a swirling vortex in the portal's colour (glide).\n"
-		"liquid_portals=%s\n\n"
+		"liquid_potions=%s\n\n"
 		"; HDR-style tonemapping (world only, exposure: 0.2-1.0).\n"
 		"tonemap=%s\n"
 		"tonemap_exposure=%.3f\n\n"
@@ -289,9 +285,7 @@ void saveIni()
 		boolString(App.silhouettes),
 		App.orb_style.selected,
 		App.orb_motion.value,
-		boolString(App.liquid_bars),
 		boolString(App.liquid_potions),
-		boolString(App.liquid_portals),
 		boolString(App.tonemap.active),
 		App.tonemap.exposure.value,
 		boolString(App.soft_shadows.active),
@@ -611,9 +605,7 @@ void loadIni()
 		App.silhouettes = getBool("Graphic", "silhouettes", App.silhouettes);
 		App.orb_style.selected = getInt("Graphic", "orb_style", App.orb_style.selected, 0, 2);
 		App.orb_motion.value = getFloat("Graphic", "orb_motion", App.orb_motion);
-		App.liquid_bars = getBool("Graphic", "liquid_bars", App.liquid_bars);
 		App.liquid_potions = getBool("Graphic", "liquid_potions", App.liquid_potions);
-		App.liquid_portals = getBool("Graphic", "liquid_portals", App.liquid_portals);
 		App.tonemap.active = getBool("Graphic", "tonemap", App.tonemap.active);
 		App.tonemap.exposure.value = getFloat("Graphic", "tonemap_exposure", App.tonemap.exposure);
 		App.soft_shadows.active = getBool("Graphic", "soft_shadows", App.soft_shadows.active);

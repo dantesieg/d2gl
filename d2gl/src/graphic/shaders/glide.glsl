@@ -267,108 +267,6 @@ vec4 workshopOrb()
 	return vec4(col, circle * liquid * opacity);
 }
 
-// [Graphic] liquid_bars: horizontal liquid bar (flag y 4, x 1) over the bar's full track. v_TexCoord 0..1 (y down),
-// v_Color1 = liquid colour, v_Color2: r fill from the left, g pulse (value rose), b motion / 2, a bar id.
-// Same look as the orb: solid liquid, darker toward the bottom, slow noise, bubbles, bright surface line.
-vec4 liquidBar()
-{
-	vec2 uv = v_TexCoord;
-	float fill = v_Color2.r;
-	float pulse = v_Color2.g;
-	float motion = v_Color2.b * 2.0;
-	float id = v_Color2.a * 3.7;
-	float t = u_Time * min(motion, 1.0);
-	vec2 fw = max(fwidth(uv), vec2(1e-4));
-	float aspect = fw.y / fw.x; // track width over height (screen pixels)
-	float hpx = 1.0 / fw.y;     // track height in screen pixels
-	float X = uv.x * aspect;    // along the bar, in bar heights
-
-	// leading edge with a slight wobble, small ripple on the top edge (at most ~1 px)
-	float front = fill + 0.004 * sin(uv.y * 9.0 + t * 3.0 + id) * motion * step(0.001, fill) * step(fill, 0.999);
-	float liqx = 1.0 - smoothstep(front - fw.x, front + fw.x, uv.x);
-	float amp = min(0.12, 1.2 / hpx) * motion;
-	float wave = sin(X * 5.0 - t * 2.4 + id) * 0.6 + sin(X * 11.0 + t * 1.7 + id * 2.0) * 0.4;
-	float surf = amp * (0.5 + 0.5 * wave);
-	float d = uv.y - surf; // > 0 below the surface
-	float liqy = smoothstep(-fw.y, fw.y, d);
-	float alpha = liqx * liqy;
-	if (alpha <= 0.0)
-		discard;
-
-	vec3 base = v_Color1.rgb;
-	base *= clamp(0.62 / max(max(base.r, max(base.g, base.b)), 0.02), 0.5, 3.0);
-
-	// flow along the bar: noise scrolling toward the leading edge
-	float n = orbNoise(vec2(X * 1.6 - t * 0.9, uv.y * 2.5 + id)) * 0.65 + orbNoise(vec2(X * 3.7 - t * 1.6, uv.y * 5.0 - id)) * 0.35;
-	float v = clamp(d / max(1.0 - surf, 0.05), 0.0, 1.0); // 0 at the surface .. 1 at the bottom
-	vec3 col = base * mix(1.3, 0.5, v);
-	col *= 0.8 + 0.4 * n;
-	col *= mix(0.6, 1.0, sin(3.14159 * clamp(uv.y, 0.0, 1.0))); // rounded tube
-
-	// light streaks flowing along
-	float cn = orbFbm(vec2(X * 1.2 - t * 1.1, uv.y * 3.0 + id));
-	col += (base * 0.6 + vec3(0.2)) * pow(1.0 - abs(cn * 2.0 - 1.0), 12.0) * 0.6;
-
-	// small bubbles drifting along (bars at least 8 px tall)
-	for (int i = 0; i < 3; i++) {
-		float fi = float(i) + id;
-		float h = orbHash(vec2(fi, 2.3));
-		vec2 bc = vec2(fract(h * 5.0 + t * (0.04 + 0.03 * h)) * fill * aspect, 0.35 + 0.4 * orbHash(vec2(fi, 6.1)) + 0.05 * sin(t * 2.0 + fi * 4.0));
-		float br = 0.12 + 0.08 * orbHash(vec2(fi, 8.7));
-		float bd = length(vec2(X, uv.y) - bc);
-		float ring = (1.0 - smoothstep(br * 0.55, br, bd)) * (0.35 + 0.65 * smoothstep(br * 0.3, br, bd));
-		col += base * 0.9 * ring * step(0.001, motion) * step(8.0, hpx);
-	}
-
-	// bright surface line on the top edge and a glow at the leading edge
-	float men = exp(-abs(d) / (fw.y * 1.5 + 0.04));
-	col += (base * 0.9 + vec3(0.2)) * men;
-	float lead = exp(-abs(uv.x - front) / (fw.x * 2.0 + 0.004)) * step(fill, 0.999);
-	col += (base * 0.7 + vec3(0.15)) * lead * 0.6;
-	col *= 1.0 + 0.45 * pulse;
-
-	col = clamp(col, 0.0, 1.0);
-	col = vec3(u_Gamma[int(col.r * 255.0)].r, u_Gamma[int(col.g * 255.0)].g, u_Gamma[int(col.b * 255.0)].b);
-	return vec4(col, alpha);
-}
-
-// [Graphic] liquid_portals: swirling vortex (flag y 4, x 2) over the portal sprite's opaque box. v_Color1 = average colour
-// of the game's sprite, v_Color2: r seed, b motion / 2, a 1 = permanent (red) portal. Spiral arms, bright core, edge glow.
-vec4 portalVortex()
-{
-	vec2 p = v_TexCoord * 2.0 - 1.0;
-	float r = length(p);
-	float aa = max(fwidth(r), 1e-4) * 1.5;
-	float oval = 1.0 - smoothstep(1.0 - aa, 1.0, r);
-	if (oval <= 0.0)
-		discard;
-	float motion = v_Color2.b * 2.0;
-	float t = u_Time * min(motion, 1.0);
-	float seed = v_Color2.r * 17.0;
-
-	vec3 base = v_Color1.rgb;
-	base *= clamp(0.7 / max(max(base.r, max(base.g, base.b)), 0.02), 0.5, 3.0);
-
-	float rr = max(r, 1e-3);
-	float arms = 0.5 + 0.5 * sin(atan(p.y, p.x) * 3.0 + log(rr) * 4.5 - t * 2.2 + seed); // 3 arms, continuous at +-pi
-	arms *= arms;
-	float a = t * 0.6 + rr * 3.0;
-	vec2 q = mat2(cos(a), -sin(a), sin(a), cos(a)) * p;
-	float n = orbFbm(q * 2.5 + vec2(seed));
-	float core = exp(-r * r * 9.0);
-	float rim = exp(-abs(r - 0.9) / 0.08);
-
-	vec3 col = base * (0.35 + 0.9 * arms * (0.6 + 0.6 * n)) * mix(0.7, 1.0, 1.0 - r);
-	col += (base * 0.8 + vec3(0.35)) * core * 1.2;
-	col += (base * 0.9 + vec3(0.1)) * rim * 0.7;
-	col += (base * 0.6 + vec3(0.25)) * pow(1.0 - abs(n * 2.0 - 1.0), 10.0) * (1.0 - r) * 0.5; // light streaks
-
-	float alpha = oval * clamp(0.5 + 0.35 * arms + core + rim * 0.4, 0.0, 0.92) * (0.4 + 0.6 * smoothstep(1.0, 0.8, r));
-	col = clamp(col, 0.0, 1.0);
-	col = vec3(u_Gamma[int(col.r * 255.0)].r, u_Gamma[int(col.g * 255.0)].g, u_Gamma[int(col.b * 255.0)].b);
-	return vec4(col, alpha);
-}
-
 // [Graphic] liquid_potions: potion sprites in the UI (flag x high nibble 6). Liquid pixels (saturated, not glass) get a
 // flowing body, a light streak, small rising bubbles and a bright surface line where the texel above is not liquid;
 // purple (rejuvenation) liquid swirls between red and blue. c = the sprite pixel before gamma.
@@ -418,18 +316,14 @@ vec3 potionLiquid(vec3 c)
 void main()
 {
 	if (v_Flags.y == 4u) {
-		// flag x: 0 orb (flag z = orb_style 1 or 2), 1 liquid bar, 2 portal vortex
-		FragColor = v_Flags.x == 1u ? liquidBar() : (v_Flags.x == 2u ? portalVortex() : (v_Flags.z == 2u ? workshopOrb() : proceduralOrb()));
+		// flag z = orb_style 1 or 2
+		FragColor = v_Flags.z == 2u ? workshopOrb() : proceduralOrb();
 		FragColorMap = vec4(0.0);
 		FragColorMask = vec4(0.0, 0.0, 0.0, v_Flags.w == 0u ? FragColor.a : 0.0);
 		FragColorShadow = vec4(0.0);
 		FragLight = vec4(0.0);
-		// [HDR] orb_glow as for the game's liquid (u_OrbGlow is 0 without the emission attachment); alpha draw: weight by coverage.
-		// The portal emits its luma like additive world sprites (only lands when the emission attachment is bound).
-		if (v_Flags.x == 2u)
-			FragEmit = vec4(dot(FragColor.rgb, vec3(0.299, 0.587, 0.114)), 0.0, 0.0, FragColor.a);
-		else
-			FragEmit = vec4(max(FragColor.r, max(FragColor.g, FragColor.b)) * u_OrbGlow * 4.0, 0.0, 0.0, FragColor.a);
+		// [HDR] orb_glow as for the game's liquid (u_OrbGlow is 0 without the emission attachment); alpha draw: weight by coverage
+		FragEmit = vec4(max(FragColor.r, max(FragColor.g, FragColor.b)) * u_OrbGlow * 4.0, 0.0, 0.0, FragColor.a);
 		return;
 	}
 
