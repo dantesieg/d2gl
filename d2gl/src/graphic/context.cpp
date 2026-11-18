@@ -654,7 +654,7 @@ void Context::renderThread(void* context)
 							ctx->m_game_pipeline->setUniform1f("u_HotPixels", last_hot = hot);
 						if (!same_pipe || last_flicker != App.dynamic_light.flicker.value)
 							ctx->m_game_pipeline->setUniform1f("u_LightFlicker", last_flicker = App.dynamic_light.flicker.value);
-						if (App.dynamic_light.flicker.value > 0.0f || App.orb_style.selected == 1) { // [Graphic] orb_style 1 animates by u_Time
+						if (App.dynamic_light.flicker.value > 0.0f || App.orb_style.selected == 1 || App.liquid_bars || App.liquid_potions || App.liquid_portals) { // orb_style 1 / liquid_* animate by u_Time
 							// GetTickCount64 steps every ~16 ms: upload only when it moved, not on every blend switch
 							static float last_time = -1.0f;
 							const float t = (float)fmod((double)GetTickCount64() * 0.001, 3600.0);
@@ -1644,7 +1644,7 @@ void Context::captureLights(CommandBuffer& cb)
 void Context::pushVertex(const GlideVertex* vertex, glm::vec2 fix, glm::ivec2 offset)
 {
 	if (d2::drawing_orb_hd)
-		return; // [Graphic] orb_style 1: the game's orb liquid is replaced by pushOrbQuad
+		return; // [Graphic] orb_style 1 / liquid_portals: the game's sprite is replaced by pushOrbQuad
 	if ((m_stencil_class | m_stencil_mode) && m_quad_vtx == 0)
 		updateStencil(vertex->x - (float)offset.x, vertex->y - (float)offset.y);
 	if (m_vertices.count >= MAX_VERTICES - 4)
@@ -1680,6 +1680,8 @@ void Context::pushVertex(const GlideVertex* vertex, glm::vec2 fix, glm::ivec2 of
 	}
 	if (d2::drawing_orb && m_emit_attached)
 		m_vertices.ptr->flags.z |= 0x40; // [HDR] orb_glow: health/mana orb liquid
+	if (d2::drawing_potion)
+		m_vertices.ptr->flags.x |= 0x60; // [Graphic] liquid_potions: shader kind 6 (UI only, the shadow kinds are world only)
 	if (m_shadow_fx && App.game.draw_stage == DrawStage::World && m_shadow_draw != 2) {
 		// High nibble of flag x tags shadow-buffer writes (see glide.glsl).
 		const uint32_t blend = m_current_blend_index;
@@ -1786,9 +1788,10 @@ void Context::pushAdditiveQuads(const glm::vec2* pos, const uint32_t* colors, ui
 }
 
 // [Graphic] orb_style 1: one quad over the orb liquid's box (game units), procedural liquid in glide.glsl (flag y 4).
+// liquid_bars / liquid_portals use the same quad with flag x = kind (params as documented in glide.glsl).
 // color1 = base colour 0xFFRRGGBB, color2 = params 0xRRGGBBAA (r fill, g slosh, b motion / 2, a orb id).
 // Alpha blend (pipeline 3) for the anti-aliased circle and surface; pushed where the game's liquid would be.
-bool Context::pushOrbQuad(glm::vec4 rect, uint32_t color, uint32_t params)
+bool Context::pushOrbQuad(glm::vec4 rect, uint32_t color, uint32_t params, uint8_t kind)
 {
 	if (!ISGLIDE3X() || m_blend_locked || m_command_buffer[m_frame_index].m_count > 1536)
 		return false;
@@ -1805,7 +1808,7 @@ bool Context::pushOrbQuad(glm::vec4 rect, uint32_t color, uint32_t params)
 		m_vertices.ptr->color1 = color;
 		m_vertices.ptr->color2 = params;
 		m_vertices.ptr->tex_ids = { 0, 0 };
-		m_vertices.ptr->flags = { 0, 4, 0, m_vertex_params.flags.w };
+		m_vertices.ptr->flags = { kind, 4, 0, m_vertex_params.flags.w }; // x: 0 orb, 1 liquid bar, 2 portal vortex
 		m_vertices.ptr->tex_rect = { 0, 0, 0, 0 };
 		m_vertices.ptr++;
 		m_vertices.count++;

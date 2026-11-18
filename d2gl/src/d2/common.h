@@ -167,6 +167,9 @@ extern uintptr_t* currently_drawing_weather_particle_index_ptr;
 extern RECT* currently_drawing_rect;
 extern UnitAny* headsup_text_unit;
 extern UnitAny* currently_drawing_item;
+extern UnitAny* drawing_ui_item; // [Graphic] liquid_potions: item inside D2Client DrawItemGfx (1.14d)
+extern bool drawing_potion;      // [Graphic] liquid_potions: potion sprite vertices get flag x high nibble 6 (pushVertex)
+bool isPotionItem(UnitAny* unit);
 
 extern std::unique_ptr<Patch> patch_minimap;
 extern std::unique_ptr<Patch> patch_motion_prediction;

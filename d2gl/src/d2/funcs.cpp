@@ -236,6 +236,8 @@ static uint8_t silhouetteClass()
 	return unit->dwType == UnitType::Object ? 2 : 0;
 }
 
+static bool drawLiquidPortal(CellContext* cell, int x, int y, uint32_t gamma, int draw_mode, uint8_t* palette);
+
 void __stdcall drawImageHooked(CellContext* cell, int x, int y, uint32_t gamma, int draw_mode, uint8_t* palette)
 {
 	App.context->setStencilClass(silhouetteClass());
@@ -244,7 +246,13 @@ void __stdcall drawImageHooked(CellContext* cell, int x, int y, uint32_t gamma, 
 
 	if (modules::HDText::Instance().drawImage(cell, x, y, draw_mode)) {
 		const auto pos = modules::MotionPrediction::Instance().drawImage(x, y, D2DrawFn::Image, gamma, draw_mode);
+		// [Graphic] liquid_portals: town portal objects become a procedural vortex
+		if (App.liquid_portals && App.game.draw_stage == DrawStage::World && drawLiquidPortal(cell, pos.x, pos.y, gamma, draw_mode, palette))
+			return;
+		// [Graphic] liquid_potions: potion items drawn by DrawItemGfx get animated liquid in the shader (pushVertex tag)
+		drawing_potion = App.liquid_potions && drawing_ui_item && ISGLIDE3X() && isPotionItem(drawing_ui_item);
 		drawImage(cell, pos.x, pos.y, gamma, draw_mode, palette);
+		drawing_potion = false;
 		modules::LootSparkle::Instance().record(cell, pos.x, pos.y);
 	}
 
@@ -358,6 +366,75 @@ static bool pushProceduralOrb(CellContext* cell, int x, int y, int skip_lines, i
 	return App.context->pushOrbQuad(rect, oc.color, (f8 << 24) | (s8 << 16) | (m8 << 8) | (id ? 0xFFu : 0u));
 }
 
+// [Graphic] liquid_bars: one procedural quad over the bar's full track (flag y 4, x 1); fill from the left, pulse =
+// decaying kick when the value rises (per bar slot: 0 experience, 1 stamina, 2.. plugin bars through d2gl_liquid_bar).
+static bool pushLiquidBar(float x, float y, float w, float h, float fill, uint32_t rgb, uint32_t slot)
+{
+	if (!(fill >= 0.0f)) // NaN
+		fill = 0.0f;
+	fill = std::min(fill, 1.0f);
+	static struct { float fill; float pulse; ULONGLONG tick; } bars[64] = {};
+	auto& s = bars[slot & 63];
+	const ULONGLONG now = GetTickCount64();
+	if (s.tick && now - s.tick < 1000) {
+		s.pulse *= std::exp(-(float)(now - s.tick) * 0.001f / 0.45f);
+		if (fill > s.fill + 0.0005f)
+			s.pulse = std::min(1.0f, s.pulse + 0.3f + (fill - s.fill) * 6.0f);
+	} else
+		s.pulse = 0.0f;
+	s.fill = fill;
+	s.tick = now;
+
+	const uint32_t f8 = (uint32_t)(fill * 255.0f + 0.5f);
+	const uint32_t p8 = (uint32_t)(s.pulse * 255.0f + 0.5f);
+	const uint32_t m8 = (uint32_t)(std::clamp(App.orb_motion.value, 0.0f, 2.0f) * 127.5f + 0.5f);
+	return App.context->pushOrbQuad({ x, y, x + w, y + h }, 0xFF000000 | (rgb & 0xFFFFFF), (f8 << 24) | (p8 << 16) | (m8 << 8) | ((slot * 37u) & 0xFFu), 1);
+}
+
+// d2gl_liquid_bar export (glide3x.cpp): plugin bars in game coordinates, during UI drawing on the game thread
+int liquidBarExternal(int x, int y, int w, int h, float fill, uint32_t rgb, int id)
+{
+	if (!App.context || !ISGLIDE3X() || App.game.screen != GameScreen::InGame || w <= 0 || h <= 0 || w > 4096 || h > 4096)
+		return 0;
+	return pushLiquidBar((float)x, (float)y, (float)w, (float)h, fill, rgb, 2u + (uint32_t)id % 62u) ? 1 : 0;
+}
+
+// [Graphic] liquid_portals: town portal (objects.txt 59) and permanent red portal (60). The game's draw runs with its
+// vertices dropped (it loads the cell), our vortex quad replaces it over the frame's opaque box in the sprite's average
+// colour; further layers of the same unit in the same frame are dropped. The game's sprite is drawn if the cell cannot be read.
+static bool drawLiquidPortal(CellContext* cell, int x, int y, uint32_t gamma, int draw_mode, uint8_t* palette)
+{
+	UnitAny* unit = currently_drawing_unit;
+	if (!unit || unit->dwType != UnitType::Object || (isVer(V_109d)) || !ISGLIDE3X())
+		return false;
+	const DWORD cls = unit->v110.dwClassId;
+	if (cls != 59 && cls != 60)
+		return false;
+
+	static UnitAny* last_unit = nullptr;
+	static uint32_t last_frame = 0;
+	const uint32_t frame = App.context->getFrameCount();
+	const bool again = last_unit == unit && last_frame == frame;
+	drawing_orb_hd = true;
+	drawImage(cell, x, y, gamma, draw_mode, palette);
+	drawing_orb_hd = false;
+	if (again)
+		return true;
+
+	OrbCell oc;
+	if (!decodeOrbCell(cell, &oc))
+		return false;
+	const float left = (float)(x + oc.xoffs), top = (float)(y + oc.yoffs) - (float)oc.height;
+	const glm::vec4 rect = { left + (float)oc.x0, top + (float)oc.y0, left + (float)oc.x1, top + (float)oc.y1 };
+	const uint32_t m8 = (uint32_t)(std::clamp(App.orb_motion.value, 0.0f, 2.0f) * 127.5f + 0.5f);
+	const uint32_t seed = (getUnitID(unit) * 73u) & 0xFFu;
+	if (!App.context->pushOrbQuad(rect, oc.color, (seed << 24) | (m8 << 8) | (cls == 60 ? 1u : 0u), 2))
+		return false;
+	last_unit = unit;
+	last_frame = frame;
+	return true;
+}
+
 void __stdcall drawVerticalCropImageHooked(CellContext* cell, int x, int y, int skip_lines, int draw_lines, int draw_mode)
 {
 	App.context->setStencilClass(0);
@@ -417,6 +494,12 @@ void __stdcall drawShadowHooked(CellContext* cell, int x, int y)
 void __stdcall drawSolidRectExHooked(int left, int top, int right, int bottom, uint32_t color, int draw_mode)
 {
 	App.context->setStencilClass(0);
+	// [Graphic] liquid_bars: stamina bar, D2Client PANEL_DrawStaminaBar (1.14d 0x4975B0, per Redivivus):
+	// DrawSolidRectExBySize(width / 2 - 0x7F, height - 0x1B, stamina * 0x66 / max, 0x12, palette index, mode 2)
+	if (App.liquid_bars && (App.game.draw_stage == DrawStage::UI || App.game.draw_stage == DrawStage::HUD) && draw_mode == 2 &&
+		left == (int)*d2::screen_width / 2 - 0x7F && top == (int)*d2::screen_height - 0x1B && bottom == top + 0x12 && right >= left && right - left <= 0x66 &&
+		pushLiquidBar((float)left, (float)top, (float)0x66, (float)0x12, (float)(right - left) / (float)0x66, hires::g_pal[color & 0xFF], 1))
+		return;
 	auto offset = modules::MotionPrediction::Instance().drawSolidRect();
 	if (!modules::HDText::Instance().drawSolidRect(left - offset.x, top - offset.y, right - offset.x, bottom - offset.y, color, draw_mode))
 		drawSolidRectEx(left - offset.x, top - offset.y, right - offset.x, bottom - offset.y, color, draw_mode);
@@ -427,6 +510,25 @@ void __stdcall drawSolidRectExHooked(int left, int top, int right, int bottom, u
 void __stdcall drawLineHooked(int x_start, int y_start, int x_end, int y_end, uint8_t color, uint8_t alpha)
 {
 	App.context->setStencilClass(0);
+	// [Graphic] liquid_bars: experience bar, D2Client PANEL_DrawGoldAmount (1.14d 0x498EA0, per Redivivus): two lines
+	// from width / 2 - 0x90 at height - 0x26 and - 0x25, exp into level * 0x77 / level span long, colour 0xFF, alpha 0xFF
+	if (App.liquid_bars && (App.game.draw_stage == DrawStage::UI || App.game.draw_stage == DrawStage::HUD) && color == 0xFF && alpha == 0xFF &&
+		y_end == y_start && x_start == (int)*d2::screen_width / 2 - 0x90 && x_end > x_start && x_end - x_start <= 0x77) {
+		static bool exp_liquid = false;
+		const int ys = (int)*d2::screen_height - 0x26;
+		if (y_start == ys) {
+			uint32_t c = hires::g_pal[0xFF] & 0xFFFFFF;
+			const int cr = (c >> 16) & 0xFF, cg = (c >> 8) & 0xFF, cb = c & 0xFF;
+			if (std::max(cr, std::max(cg, cb)) - std::min(cr, std::min(cg, cb)) < 48)
+				c = 0xD8A838; // the game's line is white: amber liquid
+			exp_liquid = pushLiquidBar((float)x_start, (float)ys, (float)0x77, 2.0f, (float)(x_end - x_start) / (float)0x77, c, 0);
+			if (exp_liquid)
+				return;
+		} else if (y_start == ys + 1 && exp_liquid) {
+			exp_liquid = false;
+			return;
+		}
+	}
 	const auto offset = modules::MotionPrediction::Instance().drawLine(x_start, y_start);
 	drawLine(x_start - offset.x, y_start - offset.y, x_end - offset.x, y_end - offset.y, color, alpha);
 }

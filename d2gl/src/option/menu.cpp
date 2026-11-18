@@ -354,6 +354,12 @@ void Menu::draw()
 					saveFloat("Graphic", "orb_motion", App.orb_motion.value);
 				drawDescription("Procedural orb motion. 0 = static.", m_colors[Color::Gray], 12);
 			ImGui::EndDisabled();
+			drawCheckbox_m("Liquid Bars", App.liquid_bars, "Experience and stamina bars as glowing flowing liquid, pulsing when they rise (glide). Motion follows the orb motion slider.", liquid_bars)
+				saveBool("Graphic", "liquid_bars", App.liquid_bars);
+			drawCheckbox_m("Liquid Potions", App.liquid_potions, "Animated liquid inside potion bottles in the belt, inventory, stash, cube and on the cursor (glide, 1.14d).", liquid_potions)
+				saveBool("Graphic", "liquid_potions", App.liquid_potions);
+			drawCheckbox_m("Liquid Portals", App.liquid_portals, "Town portals drawn as a swirling vortex in the portal's own colour (glide).", liquid_portals)
+				saveBool("Graphic", "liquid_portals", App.liquid_portals);
 			ImGui::Dummy({ 0.0f, 12.0f });
 			drawSeparator();
 			drawLabel("Sharpen & Anti-Aliasing", m_colors[Color::Orange], 17);

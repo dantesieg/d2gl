@@ -300,7 +300,7 @@ public:
 	inline void setVertexFlagZ(uint8_t flag) { m_vertex_params.flags.z = flag; }
 	inline void setVertexFlagW(uint8_t flag) { m_vertex_params.flags.w = flag; }
 	void pushAdditiveQuads(const glm::vec2* pos, const uint32_t* colors, uint32_t quad_count);
-	bool pushOrbQuad(glm::vec4 rect, uint32_t color, uint32_t params); // [Graphic] orb_style 1
+	bool pushOrbQuad(glm::vec4 rect, uint32_t color, uint32_t params, uint8_t kind = 0); // [Graphic] orb_style 1, liquid_* (kind: 0 orb, 1 bar, 2 portal)
 	void setStencilClass(uint8_t c); // [Graphic] silhouettes: 0 other, 1 player, 2 occluder (before each hooked draw)
 	void drawSilhouettes();
 	inline void setShadowDraw(uint8_t mode) { m_shadow_draw = mode; }
