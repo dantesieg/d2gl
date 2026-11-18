@@ -78,13 +78,13 @@ inline void remap(const PakEntry* e, uint8_t* dst, const uint8_t* src, const uin
 		const int dr = (int)((a >> 16) & 0xFF) - (int)((b >> 16) & 0xFF), dg = (int)((a >> 8) & 0xFF) - (int)((b >> 8) & 0xFF), db = (int)(a & 0xFF) - (int)(b & 0xFF);
 		return dr * dr + dg * dg + db * db;
 	};
-	const uint32_t s = g_scale, dw = e->tw * s, dh = e->th * s;
+	const uint32_t s = g_scale, sh = s == 4 ? 2 : 1, dw = e->tw * s, dh = e->th * s; // scale is 2 or 4 (load): shifts, not divides per pixel
 	for (uint32_t y = 0; y < dh; y++) {
-		const uint8_t* sr = src + (size_t)(y / s) * e->tw;
+		const uint8_t* sr = src + (size_t)(y >> sh) * e->tw;
 		uint8_t* d = dst + (size_t)y * dw;
 		for (uint32_t x = 0; x < dw; x++) {
 			uint8_t q = d[x];
-			const uint8_t o = sr[x / s];
+			const uint8_t o = sr[x >> sh];
 			if (!q) {
 				continue;
 			}
@@ -168,7 +168,9 @@ inline const PakEntry* find(uint32_t hash, uint32_t tw, uint32_t th)
 inline const uint8_t* chunkData(int pi, uint32_t ci)
 {
 	const Pack& P = g_packs[pi];
-	ci |= (uint32_t)pi << 31; // slot key
+	if (ci >= P.nchunks)
+		return nullptr;
+	ci |= (uint32_t)pi << 30; // slot key (pack in bits 30-31: << 31 dropped pack 2, its chunks hit pack 0's cache)
 	struct Slot {
 		uint32_t chunk = UINT32_MAX, tick = 0;
 		std::vector<uint8_t> data;
@@ -184,7 +186,7 @@ inline const uint8_t* chunkData(int pi, uint32_t ci)
 		if (sl.tick < lru->tick)
 			lru = &sl;
 	}
-	const PakChunk& c = P.chunks[ci & 0x7FFFFFFF];
+	const PakChunk& c = P.chunks[ci & 0x3FFFFFFF];
 	if (c.csize < 1 || c.offset + c.csize > P.size)
 		return nullptr;
 	static std::vector<uint8_t> comp;
@@ -236,12 +238,12 @@ inline bool expand(const PakEntry* e, uint8_t* dst)
 // undoes XOR coding: dst (scale*tw x scale*th) ^= nearest-neighbour upscale of the tw x th download
 inline void unxor(const PakEntry* e, uint8_t* dst, const uint8_t* src)
 {
-	const uint32_t s = g_scale, dw = e->tw * s, dh = e->th * s;
+	const uint32_t s = g_scale, sh = s == 4 ? 2 : 1, dw = e->tw * s, dh = e->th * s; // scale is 2 or 4 (load)
 	for (uint32_t y = 0; y < dh; y++) {
-		const uint8_t* sr = src + (size_t)(y / s) * e->tw;
+		const uint8_t* sr = src + (size_t)(y >> sh) * e->tw;
 		uint8_t* d = dst + (size_t)y * dw;
 		for (uint32_t x = 0; x < dw; x++)
-			d[x] ^= sr[x / s];
+			d[x] ^= sr[x >> sh];
 	}
 }
 

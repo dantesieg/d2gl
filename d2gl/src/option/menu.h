@@ -50,6 +50,8 @@ class Menu {
 	bool m_visible = false;
 	bool m_closing = false;
 	bool m_changed = false;
+	volatile bool m_unit_hooks = false; // set by the menu (render thread), applied in check() (game thread)
+	volatile bool m_motion_hooks = false;
 	bool m_opt_changed = false;
 	std::unordered_map<int, ImFont*> m_fonts;
 	std::unordered_map<Color, ImVec4> m_colors;

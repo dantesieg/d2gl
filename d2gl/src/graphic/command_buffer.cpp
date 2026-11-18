@@ -43,8 +43,27 @@ inline void CommandBuffer::next()
 	m_count++;
 }
 
+// The command array is fixed (2048): past it, commands are dropped (one broken frame) instead of overwriting the
+// queues behind the array. The last slots are kept for Submit / TakeScreenShot so the frame still presents.
+bool CommandBuffer::full(CommandType type)
+{
+	const uint32_t reserve = (type == CommandType::Submit || type == CommandType::TakeScreenShot) ? 0 : 4;
+	if (m_count + reserve < (uint32_t)m_commands.size())
+		return false;
+	static bool logged = false;
+	if (!logged) {
+		logged = true;
+		trace_log("command buffer full (%u), commands dropped this frame", m_count);
+	}
+	return true;
+}
+
 void CommandBuffer::pushCommand(CommandType type, uint32_t index)
 {
+	if (full(type)) {
+		m_bound_blend = UINT32_MAX;
+		return;
+	}
 	// Any other command may bind another pipeline on the render thread.
 	m_bound_blend = type == CommandType::SetBlendState ? index : UINT32_MAX;
 	m_command->type = type;
@@ -54,7 +73,9 @@ void CommandBuffer::pushCommand(CommandType type, uint32_t index)
 
 void CommandBuffer::drawIndexed(uint32_t start, uint32_t count)
 {
-	m_vertex_count += count;
+	m_vertex_count += count; // the vertices are written either way; later draws index past them
+	if (full(CommandType::DrawIndexed))
+		return;
 	m_command->type = CommandType::DrawIndexed;
 	m_command->draw.start = start;
 	m_command->draw.count = count / 4 * 6;
@@ -72,6 +93,8 @@ void CommandBuffer::resize()
 
 void CommandBuffer::colorUpdate(UBOType type, const void* data)
 {
+	if (m_ubo_update_queue.count >= m_ubo_update_queue.data.size() || full(CommandType::UBOUpdate))
+		return;
 	memcpy(m_ubo_update_queue.data[m_ubo_update_queue.count].value, data, sizeof(glm::vec4) * 256);
 	m_ubo_update_queue.data[m_ubo_update_queue.count].type = type;
 

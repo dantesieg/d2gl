@@ -179,8 +179,9 @@ void LootSparkle::recordMinion(d2::UnitAny* unit, d2::CellContext* cell, int x, 
 
 void LootSparkle::drawMinions(uint32_t frame)
 {
-	std::vector<glm::vec2> pos;
-	std::vector<uint32_t> col;
+	static std::vector<glm::vec2> pos; // game thread only; kept across frames (no per-frame allocation)
+	static std::vector<uint32_t> col;
+	pos.clear(), col.clear();
 	const float rx = 20.0f, ry = 9.0f, w = 3.0f;
 	const uint32_t inner = 0xFF1E5A1E, outer = 0xFF000000; // additive: dim green fading out
 	for (auto it = m_minions.begin(); it != m_minions.end();) {
@@ -296,8 +297,9 @@ void LootSparkle::draw()
 		return 0xFF000000 | ((uint32_t)(c.r * 255.0f) << 16) | ((uint32_t)(c.g * 255.0f) << 8) | (uint32_t)(c.b * 255.0f);
 	};
 
-	std::vector<glm::vec2> pos;
-	std::vector<uint32_t> col;
+	static std::vector<glm::vec2> pos; // game thread only; kept across frames (no per-frame allocation)
+	static std::vector<uint32_t> col;
+	pos.clear(), col.clear();
 	const int64_t now = nowMs();
 	const int64_t SPARKLE_MS = sparkleMs();
 

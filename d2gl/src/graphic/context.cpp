@@ -654,8 +654,13 @@ void Context::renderThread(void* context)
 							ctx->m_game_pipeline->setUniform1f("u_HotPixels", last_hot = hot);
 						if (!same_pipe || last_flicker != App.dynamic_light.flicker.value)
 							ctx->m_game_pipeline->setUniform1f("u_LightFlicker", last_flicker = App.dynamic_light.flicker.value);
-						if (App.dynamic_light.flicker.value > 0.0f)
-							ctx->m_game_pipeline->setUniform1f("u_Time", (float)fmod((double)GetTickCount64() * 0.001, 3600.0));
+						if (App.dynamic_light.flicker.value > 0.0f) {
+							// GetTickCount64 steps every ~16 ms: upload only when it moved, not on every blend switch
+							static float last_time = -1.0f;
+							const float t = (float)fmod((double)GetTickCount64() * 0.001, 3600.0);
+							if (!same_pipe || last_time != t)
+								ctx->m_game_pipeline->setUniform1f("u_Time", last_time = t);
+						}
 						const float item_glow = (App.hdr.item_glow && ctx->m_emit_attached) ? App.hdr.item_glow_strength.value : 0.0f;
 						if (!same_pipe || last_item_glow != item_glow)
 							ctx->m_game_pipeline->setUniform1f("u_ItemGlow", last_item_glow = item_glow);

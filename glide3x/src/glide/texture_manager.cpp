@@ -80,6 +80,12 @@ const SubTextureInfo* TextureManager::getSubTextureInfo(uint32_t address, uint16
 		return nullptr;
 
 	auto hash = g_glide_texture.hash[address];
+	// [Graphic] hires_textures: whether the slot holds a replacement is part of the cache key. Otherwise a slot cached
+	// without one (arena full, corrupt chunk) is reused after a re-download of the same data that matched, and the
+	// draw samples whatever an earlier texture left in that hi-res region.
+	const auto hi = g_glide_texture.hires.find(address);
+	if (hi != g_glide_texture.hires.end() && hi->second)
+		hash ^= 0x5BD1E995u;
 	auto& data = m_data[size];
 
 	if (data.cache.find(address) == data.cache.end())
@@ -106,7 +112,6 @@ const SubTextureInfo* TextureManager::getSubTextureInfo(uint32_t address, uint16
 		const auto command_buffer = App.context->getCommandBuffer();
 
 		command_buffer->textureUpdate(g_glide_texture.memory + address, texture_info->tex_num, { width, height }, texture_info->offset);
-		const auto hi = g_glide_texture.hires.find(address);
 		if (hi != g_glide_texture.hires.end() && hi->second) {
 			const uint16_t s = (uint16_t)hires::g_scale;
 			uint8_t* dst = command_buffer->allocHi((size_t)width * s * height * s);
@@ -129,8 +134,10 @@ const SubTextureInfo* TextureManager::getSubTextureInfo(uint32_t address, uint16
 			}
 			if (ok)
 				command_buffer->textureUpdateHi(dst, texture_info->tex_num, { (uint16_t)(width * s), (uint16_t)(height * s) }, { (uint16_t)(texture_info->offset.x * s), (uint16_t)(texture_info->offset.y * s) });
-			else
+			else {
 				hi->second = nullptr; // not uploaded: draw the original
+				hash ^= 0x5BD1E995u;  // cached as a plain slot
+			}
 		}
 
 		cache.items.insert({ hash, id });

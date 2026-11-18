@@ -139,6 +139,7 @@ public:
 	void reset();
 	void next();
 
+	bool full(CommandType type);
 	void pushCommand(CommandType type, uint32_t index = 0);
 	inline bool blendBound(uint32_t index) const { return m_bound_blend == index; }
 	void drawIndexed(uint32_t start, uint32_t count);

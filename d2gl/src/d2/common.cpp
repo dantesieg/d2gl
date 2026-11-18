@@ -196,10 +196,11 @@ static void __stdcall uploadTexturePre(GlideTexInfo* ti, uint8_t* pal, int32_t m
 {
 	auto& pd = hires::g_pending;
 	pd.active = false;
-	if (!pal || !ti || (mode != 1 && mode != 4) || !hires::g_count || ti->tex_area <= 0 || ti->tex_area > 0x10000)
+	if (!pal || !ti || (mode != 1 && mode != 4) || !hires::g_count || ti->tex_area <= 0 || ti->tex_area > 0x10000 ||
+		ti->tex_w <= 0 || ti->tex_h <= 0 || (int64_t)ti->tex_w * ti->tex_h > 0x10000) // drawCelFrame writes tex_w x tex_h into buf
 		return;
 	static uint8_t buf[0x10000];
-	memset(buf, 0, ti->tex_area);
+	memset(buf, 0, (size_t)ti->tex_w * ti->tex_h);
 	drawCelFrame(ti->sprite, -ti->left, ti->tex_h - ti->top - 1, 0, 0, buf, ti->tex_h, ti->tex_w, nullptr, nullptr, nullptr);
 	pd.hash = helpers::hash(buf, ti->tex_area);
 	pd.tw = ti->tex_w, pd.th = ti->tex_h;
