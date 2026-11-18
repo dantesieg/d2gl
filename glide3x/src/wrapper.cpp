@@ -231,11 +231,13 @@ void Wrapper::grTexDownloadMipMap(GrChipID_t tmu, FxU32 start_address, GrTexInfo
 
 	memcpy(g_glide_texture.memory + start_address, info->data, width * height);
 	g_glide_texture.hash[start_address] = helpers::hash(info->data, width * height);
+	g_glide_texture.hires_retry.erase(start_address); // new contents: a pending retry is stale
 	if (hires::g_count) {
 		hires::g_on[0] = App.hires_ui, hires::g_on[1] = App.hires_textures, hires::g_on[2] = App.hires_items;
 		const hires::PakEntry* hi = hires::find(g_glide_texture.hash[start_address], width, height);
 		hires::g_luts.erase(start_address);
 		auto& pd = hires::g_pending;
+		const bool from_sprite_hook = pd.active;
 		static uint32_t pend = 0, pend_size = 0;
 		pend += !hi && pd.active ? 1 : 0;
 		pend_size += !hi && pd.active && (pd.tw != width || pd.th != height) ? 1 : 0;
@@ -266,13 +268,17 @@ void Wrapper::grTexDownloadMipMap(GrChipID_t tmu, FxU32 start_address, GrTexInfo
 		g_glide_texture.hires[start_address] = hi;
 		static uint32_t seen = 0, matched = 0, top = 0, remapped = 0, tiles = 0;
 		seen++, matched += hi ? 1 : 0;
+		if (!hi && !from_sprite_hook && ((width == 256 && height == 128) || (width == 32 && height == 32)))
+			hires::g_miss_tile++;
 		if (hi) {
 			top += (hi->flags & 1) && hi->fh != hi->th ? 1 : 0;
 			tiles += hi->fw == hi->tw && hi->fh == hi->th && (hi->tw == 32 || hi->tw == 256) ? 1 : 0;
 			remapped += hires::g_luts.count(start_address) ? 1 : 0;
 		}
-		if ((seen & 1023) == 0)
-			trace_log("hires_textures: %u of %u downloads matched (top %u, remapped %u of %u pending, %u size mismatch, tiles %u)", matched, seen, top, remapped, pend, pend_size, tiles);
+		if ((seen & 1023) == 0) {
+			trace_log("hires_textures: %u of %u downloads matched (top %u, remapped %u of %u pending, %u size mismatch, tiles %u; unmatched tile-shaped %u, no room %u, retried %u, bad %u, chunk loads %u)",
+				matched, seen, top, remapped, pend, pend_size, tiles, hires::g_miss_tile, hires::g_no_room, hires::g_retry, hires::g_bad, hires::g_chunk_loads);
+		}
 	}
 }
 

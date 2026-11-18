@@ -46,6 +46,7 @@ struct GlideTexture {
 	uint8_t* memory = nullptr;
 	std::map<uint32_t, uint32_t> hash;
 	std::map<uint32_t, const void*> hires; // [Graphic] hires_textures: hires::PakEntry of the download at this address
+	std::map<uint32_t, std::pair<const void*, uint32_t>> hires_retry; // match not uploaded for lack of room: entry, frame; retried the next frame
 };
 
 extern GlideTexture g_glide_texture;

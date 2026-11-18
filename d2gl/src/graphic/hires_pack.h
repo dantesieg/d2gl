@@ -53,6 +53,10 @@ inline Pack g_packs[NPACK]; // 0 = interface (d2gl_hires_ui.pak, [Graphic] hires
                            // 2 = items (d2gl_hires_items.pak, hires_items)
 inline uint32_t g_scale = 0, g_count = 0; // shared scale of the loaded packs, total entries
 inline bool g_on[NPACK] = {}; // packs enabled right now (off applies at once)
+// diagnostics for the periodic hires_textures log line (cumulative): unmatched downloads shaped like a floor tile (256x128)
+// or wall block (32x32) outside the sprite upload hook, matches not uploaded for lack of room in the frame's hi-res arena or
+// queue (retried next frame), matches dropped as corrupt / size mismatch, retries, chunk decodes (chunk cache misses)
+inline uint32_t g_miss_tile = 0, g_no_room = 0, g_bad = 0, g_retry = 0, g_chunk_loads = 0;
 
 // remapped sprites (unit palettes, item tints): the game bakes the remap into the download, so the upload hook
 // keys the un-remapped frame and the remap is applied to the replacement's indices
@@ -189,6 +193,7 @@ inline const uint8_t* chunkData(int pi, uint32_t ci)
 	const PakChunk& c = P.chunks[ci & 0x3FFFFFFF];
 	if (c.csize < 1 || c.offset + c.csize > P.size)
 		return nullptr;
+	g_chunk_loads++;
 	static std::vector<uint8_t> comp;
 	comp.resize(c.csize);
 	OVERLAPPED ov = {};

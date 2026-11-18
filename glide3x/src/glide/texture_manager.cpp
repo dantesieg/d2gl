@@ -80,6 +80,14 @@ const SubTextureInfo* TextureManager::getSubTextureInfo(uint32_t address, uint16
 		return nullptr;
 
 	auto hash = g_glide_texture.hash[address];
+	// a match that found no room in an earlier frame's hi-res arena / queue was drawn from the original: try it again now
+	// (it used to stay on the original until the game downloaded the texture again, which for cached tiles is rarely)
+	const auto rt = g_glide_texture.hires_retry.find(address);
+	if (rt != g_glide_texture.hires_retry.end() && rt->second.second != frame_count) {
+		g_glide_texture.hires[address] = rt->second.first;
+		g_glide_texture.hires_retry.erase(rt);
+		hires::g_retry++;
+	}
 	// [Graphic] hires_textures: whether the slot holds a replacement is part of the cache key. Otherwise a slot cached
 	// without one (arena full, corrupt chunk) is reused after a re-download of the same data that matched, and the
 	// draw samples whatever an earlier texture left in that hi-res region.
@@ -135,6 +143,11 @@ const SubTextureInfo* TextureManager::getSubTextureInfo(uint32_t address, uint16
 			if (ok)
 				command_buffer->textureUpdateHi(dst, texture_info->tex_num, { (uint16_t)(width * s), (uint16_t)(height * s) }, { (uint16_t)(texture_info->offset.x * s), (uint16_t)(texture_info->offset.y * s) });
 			else {
+				if (!dst) { // no room this frame: retried the next frame (corrupt / mismatched entries stay off)
+					g_glide_texture.hires_retry[address] = { hi->second, frame_count };
+					hires::g_no_room++;
+				} else
+					hires::g_bad++;
 				hi->second = nullptr; // not uploaded: draw the original
 				hash ^= 0x5BD1E995u;  // cached as a plain slot
 			}
