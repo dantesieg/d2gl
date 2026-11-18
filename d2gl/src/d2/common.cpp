@@ -134,6 +134,8 @@ uint32_t* currently_drawing_weather_particle_index_ptr = nullptr;
 RECT* currently_drawing_rect = nullptr;
 UnitAny* headsup_text_unit = nullptr;
 UnitAny* currently_drawing_item = nullptr;
+UnitAny* drawing_ui_item = nullptr;
+bool drawing_potion = false;
 
 std::unique_ptr<Patch> patch_minimap;
 std::unique_ptr<Patch> patch_motion_prediction;
@@ -221,6 +223,59 @@ static __declspec(naked) void uploadTextureStub()
 		jmp dword ptr [uploadTexture]
 	}
 }
+// [Graphic] liquid_potions: D2Client DrawItemGfx (1.14d 0x46EE80, per Redivivus Engine/Gfx.cpp; __fastcall pUnit, x, y)
+// draws every UI item (inventory/stash/cube grids, equipped slots, belt PANEL_DrawBottomPanel, cursor DrawCursor) through
+// D2GFX_DrawImage; the unit is kept for drawImageHooked. Items table: D2Common TXT_Items_GetLine 0x6335F0 reads
+// gsItemsTable.nSize 0x96CA58 / pItems 0x96CA5C, D2ItemsTxt is 0x1A8 bytes with the item code at +0x80.
+typedef uint32_t(__fastcall* drawItemGfx_t)(UnitAny* unit, int x, int y);
+static drawItemGfx_t drawItemGfx = nullptr;
+static uint32_t __fastcall drawItemGfxHooked(UnitAny* unit, int x, int y)
+{
+	UnitAny* prev = drawing_ui_item;
+	drawing_ui_item = unit;
+	const uint32_t ret = drawItemGfx(unit, x, y);
+	drawing_ui_item = prev;
+	return ret;
+}
+static bool itemHookValid()
+{
+	if (isVerNot(V_114d))
+		return false;
+	const uintptr_t base = (uintptr_t)GetModuleHandle(NULL);
+	static const uint8_t item_sig[] = { 0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x54, 0x53, 0x56, 0x8B, 0xF1, 0x85, 0xF6 };
+	static const uint8_t txt_sig[] = { 0x55, 0x8B, 0xEC, 0x8B, 0x45, 0x08, 0x3B, 0x05, 0x58, 0xCA, 0x96, 0x00 };
+	if (memcmp((void*)(base + 0x6EE80), item_sig, sizeof(item_sig)) || memcmp((void*)(base + 0x2335F0), txt_sig, sizeof(txt_sig)))
+		return false;
+	drawItemGfx = (drawItemGfx_t)(base + 0x6EE80);
+	return true;
+}
+
+// Potion item codes (vanilla plus Median XL 2012: hpo/hpf/mpo/mpf, rps/rpl/bps/bpl, rvs/rvl; Median charms share type
+// hpot, so the code decides, not the item type).
+bool isPotionItem(UnitAny* unit)
+{
+	if (!unit || !drawItemGfx || unit->dwType != UnitType::Item)
+		return false;
+	static const char codes[][4] = { "hp1", "hp2", "hp3", "hp4", "hp5", "hpo", "hpf", "mp1", "mp2", "mp3", "mp4", "mp5", "mpo", "mpf",
+		"rps", "rpl", "bps", "bpl", "rvs", "rvl", "vps", "yps", "wms" };
+	__try {
+		const uintptr_t base = (uintptr_t)GetModuleHandle(NULL);
+		const uint32_t count = *(const uint32_t*)(base + 0x56CA58);
+		const uint8_t* items = *(const uint8_t* const*)(base + 0x56CA5C);
+		const uint32_t id = unit->v110.dwClassId;
+		if (!items || id >= count)
+			return false;
+		const char* code = (const char*)(items + id * 0x1A8 + 0x80);
+		if (code[3] != ' ' && code[3] != 0)
+			return false;
+		for (const auto& c : codes)
+			if (code[0] == c[0] && code[1] == c[1] && code[2] == c[2])
+				return true;
+	} __except (EXCEPTION_EXECUTE_HANDLER) {
+	}
+	return false;
+}
+
 static bool uploadHookValid()
 {
 	if (isVerNot(V_114d) || !(App.hires_textures || App.hires_ui || App.hires_items))
@@ -366,6 +421,8 @@ void initHooks()
 	}
 	if (uploadHookValid())
 		DetourAttach(&(PVOID&)uploadTexture, uploadTextureStub);
+	if (itemHookValid())
+		DetourAttach(&(PVOID&)drawItemGfx, drawItemGfxHooked);
 	DetourTransactionCommit();
 }
 
@@ -403,6 +460,8 @@ void destroyHooks()
 	}
 	if (uploadTexture)
 		DetourDetach(&(PVOID&)uploadTexture, uploadTextureStub);
+	if (drawItemGfx)
+		DetourDetach(&(PVOID&)drawItemGfx, drawItemGfxHooked);
 	DetourTransactionCommit();
 }
 

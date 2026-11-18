@@ -184,6 +184,9 @@ struct D2GLApp {
 	bool silhouettes = false; // [Graphic] silhouettes: tinted player shape where walls/objects hide it (glide)
 	Select<int> orb_style = { 0, { { "Classic", 0 }, { "Procedural", 1 }, { "Workshop", 2 } } }; // [Graphic] orb_style: 1 = procedural animated orb liquid (glide)
 	Range<float> orb_motion = { 1.0f, 0.0f, 2.0f }; // [Graphic] orb_motion: wave/swirl/bubble strength of orb_style 1 (0 = static)
+	bool liquid_bars = false; // [Graphic] liquid_bars: experience and stamina bars as flowing liquid (glide)
+	bool liquid_potions = false; // [Graphic] liquid_potions: animated liquid inside potion bottles in the UI (glide, 1.14d)
+	bool liquid_portals = false; // [Graphic] liquid_portals: town portals as a swirling vortex (glide)
 
 
 	struct {

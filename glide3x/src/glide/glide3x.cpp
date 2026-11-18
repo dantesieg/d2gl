@@ -18,6 +18,7 @@
 
 #include "pch.h"
 #include "wrapper.h"
+#include "d2/funcs.h"
 
 using namespace d2gl;
 
@@ -271,6 +272,16 @@ FX_ENTRY FxU32 FX_CALL grTexTextureMemRequired(FxU32 evenOdd, GrTexInfo* info)
 {
 	assert(false);
 	return 0;
+}
+
+// [Graphic] liquid bars for other modules (Median:Revived plugin): draws a procedural liquid bar over the track
+// x, y, w, h (game 800x600 coordinates), filled from the left by fill (0..1), colour 0xRRGGBB, id = a stable bar number
+// (pulse state). Only during UI drawing on the game thread. Returns 1 if drawn, 0 if unavailable (not glide, not in game).
+// Exported undecorated as well (the pragma), so GetProcAddress(..., "d2gl_liquid_bar") finds it.
+#pragma comment(linker, "/EXPORT:d2gl_liquid_bar=_d2gl_liquid_bar@28")
+__declspec(dllexport) int __stdcall d2gl_liquid_bar(int x, int y, int w, int h, float fill, unsigned rgb, int id)
+{
+	return d2::liquidBarExternal(x, y, w, h, fill, (uint32_t)rgb, id);
 }
 
 #ifdef __cplusplus

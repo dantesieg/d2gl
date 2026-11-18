@@ -66,6 +66,7 @@ void __stdcall drawImageFastHooked(CellContext* cell, int x, int y, uint8_t pale
 void __stdcall drawShadowHooked(CellContext* cell, int x, int y);
 void __stdcall drawSolidRectExHooked(int left, int top, int right, int bottom, uint32_t color, int draw_mode);
 void __stdcall drawLineHooked(int x_start, int y_start, int x_end, int y_end, uint8_t color, uint8_t alpha);
+int liquidBarExternal(int x, int y, int w, int h, float fill, uint32_t rgb, int id); // d2gl_liquid_bar export
 bool __stdcall drawGroundTileHooked(TileContext* tile, GFXLight* light, int x, int y, int world_x, int world_y, uint8_t alpha, int screen_panels, bool tile_data);
 bool __stdcall drawWallTileHooked(TileContext* tile, int x, int y, GFXLight* light, int screen_panels);
 bool __stdcall drawTransWallTileHooked(TileContext* tile, int x, int y, GFXLight* light, int screen_panels, uint8_t alpha);
