@@ -1805,7 +1805,7 @@ bool Context::pushOrbQuad(glm::vec4 rect, uint32_t color, uint32_t params)
 		m_vertices.ptr->color1 = color;
 		m_vertices.ptr->color2 = params;
 		m_vertices.ptr->tex_ids = { 0, 0 };
-		m_vertices.ptr->flags = { 0, 4, 0, m_vertex_params.flags.w };
+		m_vertices.ptr->flags = { 0, 4, (uint8_t)App.orb_style.selected, m_vertex_params.flags.w }; // z: orb style (1 or 2)
 		m_vertices.ptr->tex_rect = { 0, 0, 0, 0 };
 		m_vertices.ptr++;
 		m_vertices.count++;

@@ -200,10 +200,77 @@ vec4 proceduralOrb()
 	return vec4(col, alpha);
 }
 
+// [Graphic] orb_style 2: the look tuned in Orb Workshop (translucency .1, cloudiness 1, saturation 1.35, depth .9, inner glow .13,
+// swirl .4 / size 1.5 / speed .6, wave height .6, 4 bubbles, surface line 1.5, glass shine .62, edge shadow .7). Same inputs as style 1.
+vec4 workshopOrb()
+{
+	vec2 uv = v_TexCoord;
+	vec2 p = vec2(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0); // y up
+	float r = length(p);
+	float aa = max(fwidth(r), 1e-4) * 1.5;
+	float circle = 1.0 - smoothstep(1.0 - aa, 1.0, r);
+	float motion = v_Color2.b * 2.0;
+	float t = u_Time * min(motion, 1.0);
+	float fill = v_Color2.r;
+	float sl = v_Color2.g;
+	float id = v_Color2.a * 3.7;
+	float nz = sqrt(max(1.0 - r * r, 0.0));
+	float h = (p.y + 1.0) * 0.5;
+
+	float wave = sin(p.x * 4.5 + t * 1.7 + id) * 0.5 + sin(p.x * 8.5 - t * 2.3 + id * 2.0) * 0.3 + sin(p.x * 14.5 + t * 3.1) * 0.2;
+	float edge = smoothstep(0.0, 0.06, fill) * smoothstep(0.0, 0.06, 1.0 - fill);
+	float surf = fill + ((0.012 + 0.03 * sl) * wave * 0.6 + 0.06 * sl * sin(t * 7.0) * p.x) * motion * edge;
+	float d = surf - h;
+	float aay = max(fwidth(h), 1e-4);
+	float liquid = smoothstep(-aay, aay, d);
+	if (circle * liquid <= 0.0)
+		discard;
+
+	vec3 base = v_Color1.rgb;
+	base *= clamp(0.8 / max(max(base.r, max(base.g, base.b)), 0.02), 0.5, 3.0);
+
+	float a = t * 0.12 * 0.6;
+	vec2 q = mat2(cos(a), -sin(a), sin(a), cos(a)) * p * 1.5;
+	vec2 warp = vec2(orbFbm(q * 1.3 + vec2(0.0, t * 0.03)), orbFbm(q * 1.3 + vec2(5.2, -t * 0.024)));
+	float n = orbFbm(q * 2.0 + warp * 0.8 + vec2(0.0, t * 0.048));
+	float dens = smoothstep(0.25, 0.75, n);
+	float dd = clamp(d / max(fill, 0.05), 0.0, 1.0);
+	vec3 col = base * mix(1.25, 0.325, dd);
+	col *= 0.75 + 0.5 * mix(0.5, n, 0.4);
+	col *= mix(0.3, 1.0, nz);
+	vec2 gc = p - vec2(0.0, -0.15);
+	col += base * 0.13 * 0.8 * exp(-dot(gc, gc) * 2.2);
+
+	for (int i = 0; i < 4; i++) {
+		float fi = float(i) + id * 3.0;
+		float hh = orbHash(vec2(fi, 1.7));
+		float by = fract(t * (0.05 + 0.05 * hh) + hh * 3.0) * (surf + 0.02);
+		vec2 bc = vec2(-0.55 + 1.1 * orbHash(vec2(fi, 4.3)) + 0.03 * sin(t * 2.0 + fi * 5.0), by * 2.0 - 1.0);
+		float br = 0.02 + 0.025 * orbHash(vec2(fi, 9.1));
+		float bd = length(p - bc);
+		float ring = (1.0 - smoothstep(br * 0.6, br, bd)) * (0.3 + 0.7 * smoothstep(br * 0.2, br, bd));
+		col += (base * 0.7 + vec3(0.25)) * ring * step(bc.y + br, surf * 2.0 - 1.0) * step(0.001, motion);
+	}
+
+	float men = exp(-abs(d) / (aay * 1.2 + 0.006));
+	col += (base * 0.9 + vec3(0.25)) * men * edge * 1.5;
+	float l = dot(col, vec3(0.299, 0.587, 0.114));
+	col = mix(vec3(l), col, 1.35);
+	vec3 nrm = vec3(p.x, p.y, nz);
+	float sp = pow(max(dot(nrm, normalize(vec3(-0.45, 0.55, 0.7))), 0.0), 40.0);
+	float sp2 = pow(max(dot(nrm, normalize(vec3(0.5, -0.6, 0.6))), 0.0), 90.0);
+	col += vec3(sp * 0.6 + sp2 * 0.25) * 0.62;
+
+	col = clamp(col, 0.0, 1.0);
+	col = vec3(u_Gamma[int(col.r * 255.0)].r, u_Gamma[int(col.g * 255.0)].g, u_Gamma[int(col.b * 255.0)].b);
+	float opacity = mix(1.0, mix(0.25, 1.0, dens * 0.6 + dd * 0.4), 0.1);
+	return vec4(col, circle * liquid * opacity);
+}
+
 void main()
 {
 	if (v_Flags.y == 4u) {
-		FragColor = proceduralOrb();
+		FragColor = v_Flags.z == 2u ? workshopOrb() : proceduralOrb();
 		FragColorMap = vec4(0.0);
 		FragColorMask = vec4(0.0, 0.0, 0.0, v_Flags.w == 0u ? FragColor.a : 0.0);
 		FragColorShadow = vec4(0.0);

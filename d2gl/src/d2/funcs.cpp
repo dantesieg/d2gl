@@ -376,7 +376,7 @@ void __stdcall drawVerticalCropImageHooked(CellContext* cell, int x, int y, int 
 	d2::drawing_orb_liquid = orb_liquid;
 	// [Graphic] orb_style 1: the game's draw runs with its vertices dropped (it loads the cell), then our quad takes
 	// its place in the command stream; the classic liquid is drawn if the cell cannot be read
-	const bool hd = orb_liquid && App.orb_style.selected == 1 && ISGLIDE3X();
+	const bool hd = orb_liquid && App.orb_style.selected >= 1 && ISGLIDE3X();
 	d2::drawing_orb_hd = hd;
 	drawVerticalCropImage(cell, pos.x, pos.y, skip_lines, draw_lines, draw_mode);
 	d2::drawing_orb_hd = false;

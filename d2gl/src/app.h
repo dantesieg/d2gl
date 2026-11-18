@@ -182,7 +182,7 @@ struct D2GLApp {
 	bool hires_items = false; // [Graphic] hires_items: AI-upscaled inventory items d2gl_hires_items.pak (restart)
 	bool hires_textures = false; // [Graphic] hires_textures: AI-upscaled texture pack d2gl_hires.pak (restart)
 	bool silhouettes = false; // [Graphic] silhouettes: tinted player shape where walls/objects hide it (glide)
-	Select<int> orb_style = { 0, { { "Classic", 0 }, { "Procedural", 1 } } }; // [Graphic] orb_style: 1 = procedural animated orb liquid (glide)
+	Select<int> orb_style = { 0, { { "Classic", 0 }, { "Procedural", 1 }, { "Workshop", 2 } } }; // [Graphic] orb_style: 1 = procedural animated orb liquid (glide)
 	Range<float> orb_motion = { 1.0f, 0.0f, 2.0f }; // [Graphic] orb_motion: wave/swirl/bubble strength of orb_style 1 (0 = static)
 
 
