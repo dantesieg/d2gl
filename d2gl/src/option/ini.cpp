@@ -229,7 +229,11 @@ void saveIni()
 		"; Hi-res items: AI-upscaled inventory items from d2gl_hires_items.pak (glide, restart needed).\n"
 		"hires_items=%s\n"
 		"; Wall silhouettes: the player shows as a tinted shape where walls, trees or buildings hide it (glide).\n"
-		"silhouettes=%s\n\n"
+		"silhouettes=%s\n"
+		"; Orb style: 0 classic game orbs, 1 procedural animated liquid (glide; per screen pixel with native_render).\n"
+		"orb_style=%d\n"
+		"; Orb motion: waves, swirl and bubbles of orb style 1 (0.0 = static, up to 2.0).\n"
+		"orb_motion=%.2f\n\n"
 		"; HDR-style tonemapping (world only, exposure: 0.2-1.0).\n"
 		"tonemap=%s\n"
 		"tonemap_exposure=%.3f\n\n"
@@ -277,6 +281,8 @@ void saveIni()
 		boolString(App.hires_ui),
 		boolString(App.hires_items),
 		boolString(App.silhouettes),
+		App.orb_style.selected,
+		App.orb_motion.value,
 		boolString(App.tonemap.active),
 		App.tonemap.exposure.value,
 		boolString(App.soft_shadows.active),
@@ -594,6 +600,8 @@ void loadIni()
 		App.hires_ui = getBool("Graphic", "hires_ui", App.hires_ui);
 		App.hires_items = getBool("Graphic", "hires_items", App.hires_items);
 		App.silhouettes = getBool("Graphic", "silhouettes", App.silhouettes);
+		App.orb_style.selected = getInt("Graphic", "orb_style", App.orb_style.selected, 0, 1);
+		App.orb_motion.value = getFloat("Graphic", "orb_motion", App.orb_motion);
 		App.tonemap.active = getBool("Graphic", "tonemap", App.tonemap.active);
 		App.tonemap.exposure.value = getFloat("Graphic", "tonemap_exposure", App.tonemap.exposure);
 		App.soft_shadows.active = getBool("Graphic", "soft_shadows", App.soft_shadows.active);

@@ -24,6 +24,9 @@
 #include "modules/motion_prediction.h"
 #include "modules/loot_sparkle.h"
 #include "stubs.h"
+#include "graphic/hires_pack.h"
+
+#include <cmath>
 
 namespace d2gl::d2 {
 
@@ -264,6 +267,97 @@ void __stdcall drawShiftedImageHooked(CellContext* cell, int x, int y, uint32_t 
 	}
 }
 
+// [Graphic] orb_style 1: the liquid cell as the game just drew it (pCurGfxCell is set by the draw call).
+// DC6 lines: 0x80 ends a line, 0x80 | n skips n transparent pixels, n < 0x80 is followed by n palette indices.
+struct OrbCell {
+	int xoffs, yoffs, height;
+	int x0, y0, x1, y1; // opaque box in cell pixels, top-down, end exclusive
+	uint32_t color;     // 0xFFRRGGBB average of the opaque pixels in the current palette
+};
+
+static bool decodeOrbCell(CellContext* cell, OrbCell* out)
+{
+	__try {
+		const GfxCell* gfx = (isVerMin(V_113c)) ? cell->v113.pCurGfxCell : ((isVer(V_112)) ? cell->v112.pCurGfxCell : ((isVerMin(V_111)) ? cell->v111.pCurGfxCell : cell->v109.pCurGfxCell));
+		if (!gfx || gfx->width == 0 || gfx->width > 256 || gfx->height == 0 || gfx->height > 256 || gfx->length == 0 || gfx->length > 0x10000)
+			return false;
+		const BYTE* data = &gfx->cols;
+		const DWORD len = gfx->length;
+		const int w = (int)gfx->width, h = (int)gfx->height;
+		int x = 0, row = 0, x0 = w, x1 = 0, r0 = h, r1 = 0;
+		uint32_t n = 0, sr = 0, sg = 0, sb = 0; // <= 65536 pixels * 255 fits
+		for (DWORD i = 0; i < len && row < h; i++) {
+			const BYTE b = data[i];
+			if (b == 0x80) {
+				row++;
+				x = 0;
+			} else if (b & 0x80)
+				x += b & 0x7F;
+			else if (b) {
+				if (i + b >= len || x + b > w)
+					return false;
+				for (DWORD k = 1; k <= b; k++) {
+					const uint32_t c = hires::g_pal[data[i + k]];
+					sr += (c >> 16) & 0xFF;
+					sg += (c >> 8) & 0xFF;
+					sb += c & 0xFF;
+				}
+				n += b;
+				x0 = std::min(x0, x);
+				x1 = std::max(x1, x + b);
+				r0 = std::min(r0, row);
+				r1 = std::max(r1, row + 1);
+				x += b;
+				i += b;
+			}
+		}
+		if (n < 16 || x1 - x0 < 8 || r1 - r0 < 8)
+			return false;
+		out->xoffs = (int)gfx->xoffs;
+		out->yoffs = (int)gfx->yoffs;
+		out->height = h;
+		out->x0 = x0;
+		out->x1 = x1;
+		out->y0 = gfx->flags ? r0 : h - r1; // flip 0: lines are stored bottom-up
+		out->y1 = gfx->flags ? r1 : h - r0;
+		out->color = 0xFF000000 | ((sr / n) << 16) | ((sg / n) << 8) | (sb / n);
+		return true;
+	} __except (EXCEPTION_EXECUTE_HANDLER) {
+		return false;
+	}
+}
+
+// Liquid box at the cell's draw position (vertical extent y + yoffs - height .. y + yoffs, as D2Gfx clips it),
+// fill = the drawn bottom lines over the box, slosh = decaying kick from fill changes (per orb, ~0.6 s to 10 %).
+static bool pushProceduralOrb(CellContext* cell, int x, int y, int skip_lines, int draw_lines)
+{
+	OrbCell oc;
+	if (!decodeOrbCell(cell, &oc))
+		return false;
+
+	const float left = (float)(x + oc.xoffs), bottom = (float)(y + oc.yoffs), top = bottom - (float)oc.height;
+	const glm::vec4 rect = { left + (float)oc.x0, top + (float)oc.y0, left + (float)oc.x1, top + (float)oc.y1 };
+	const float surface = bottom - (float)(skip_lines + draw_lines);
+	const float fill = std::clamp((rect.w - surface) / (rect.w - rect.y), 0.0f, 1.0f);
+
+	static struct { float fill; float slosh; ULONGLONG tick; } orbs[2] = {};
+	const int id = x < (int)*d2::screen_width / 2 ? 0 : 1;
+	auto& s = orbs[id];
+	const ULONGLONG now = GetTickCount64();
+	if (s.tick && now - s.tick < 1000) {
+		s.slosh *= std::exp(-(float)(now - s.tick) * 0.001f / 0.26f);
+		s.slosh = std::min(1.0f, s.slosh + std::fabs(fill - s.fill) * 6.0f);
+	} else
+		s.slosh = 0.0f;
+	s.fill = fill;
+	s.tick = now;
+
+	const uint32_t f8 = (uint32_t)(fill * 255.0f + 0.5f);
+	const uint32_t s8 = (uint32_t)(s.slosh * 255.0f + 0.5f);
+	const uint32_t m8 = (uint32_t)(std::clamp(App.orb_motion.value, 0.0f, 2.0f) * 127.5f + 0.5f);
+	return App.context->pushOrbQuad(rect, oc.color, (f8 << 24) | (s8 << 16) | (m8 << 8) | (id ? 0xFFu : 0u));
+}
+
 void __stdcall drawVerticalCropImageHooked(CellContext* cell, int x, int y, int skip_lines, int draw_lines, int draw_mode)
 {
 	App.context->setStencilClass(0);
@@ -280,7 +374,14 @@ void __stdcall drawVerticalCropImageHooked(CellContext* cell, int x, int y, int 
 	const bool orb = orb_liquid && App.hdr.orb_glow.value > 0.0f;
 	d2::drawing_orb = orb;
 	d2::drawing_orb_liquid = orb_liquid;
+	// [Graphic] orb_style 1: the game's draw runs with its vertices dropped (it loads the cell), then our quad takes
+	// its place in the command stream; the classic liquid is drawn if the cell cannot be read
+	const bool hd = orb_liquid && App.orb_style.selected == 1 && ISGLIDE3X();
+	d2::drawing_orb_hd = hd;
 	drawVerticalCropImage(cell, pos.x, pos.y, skip_lines, draw_lines, draw_mode);
+	d2::drawing_orb_hd = false;
+	if (hd && !pushProceduralOrb(cell, pos.x, pos.y, skip_lines, draw_lines))
+		drawVerticalCropImage(cell, pos.x, pos.y, skip_lines, draw_lines, draw_mode);
 	d2::drawing_orb = false;
 	d2::drawing_orb_liquid = false;
 }

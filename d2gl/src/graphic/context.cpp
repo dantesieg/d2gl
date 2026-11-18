@@ -654,7 +654,7 @@ void Context::renderThread(void* context)
 							ctx->m_game_pipeline->setUniform1f("u_HotPixels", last_hot = hot);
 						if (!same_pipe || last_flicker != App.dynamic_light.flicker.value)
 							ctx->m_game_pipeline->setUniform1f("u_LightFlicker", last_flicker = App.dynamic_light.flicker.value);
-						if (App.dynamic_light.flicker.value > 0.0f) {
+						if (App.dynamic_light.flicker.value > 0.0f || App.orb_style.selected == 1) { // [Graphic] orb_style 1 animates by u_Time
 							// GetTickCount64 steps every ~16 ms: upload only when it moved, not on every blend switch
 							static float last_time = -1.0f;
 							const float t = (float)fmod((double)GetTickCount64() * 0.001, 3600.0);
@@ -1643,6 +1643,8 @@ void Context::captureLights(CommandBuffer& cb)
 
 void Context::pushVertex(const GlideVertex* vertex, glm::vec2 fix, glm::ivec2 offset)
 {
+	if (d2::drawing_orb_hd)
+		return; // [Graphic] orb_style 1: the game's orb liquid is replaced by pushOrbQuad
 	if ((m_stencil_class | m_stencil_mode) && m_quad_vtx == 0)
 		updateStencil(vertex->x - (float)offset.x, vertex->y - (float)offset.y);
 	if (m_vertices.count >= MAX_VERTICES - 4)
@@ -1781,6 +1783,38 @@ void Context::pushAdditiveQuads(const glm::vec2* pos, const uint32_t* colors, ui
 
 	flushVertices();
 	m_command_buffer[m_frame_index].pushCommand(CommandType::SetBlendState, m_current_blend_index);
+}
+
+// [Graphic] orb_style 1: one quad over the orb liquid's box (game units), procedural liquid in glide.glsl (flag y 4).
+// color1 = base colour 0xFFRRGGBB, color2 = params 0xRRGGBBAA (r fill, g slosh, b motion / 2, a orb id).
+// Alpha blend (pipeline 3) for the anti-aliased circle and surface; pushed where the game's liquid would be.
+bool Context::pushOrbQuad(glm::vec4 rect, uint32_t color, uint32_t params)
+{
+	if (!ISGLIDE3X() || m_blend_locked || m_command_buffer[m_frame_index].m_count > 1536)
+		return false;
+
+	stencilOff();
+	flushVertices();
+	m_command_buffer[m_frame_index].pushCommand(CommandType::SetBlendState, 3);
+
+	const glm::vec2 corners[4] = { { rect.x, rect.y }, { rect.z, rect.y }, { rect.z, rect.w }, { rect.x, rect.w } };
+	const glm::vec2 uvs[4] = { { 0.0f, 0.0f }, { 1.0f, 0.0f }, { 1.0f, 1.0f }, { 0.0f, 1.0f } };
+	for (int i = 0; i < 4; i++) {
+		m_vertices.ptr->position = { glm::detail::toFloat16(corners[i].x), glm::detail::toFloat16(corners[i].y) };
+		m_vertices.ptr->tex_coord = uvs[i];
+		m_vertices.ptr->color1 = color;
+		m_vertices.ptr->color2 = params;
+		m_vertices.ptr->tex_ids = { 0, 0 };
+		m_vertices.ptr->flags = { 0, 4, 0, m_vertex_params.flags.w };
+		m_vertices.ptr->tex_rect = { 0, 0, 0, 0 };
+		m_vertices.ptr++;
+		m_vertices.count++;
+		m_frame.vertex_count++;
+	}
+
+	flushVertices();
+	m_command_buffer[m_frame_index].pushCommand(CommandType::SetBlendState, m_current_blend_index);
+	return true;
 }
 
 // [Graphic] silhouettes: called before each hooked world draw (no GL work, just the class of what follows).

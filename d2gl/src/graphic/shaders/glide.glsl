@@ -113,8 +113,95 @@ bool nativeSample(out vec4 col)
 	return true;
 }
 
+float orbHash(vec2 p)
+{
+	return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+}
+
+float orbNoise(vec2 p)
+{
+	vec2 i = floor(p);
+	vec2 f = p - i;
+	f = f * f * (3.0 - 2.0 * f);
+	return mix(mix(orbHash(i), orbHash(i + vec2(1.0, 0.0)), f.x), mix(orbHash(i + vec2(0.0, 1.0)), orbHash(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+
+// [Graphic] orb_style 1: procedural orb liquid (flag y 4), evaluated per output pixel. v_TexCoord 0..1 over the liquid's
+// box (y down), v_Color1 = average colour of the game's liquid sprite, v_Color2: r fill from the bottom, g slosh, b motion / 2, a orb id
+vec4 proceduralOrb()
+{
+	vec2 uv = v_TexCoord;
+	vec2 p = uv * 2.0 - 1.0;
+	float r = length(p);
+	float circle = 1.0 - smoothstep(1.0 - max(fwidth(r), 1e-4) * 1.5, 1.0, r);
+	float motion = v_Color2.b * 2.0;
+	float t = u_Time * min(motion, 1.0);
+	float fill = v_Color2.r;
+	float slosh = v_Color2.g;
+	float id = v_Color2.a * 3.7;
+
+	// surface: three summed sines plus a decaying tilt after the fill changes; flat when full or empty
+	float wave = sin(uv.x * 9.0 + t * 1.7 + id) * 0.5 + sin(uv.x * 17.0 - t * 2.3 + id * 2.0) * 0.3 + sin(uv.x * 29.0 + t * 3.1) * 0.2;
+	float edge = smoothstep(0.0, 0.06, fill) * smoothstep(0.0, 0.06, 1.0 - fill);
+	float surf = 1.0 - fill + ((0.012 + 0.03 * slosh) * wave + 0.06 * slosh * sin(t * 7.0) * p.x) * motion * edge;
+	float d = uv.y - surf;
+	float aa = max(fwidth(uv.y), 1e-4);
+	float liquid = smoothstep(-aa, aa, d);
+	float alpha = circle * liquid;
+	if (alpha <= 0.0)
+		discard;
+
+	// base colour at a steady brightness (hue from the sprite, so mod and poison colours carry over)
+	vec3 base = v_Color1.rgb;
+	base *= clamp(0.62 / max(max(base.r, max(base.g, base.b)), 0.02), 0.5, 3.0);
+
+	// slow swirl: noise in coordinates turning around the centre
+	float a = t * 0.12;
+	vec2 q = mat2(cos(a), -sin(a), sin(a), cos(a)) * p;
+	float n = orbNoise(q * 3.0 + vec2(0.0, t * 0.15)) * 0.65 + orbNoise(q * 7.0 - vec2(t * 0.2, 0.0)) * 0.35;
+
+	vec3 col = base * mix(1.3, 0.4, clamp(uv.y, 0.0, 1.0)); // darker toward the bottom
+	col *= 0.8 + 0.4 * n;
+	float nz = sqrt(max(1.0 - r * r, 0.0));
+	col *= mix(0.55, 1.0, nz); // rounded body
+
+	// rising bubbles, popping at the surface (hidden when motion is 0)
+	for (int i = 0; i < 4; i++) {
+		float fi = float(i) + id;
+		float h = orbHash(vec2(fi, 1.7));
+		float by = 1.0 - fract(t * (0.07 + 0.05 * h) + h * 3.0) * (1.0 - surf + 0.04);
+		vec2 bc = vec2(0.3 + 0.4 * orbHash(vec2(fi, 4.3)) + 0.02 * sin(t * 2.0 + fi * 5.0), by);
+		float br = 0.012 + 0.012 * orbHash(vec2(fi, 9.1));
+		float bd = length(uv - bc);
+		float ring = (1.0 - smoothstep(br * 0.55, br, bd)) * (0.35 + 0.65 * smoothstep(br * 0.3, br, bd));
+		col += base * 0.9 * ring * step(0.001, motion) * step(surf + br, by);
+	}
+
+	// bright meniscus line at the surface and a soft specular on the upper left
+	float men = exp(-abs(d) / (aa * 1.5 + 0.008));
+	col += (base * 0.9 + vec3(0.2)) * men * edge;
+	vec3 nrm = vec3(p.x, p.y, nz);
+	float spec = pow(max(dot(nrm, normalize(vec3(-0.45, -0.55, 0.7))), 0.0), 24.0);
+	col += vec3(0.3) * spec;
+
+	col = clamp(col, 0.0, 1.0);
+	col = vec3(u_Gamma[int(col.r * 255.0)].r, u_Gamma[int(col.g * 255.0)].g, u_Gamma[int(col.b * 255.0)].b);
+	return vec4(col, alpha);
+}
+
 void main()
 {
+	if (v_Flags.y == 4u) {
+		FragColor = proceduralOrb();
+		FragColorMap = vec4(0.0);
+		FragColorMask = vec4(0.0, 0.0, 0.0, v_Flags.w == 0u ? FragColor.a : 0.0);
+		FragColorShadow = vec4(0.0);
+		FragLight = vec4(0.0);
+		// [HDR] orb_glow as for the game's liquid (u_OrbGlow is 0 without the emission attachment); alpha draw: weight by coverage
+		FragEmit = vec4(max(FragColor.r, max(FragColor.g, FragColor.b)) * u_OrbGlow * 4.0, 0.0, 0.0, FragColor.a);
+		return;
+	}
+
 	// v_Flags.x high nibble: 1 multiply shadow, 2 opaque occluder, 3 AO ellipse, 4 alpha shadow, 5 alpha occluder
 	uint sk = v_Flags.x >> 4u;
 	FragColorShadow = vec4(0.0);

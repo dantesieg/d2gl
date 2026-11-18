@@ -159,6 +159,7 @@ extern uintptr_t getLevelName_Fn;
 extern UnitAny* currently_drawing_unit;
 extern bool drawing_orb_liquid; // [Graphic] hires_textures: the orb liquid keeps its original texture
 extern bool drawing_orb; // [HDR] orb_glow: inside the health/mana orb liquid draw
+extern bool drawing_orb_hd; // [Graphic] orb_style 1: the game's orb liquid vertices are dropped (pushVertex)
 extern int player_screen_x, player_screen_y; // [HDR] light_pools: last world draw position of the player (game units)
 extern uint32_t player_screen_frame;
 extern uint32_t currently_drawing_weather_particles;

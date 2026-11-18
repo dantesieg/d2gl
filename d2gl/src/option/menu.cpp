@@ -347,6 +347,13 @@ void Menu::draw()
 			}
 			drawCombo_m("Native Render Filter", App.game.native_filter, "How sprites are scaled with Native Render: Nearest (uneven pixels), Sharp (pixel-exact, blended at pixel borders), Smooth. Applies live.", false, 17, native_render_filter)
 				saveInt("Graphic", "native_render_filter", App.game.native_filter.selected);
+			drawCombo_m("Orb Style", App.orb_style, "Classic: the game's own orb liquid. Procedural: animated liquid (waves, swirl, bubbles), per screen pixel with Native Render; colour taken from the game's orb sprite (glide). Applies live.", false, 17, orb_style)
+				saveInt("Graphic", "orb_style", App.orb_style.selected);
+			ImGui::BeginDisabled(App.orb_style.selected != 1);
+				drawSlider_m(float, "", App.orb_motion, "%.2f", "", orb_motion)
+					saveFloat("Graphic", "orb_motion", App.orb_motion.value);
+				drawDescription("Procedural orb motion. 0 = static.", m_colors[Color::Gray], 12);
+			ImGui::EndDisabled();
 			ImGui::Dummy({ 0.0f, 12.0f });
 			drawSeparator();
 			drawLabel("Sharpen & Anti-Aliasing", m_colors[Color::Orange], 17);
