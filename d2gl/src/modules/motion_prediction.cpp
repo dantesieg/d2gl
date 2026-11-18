@@ -48,75 +48,6 @@
 
 namespace d2gl::modules {
 
-// The game culls floor tiles, walls and roofs to the viewport before m_global_offset shifts the world, so
-// the leading edge showed missing floor diamonds / walls (a jagged band) while walking. 1.14d (per Redivivus,
-// D2Client GAME/View.cpp + Wall2.cpp): grow both cull rects by one floor tile while prediction is on.
-namespace {
-
-struct GameView { // D2GameViewStrc
-	uint32_t flags;
-	RECT view;     // +0x04
-	RECT extended; // +0x14 floor/roof cull rect in screen px (SetViewRectangleSize 0x476000)
-	int center_x;  // +0x24 world px at the view's left/top edge
-	int center_y;  // +0x28
-};
-typedef void(__fastcall* buildSceneDrawList_t)(GameView* view, uint32_t tick_count);
-buildSceneDrawList_t buildSceneDrawList = nullptr; // WALL2_BuildSceneDrawList 0x4DDB70: wall/roof/unit draw list
-GameView** game_view = nullptr;                    // D2GameView 0x7A0640
-bool floor_cull_grown = false;
-constexpr int CULL_MARGIN_X = 160, CULL_MARGIN_Y = 80; // > the largest predicted offset (2 subtiles: 90 x 45 px)
-
-bool cullHookValid()
-{
-	if (isVerNot(V_114d))
-		return false;
-	const uintptr_t base = (uintptr_t)GetModuleHandle(NULL);
-	static const uint8_t build_sig[] = { 0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x24, 0x56, 0x57, 0x8B, 0xF1, 0x8B, 0xFA };
-	if (memcmp((void*)(base + 0xDDB70), build_sig, sizeof(build_sig)))
-		return false;
-	buildSceneDrawList = (buildSceneDrawList_t)(base + 0xDDB70);
-	game_view = (GameView**)(base + 0x3A0640);
-	return true;
-}
-
-// Same rect as SetViewRectangleSize, optionally grown; absolute so it can be applied every frame.
-void setFloorCull(GameView* view, bool grow)
-{
-	const int mx = grow ? CULL_MARGIN_X : 0;
-	const int my = grow ? CULL_MARGIN_Y : 0;
-	RECT r = { -0x50 - mx, -0x50 - my, (LONG)*d2::screen_width + 0x50 + mx, (LONG)*d2::screen_height - 0x2F + my };
-	if (d2::isPerspective()) {
-		r.left -= 0x2D;
-		r.top -= 0x1E;
-		r.right += 0x1E;
-	}
-	view->extended = r;
-	floor_cull_grown = grow;
-}
-
-// Runs once per frame before the world is drawn. The wall cull rect is derived from view size and center, so
-// both are widened around the call only; the draw list keeps world positions, drawing uses the restored view.
-void __fastcall buildSceneDrawListHooked(GameView* view, uint32_t tick_count)
-{
-	if (!view) {
-		buildSceneDrawList(view, tick_count);
-		return;
-	}
-	setFloorCull(view, true);
-	const RECT saved_view = view->view;
-	const int saved_x = view->center_x, saved_y = view->center_y;
-	view->center_x -= CULL_MARGIN_X;
-	view->center_y -= CULL_MARGIN_Y;
-	view->view.right += CULL_MARGIN_X * 2;
-	view->view.bottom += CULL_MARGIN_Y * 2;
-	buildSceneDrawList(view, tick_count);
-	view->view = saved_view;
-	view->center_x = saved_x;
-	view->center_y = saved_y;
-}
-
-}
-
 MotionPrediction::MotionPrediction()
 {
 	m_units.reserve(1024);
@@ -128,8 +59,6 @@ void MotionPrediction::toggle(bool active)
 		DetourTransactionBegin();
 		DetourUpdateThread(GetCurrentThread());
 		DetourAttach(&(PVOID&)d2::drawWeatherParticles, isVer(V_114d) ? d2::drawWeatherParticlesStub114d : d2::drawWeatherParticlesStub);
-		if (buildSceneDrawList || cullHookValid())
-			DetourAttach(&(PVOID&)buildSceneDrawList, buildSceneDrawListHooked);
 		DetourTransactionCommit();
 		d2::toggleUnitDrawHooks(true);
 
@@ -139,12 +68,8 @@ void MotionPrediction::toggle(bool active)
 		DetourTransactionBegin();
 		DetourUpdateThread(GetCurrentThread());
 		DetourDetach(&(PVOID&)d2::drawWeatherParticles, isVer(V_114d) ? d2::drawWeatherParticlesStub114d : d2::drawWeatherParticlesStub);
-		if (buildSceneDrawList)
-			DetourDetach(&(PVOID&)buildSceneDrawList, buildSceneDrawListHooked);
 		DetourTransactionCommit();
 		d2::toggleUnitDrawHooks(false);
-		if (floor_cull_grown && game_view && *game_view)
-			setFloorCull(*game_view, false);
 
 		m_active = false;
 		d2::patch_motion_prediction->toggle(m_active);
