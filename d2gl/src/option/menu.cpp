@@ -350,9 +350,9 @@ void Menu::draw()
 			drawCombo_m("Orb Style", App.orb_style, "Classic: the game's own orb liquid. Procedural: animated liquid (waves, swirl, bubbles), per screen pixel with Native Render; Workshop: the look tuned in Orb Workshop; colour taken from the game's orb sprite (glide). Applies live.", false, 17, orb_style)
 				saveInt("Graphic", "orb_style", App.orb_style.selected);
 			ImGui::BeginDisabled(App.orb_style.selected < 1);
-				drawSlider_m(float, "", App.orb_motion, "%.2f", "", orb_motion)
+				drawSlider_m(float, "Orb Motion", App.orb_motion, "%.2f", "", orb_motion)
 					saveFloat("Graphic", "orb_motion", App.orb_motion.value);
-				drawDescription("Procedural orb motion. 0 = static.", m_colors[Color::Gray], 12);
+				drawDescription("Waves, swirl and bubbles of the animated orbs (0 = still). Pick the look in Orb Style above.", m_colors[Color::Gray], 12);
 			ImGui::EndDisabled();
 			ImGui::Dummy({ 0.0f, 12.0f });
 			drawSeparator();
