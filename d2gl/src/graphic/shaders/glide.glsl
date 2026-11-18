@@ -138,77 +138,66 @@ float orbFbm(vec2 p)
 }
 
 // [Graphic] orb_style 1: procedural orb liquid (flag y 4), evaluated per output pixel. v_TexCoord 0..1 over the liquid's
-// box (y down), v_Color1 = average colour of the game's liquid sprite, v_Color2: r fill from the bottom, g slosh, b motion / 2, a orb id.
-// Look tuned in Orb Workshop (translucency .55, cloudiness .45, brightness 1.05, saturation 1.05, depth 1, inner glow .88,
-// swirl 0, swirl size 4, swirl speed .52, wave height 1.66, wave speed 1, 8 bubbles, light streaks .84, surface line 1.5,
-// edge shadow .5; no foam, glass shine or rim). Translucent liquid lets the game's empty orb art behind it show through.
+// box (y down), v_Color1 = average colour of the game's liquid sprite, v_Color2: r fill from the bottom, g slosh, b motion / 2, a orb id
 vec4 proceduralOrb()
 {
 	vec2 uv = v_TexCoord;
-	vec2 p = vec2(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0); // y up
+	vec2 p = uv * 2.0 - 1.0;
 	float r = length(p);
-	float aa = max(fwidth(r), 1e-4) * 1.5;
-	float circle = 1.0 - smoothstep(1.0 - aa, 1.0, r);
+	float circle = 1.0 - smoothstep(1.0 - max(fwidth(r), 1e-4) * 1.5, 1.0, r);
 	float motion = v_Color2.b * 2.0;
 	float t = u_Time * min(motion, 1.0);
 	float fill = v_Color2.r;
-	float sl = v_Color2.g;
+	float slosh = v_Color2.g;
 	float id = v_Color2.a * 3.7;
-	float nz = sqrt(max(1.0 - r * r, 0.0));
-	float h = (p.y + 1.0) * 0.5; // 0 bottom .. 1 top
 
 	// surface: three summed sines plus a decaying tilt after the fill changes; flat when full or empty
-	float wave = sin(p.x * 4.5 + t * 1.7 + id) * 0.5 + sin(p.x * 8.5 - t * 2.3 + id * 2.0) * 0.3 + sin(p.x * 14.5 + t * 3.1) * 0.2;
+	float wave = sin(uv.x * 9.0 + t * 1.7 + id) * 0.5 + sin(uv.x * 17.0 - t * 2.3 + id * 2.0) * 0.3 + sin(uv.x * 29.0 + t * 3.1) * 0.2;
 	float edge = smoothstep(0.0, 0.06, fill) * smoothstep(0.0, 0.06, 1.0 - fill);
-	float surf = fill + ((0.012 + 0.03 * sl) * wave * 1.66 + 0.06 * sl * sin(t * 7.0) * p.x) * motion * edge;
-	float d = surf - h; // > 0 below the surface
-	float aay = max(fwidth(h), 1e-4);
-	float liquid = smoothstep(-aay, aay, d);
-	if (circle * liquid <= 0.0)
+	float surf = 1.0 - fill + ((0.012 + 0.03 * slosh) * wave + 0.06 * slosh * sin(t * 7.0) * p.x) * motion * edge;
+	float d = uv.y - surf;
+	float aa = max(fwidth(uv.y), 1e-4);
+	float liquid = smoothstep(-aa, aa, d);
+	float alpha = circle * liquid;
+	if (alpha <= 0.0)
 		discard;
 
 	// base colour at a steady brightness (hue from the sprite, so mod and poison colours carry over)
 	vec3 base = v_Color1.rgb;
-	base *= clamp(0.8 / max(max(base.r, max(base.g, base.b)), 0.02), 0.5, 3.0);
+	base *= clamp(0.62 / max(max(base.r, max(base.g, base.b)), 0.02), 0.5, 3.0);
 
-	// body: slowly turning noise field, cloudy density, dark toward the bottom, darker at the rim
-	float a = t * 0.12 * 0.52;
-	vec2 q = mat2(cos(a), -sin(a), sin(a), cos(a)) * p * 4.0;
-	vec2 warp = vec2(orbFbm(q * 1.3 + vec2(0.0, t * 0.026)), orbFbm(q * 1.3 + vec2(5.2, -t * 0.021)));
-	float n = orbFbm(q * 2.0 + vec2(0.0, t * 0.042));
-	float dens = mix(1.0, smoothstep(0.25, 0.75, n), 0.45);
-	float dd = clamp(d / max(fill, 0.05), 0.0, 1.0); // 0 at the surface .. 1 at the bottom
-	vec3 col = base * 1.05 * mix(1.25, 0.25, dd);
-	col *= mix(0.5, 1.0, nz);
-	vec2 gc = p - vec2(0.0, -0.15);
-	col += base * 0.88 * 0.8 * exp(-dot(gc, gc) * 2.2); // inner glow
+	// slow swirl: noise in coordinates turning around the centre
+	float a = t * 0.12;
+	vec2 q = mat2(cos(a), -sin(a), sin(a), cos(a)) * p;
+	float n = orbNoise(q * 3.0 + vec2(0.0, t * 0.15)) * 0.65 + orbNoise(q * 7.0 - vec2(t * 0.2, 0.0)) * 0.35;
 
-	// light streaks: thin bright filaments, strongest near the surface
-	float cn = orbFbm(q * 3.0 + warp * 3.0 + vec2(t * 0.052, 0.0));
-	float streak = pow(1.0 - abs(cn * 2.0 - 1.0), 10.0) * exp(-dd * 2.5);
-	col += (base * 0.8 + vec3(0.25)) * streak * 0.84;
+	vec3 col = base * mix(1.3, 0.4, clamp(uv.y, 0.0, 1.0)); // darker toward the bottom
+	col *= 0.8 + 0.4 * n;
+	float nz = sqrt(max(1.0 - r * r, 0.0));
+	col *= mix(0.55, 1.0, nz); // rounded body
 
 	// rising bubbles, popping at the surface (hidden when motion is 0)
-	for (int i = 0; i < 8; i++) {
-		float fi = float(i) + id * 3.0;
-		float hh = orbHash(vec2(fi, 1.7));
-		float by = fract(t * (0.05 + 0.05 * hh) + hh * 3.0) * (surf + 0.02);
-		vec2 bc = vec2(-0.55 + 1.1 * orbHash(vec2(fi, 4.3)) + 0.03 * sin(t * 2.0 + fi * 5.0), by * 2.0 - 1.0);
-		float br = 0.02 + 0.025 * orbHash(vec2(fi, 9.1));
-		float bd = length(p - bc);
-		float ring = (1.0 - smoothstep(br * 0.6, br, bd)) * (0.3 + 0.7 * smoothstep(br * 0.2, br, bd));
-		col += (base * 0.7 + vec3(0.25)) * ring * step(bc.y + br, surf * 2.0 - 1.0) * step(0.001, motion);
+	for (int i = 0; i < 4; i++) {
+		float fi = float(i) + id;
+		float h = orbHash(vec2(fi, 1.7));
+		float by = 1.0 - fract(t * (0.07 + 0.05 * h) + h * 3.0) * (1.0 - surf + 0.04);
+		vec2 bc = vec2(0.3 + 0.4 * orbHash(vec2(fi, 4.3)) + 0.02 * sin(t * 2.0 + fi * 5.0), by);
+		float br = 0.012 + 0.012 * orbHash(vec2(fi, 9.1));
+		float bd = length(uv - bc);
+		float ring = (1.0 - smoothstep(br * 0.55, br, bd)) * (0.35 + 0.65 * smoothstep(br * 0.3, br, bd));
+		col += base * 0.9 * ring * step(0.001, motion) * step(surf + br, by);
 	}
 
-	// bright surface line
-	float men = exp(-abs(d) / (aay * 1.2 + 0.006));
-	col += (base * 0.9 + vec3(0.25)) * men * edge * 1.5;
+	// bright meniscus line at the surface and a soft specular on the upper left
+	float men = exp(-abs(d) / (aa * 1.5 + 0.008));
+	col += (base * 0.9 + vec3(0.2)) * men * edge;
+	vec3 nrm = vec3(p.x, p.y, nz);
+	float spec = pow(max(dot(nrm, normalize(vec3(-0.45, -0.55, 0.7))), 0.0), 24.0);
+	col += vec3(0.3) * spec;
 
-	float l = dot(col, vec3(0.299, 0.587, 0.114));
-	col = clamp(mix(vec3(l), col, 1.05), 0.0, 1.0);
+	col = clamp(col, 0.0, 1.0);
 	col = vec3(u_Gamma[int(col.r * 255.0)].r, u_Gamma[int(col.g * 255.0)].g, u_Gamma[int(col.b * 255.0)].b);
-	float opacity = mix(1.0, mix(0.25, 1.0, dens * 0.6 + dd * 0.4), 0.55);
-	return vec4(col, circle * liquid * opacity);
+	return vec4(col, alpha);
 }
 
 void main()
