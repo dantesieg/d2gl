@@ -259,11 +259,12 @@ Context::Context()
 
 		// [Graphic] hires_textures: AI-upscaled replacements in a scale x atlas with the same layers and coordinates
 		TextureCreateInfo hires_texture_ci;
-		if (App.hires_ui)
+		// interface and item packs also load with hires_textures, so their frames stay theirs (see hires::find)
+		if (App.hires_ui || App.hires_textures)
 			hires::load(0, "d2gl_hires_ui.pak");
 		if (App.hires_textures)
 			hires::load(1, "d2gl_hires.pak");
-		if (App.hires_items)
+		if (App.hires_items || App.hires_textures)
 			hires::load(2, "d2gl_hires_items.pak");
 		const bool hires = hires::g_count > 0;
 		const uint32_t hs = hires ? 512 * hires::g_scale : 1;

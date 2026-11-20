@@ -147,9 +147,13 @@ inline bool active(const void* e)
 
 inline const PakEntry* find(uint32_t hash, uint32_t tw, uint32_t th)
 {
-	for (int pi = 0; pi < NPACK; pi++) {
+	// interface (0) and items (2) before world (1): the world pack also holds nearly every interface and item frame, so
+	// searched first it would claim them and only hires_textures would switch them. Disabled packs still claim their
+	// frames; active() hides them at draw time, so each pack follows its own setting.
+	static constexpr int order[NPACK] = { 0, 2, 1 };
+	for (int pi : order) {
 		const Pack& P = g_packs[pi];
-		if (!P.count || !g_on[pi])
+		if (!P.count || (pi == 1 && !g_on[pi]))
 			continue;
 		uint32_t lo = 0, hi = P.count;
 		while (lo < hi) {
