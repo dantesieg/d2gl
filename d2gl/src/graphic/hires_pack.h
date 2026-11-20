@@ -48,9 +48,10 @@ struct Pack {
 	uint64_t size = 0;
 };
 
-constexpr int NPACK = 3;
+constexpr int NPACK = 4;
 inline Pack g_packs[NPACK]; // 0 = interface (d2gl_hires_ui.pak, [Graphic] hires_ui), 1 = world (d2gl_hires.pak, hires_textures),
-                           // 2 = items (d2gl_hires_items.pak, hires_items)
+                           // 2 = items (d2gl_hires_items.pak, hires_items), 3 = extra interface sprites of our own
+                           // (d2gl_hires_extra.pak: MedianRevived PanelStyle art; follows hires_ui)
 inline uint32_t g_scale = 0, g_count = 0; // shared scale of the loaded packs, total entries
 inline bool g_on[NPACK] = {}; // packs enabled right now (off applies at once)
 // diagnostics for the periodic hires_textures log line (cumulative): unmatched downloads shaped like a floor tile (256x128)
@@ -150,7 +151,7 @@ inline const PakEntry* find(uint32_t hash, uint32_t tw, uint32_t th)
 	// interface (0) and items (2) before world (1): the world pack also holds nearly every interface and item frame, so
 	// searched first it would claim them and only hires_textures would switch them. Disabled packs still claim their
 	// frames; active() hides them at draw time, so each pack follows its own setting.
-	static constexpr int order[NPACK] = { 0, 2, 1 };
+	static constexpr int order[NPACK] = { 0, 3, 2, 1 };
 	for (int pi : order) {
 		const Pack& P = g_packs[pi];
 		if (!P.count || (pi == 1 && !g_on[pi]))
