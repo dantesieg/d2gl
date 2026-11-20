@@ -38,15 +38,22 @@ struct TextureManagerData {
 	std::vector<SubTextureInfo> sub_texure_info;
 	std::unordered_map<uint16_t, bool> available;
 	std::unordered_map<uint32_t, TextureCache> cache;
+	// [Graphic] glide_global_cache: slots keyed by content (hash, width, height) instead of by glide address, so the same
+	// sprite downloaded again at another address reuses its slot; least recently used slots are evicted in batches
+	struct GlobalItem {
+		uint16_t id;
+		uint32_t last_used_frame;
+	};
+	std::unordered_map<uint32_t, GlobalItem> global;
 };
 
 typedef std::vector<std::pair<uint16_t, uint16_t>> SubTextureCounts;
 
 struct GlideTexture {
 	uint8_t* memory = nullptr;
-	std::map<uint32_t, uint32_t> hash;
-	std::map<uint32_t, const void*> hires; // [Graphic] hires_textures: hires::PakEntry of the download at this address
-	std::map<uint32_t, std::pair<const void*, uint32_t>> hires_retry; // match not uploaded for lack of room: entry, frame; retried the next frame
+	std::unordered_map<uint32_t, uint32_t> hash;
+	std::unordered_map<uint32_t, const void*> hires; // [Graphic] hires_textures: hires::PakEntry of the download at this address
+	std::unordered_map<uint32_t, std::pair<const void*, uint32_t>> hires_retry; // match not uploaded for lack of room: entry, frame; retried the next frame
 };
 
 extern GlideTexture g_glide_texture;
@@ -54,6 +61,9 @@ extern GlideTexture g_glide_texture;
 class TextureManager {
 	std::map<uint16_t, TextureManagerData> m_data;
 	SubTextureCounts m_size_counts;
+
+	uint32_t upload(uint32_t address, uint16_t width, uint16_t height, uint32_t frame_count, const SubTextureInfo* info, uint32_t hash, const void** hi);
+	static void evictGlobal(TextureManagerData& data, uint32_t frame_count);
 
 public:
 	TextureManager(const SubTextureCounts& size_counts);

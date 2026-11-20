@@ -94,7 +94,28 @@ const SubTextureInfo* TextureManager::getSubTextureInfo(uint32_t address, uint16
 	const auto hi = g_glide_texture.hires.find(address);
 	if (hi != g_glide_texture.hires.end() && hi->second)
 		hash ^= 0x5BD1E995u;
+	const void** hi_slot = (hi != g_glide_texture.hires.end() && hi->second) ? &hi->second : nullptr;
 	auto& data = m_data[size];
+
+	if (App.glide_global_cache) {
+		const auto key = [&](uint32_t h) { return h ^ (width * 0x9E3779B1u) ^ (height * 0x85EBCA77u); };
+		const auto it = data.global.find(key(hash));
+		if (it != data.global.end()) {
+			it->second.last_used_frame = frame_count;
+			return &data.sub_texure_info[it->second.id];
+		}
+		if (data.available.empty())
+			evictGlobal(data, frame_count);
+		if (data.available.empty())
+			return nullptr;
+
+		const auto id = data.available.begin()->first;
+		const SubTextureInfo* texture_info = &data.sub_texure_info[id];
+		hash = upload(address, width, height, frame_count, texture_info, hash, hi_slot);
+		data.global[key(hash)] = { id, frame_count };
+		data.available.erase(id);
+		return texture_info;
+	}
 
 	if (data.cache.find(address) == data.cache.end())
 		data.cache.insert({ address, { frame_count } });
@@ -117,41 +138,7 @@ const SubTextureInfo* TextureManager::getSubTextureInfo(uint32_t address, uint16
 
 		const auto id = data.available.begin()->first;
 		const SubTextureInfo* texture_info = &data.sub_texure_info[id];
-		const auto command_buffer = App.context->getCommandBuffer();
-
-		command_buffer->textureUpdate(g_glide_texture.memory + address, texture_info->tex_num, { width, height }, texture_info->offset);
-		if (hi != g_glide_texture.hires.end() && hi->second) {
-			const uint16_t s = (uint16_t)hires::g_scale;
-			uint8_t* dst = command_buffer->allocHi((size_t)width * s * height * s);
-			const auto he = (const hires::PakEntry*)hi->second;
-			bool ok = dst && hires::expand(he, dst);
-			const auto lut = ok ? hires::g_luts.find(address) : hires::g_luts.end();
-			if (ok && (he->flags & 2)) {
-				const bool remapped = lut != hires::g_luts.end();
-				if (remapped && lut->second.src.size() != (size_t)width * height)
-					ok = false;
-				else
-					hires::unxor(he, dst, remapped ? lut->second.src.data() : g_glide_texture.memory + address);
-			}
-			if (ok && lut != hires::g_luts.end()) {
-				if (lut->second.src.size() == (size_t)width * height)
-					hires::remap(he, dst, lut->second.src.data(), lut->second.lut.data());
-				else
-					for (size_t i = 0, n = (size_t)width * s * height * s; i < n; i++)
-						dst[i] = dst[i] ? lut->second.lut[dst[i]] : 0;
-			}
-			if (ok)
-				command_buffer->textureUpdateHi(dst, texture_info->tex_num, { (uint16_t)(width * s), (uint16_t)(height * s) }, { (uint16_t)(texture_info->offset.x * s), (uint16_t)(texture_info->offset.y * s) });
-			else {
-				if (!dst) { // no room this frame: retried the next frame (corrupt / mismatched entries stay off)
-					g_glide_texture.hires_retry[address] = { hi->second, frame_count };
-					hires::g_no_room++;
-				} else
-					hires::g_bad++;
-				hi->second = nullptr; // not uploaded: draw the original
-				hash ^= 0x5BD1E995u;  // cached as a plain slot
-			}
-		}
+		hash = upload(address, width, height, frame_count, texture_info, hash, hi_slot);
 
 		cache.items.insert({ hash, id });
 		data.available.erase(id);
@@ -160,6 +147,65 @@ const SubTextureInfo* TextureManager::getSubTextureInfo(uint32_t address, uint16
 	}
 
 	return &data.sub_texure_info[cache.items[hash]];
+}
+
+// uploads the download at address (and its hi-res replacement, if any) into the slot; returns the cache hash, which
+// drops the hi-res bit when the replacement could not be uploaded
+uint32_t TextureManager::upload(uint32_t address, uint16_t width, uint16_t height, uint32_t frame_count, const SubTextureInfo* texture_info, uint32_t hash, const void** hi)
+{
+	const auto command_buffer = App.context->getCommandBuffer();
+
+	command_buffer->textureUpdate(g_glide_texture.memory + address, texture_info->tex_num, { width, height }, texture_info->offset);
+	if (hi && *hi) {
+		const uint16_t s = (uint16_t)hires::g_scale;
+		uint8_t* dst = command_buffer->allocHi((size_t)width * s * height * s);
+		const auto he = (const hires::PakEntry*)*hi;
+		bool ok = dst && hires::expand(he, dst);
+		const auto lut = ok ? hires::g_luts.find(address) : hires::g_luts.end();
+		if (ok && (he->flags & 2)) {
+			const bool remapped = lut != hires::g_luts.end();
+			if (remapped && lut->second.src.size() != (size_t)width * height)
+				ok = false;
+			else
+				hires::unxor(he, dst, remapped ? lut->second.src.data() : g_glide_texture.memory + address);
+		}
+		if (ok && lut != hires::g_luts.end()) {
+			if (lut->second.src.size() == (size_t)width * height)
+				hires::remap(he, dst, lut->second.src.data(), lut->second.lut.data());
+			else
+				for (size_t i = 0, n = (size_t)width * s * height * s; i < n; i++)
+					dst[i] = dst[i] ? lut->second.lut[dst[i]] : 0;
+		}
+		if (ok)
+			command_buffer->textureUpdateHi(dst, texture_info->tex_num, { (uint16_t)(width * s), (uint16_t)(height * s) }, { (uint16_t)(texture_info->offset.x * s), (uint16_t)(texture_info->offset.y * s) });
+		else {
+			if (!dst) { // no room this frame: retried the next frame (corrupt / mismatched entries stay off)
+				g_glide_texture.hires_retry[address] = { *hi, frame_count };
+				hires::g_no_room++;
+			} else
+				hires::g_bad++;
+			*hi = nullptr;       // not uploaded: draw the original
+			hash ^= 0x5BD1E995u; // cached as a plain slot
+		}
+	}
+	return hash;
+}
+
+// frees the least recently used quarter of the slots, never one used this frame (its draw may still be queued)
+void TextureManager::evictGlobal(TextureManagerData& data, uint32_t frame_count)
+{
+	std::vector<std::pair<uint32_t, uint32_t>> old; // last used frame, key
+	old.reserve(data.global.size());
+	for (const auto& [k, item] : data.global)
+		if (item.last_used_frame != frame_count)
+			old.push_back({ item.last_used_frame, k });
+	const size_t n = std::min(old.size(), std::max<size_t>(1, data.tex_count / 4));
+	std::nth_element(old.begin(), old.begin() + (n ? n - 1 : 0), old.end());
+	for (size_t i = 0; i < n; i++) {
+		const auto it = data.global.find(old[i].second);
+		data.available[it->second.id] = true;
+		data.global.erase(it);
+	}
 }
 
 void TextureManager::clearCache()
@@ -174,6 +220,9 @@ void TextureManager::clearCache()
 			}
 		}
 		data.cache.clear();
+		for (auto& item : data.global)
+			data.available[item.second.id] = true;
+		data.global.clear();
 	}
 }
 

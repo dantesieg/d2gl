@@ -26,7 +26,8 @@
 namespace d2gl {
 
 #define GLIDE_MAX_NUM_TMU 3
-#define GLIDE_TEX_MEMORY 16 * 1024 * 1024
+// [Graphic] glide_tex_mb: texture memory per TMU reported to the game (16 = original); fixed after start
+#define GLIDE_TEX_MEMORY ((uint32_t)d2gl::App.glide_tex_mb << 20)
 
 class Wrapper;
 extern std::unique_ptr<Wrapper> GlideWrapper;

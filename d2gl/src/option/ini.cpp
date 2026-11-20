@@ -228,6 +228,10 @@ void saveIni()
 		"hires_ui=%s\n"
 		"; Hi-res items: AI-upscaled inventory items from d2gl_hires_items.pak (glide, restart needed).\n"
 		"hires_items=%s\n"
+		"; Glide texture memory per TMU reported to the game in MB, 16-64 (16 = original; bigger can mean fewer re-downloads; restart needed).\n"
+		"glide_tex_mb=%d\n"
+		"; GPU texture slots keyed by sprite content instead of the game's cache address (the same sprite at another address is not uploaded again).\n"
+		"glide_global_cache=%s\n"
 		"; Wall silhouettes: the player shows as a tinted shape where walls, trees or buildings hide it (glide).\n"
 		"silhouettes=%s\n"
 		"; Orb style: 0 classic game orbs, 1 procedural animated liquid, 2 Orb Workshop look (glide; per screen pixel with native_render).\n"
@@ -282,6 +286,8 @@ void saveIni()
 		boolString(App.hires_textures),
 		boolString(App.hires_ui),
 		boolString(App.hires_items),
+		App.glide_tex_mb,
+		boolString(App.glide_global_cache),
 		boolString(App.silhouettes),
 		App.orb_style.selected,
 		App.orb_motion.value,
@@ -602,6 +608,8 @@ void loadIni()
 		App.hires_textures = getBool("Graphic", "hires_textures", App.hires_textures);
 		App.hires_ui = getBool("Graphic", "hires_ui", App.hires_ui);
 		App.hires_items = getBool("Graphic", "hires_items", App.hires_items);
+		App.glide_tex_mb = getInt("Graphic", "glide_tex_mb", App.glide_tex_mb, 16, 64);
+		App.glide_global_cache = getBool("Graphic", "glide_global_cache", App.glide_global_cache);
 		App.silhouettes = getBool("Graphic", "silhouettes", App.silhouettes);
 		App.orb_style.selected = getInt("Graphic", "orb_style", App.orb_style.selected, 0, 2);
 		App.orb_motion.value = getFloat("Graphic", "orb_motion", App.orb_motion);

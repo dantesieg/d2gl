@@ -180,6 +180,8 @@ struct D2GLApp {
 	bool minion_ring = false;
 	bool hires_ui = false; // [Graphic] hires_ui: AI-upscaled interface pack d2gl_hires_ui.pak (restart)
 	bool hires_items = false; // [Graphic] hires_items: AI-upscaled inventory items d2gl_hires_items.pak (restart)
+	int glide_tex_mb = 16; // [Graphic] glide_tex_mb: glide texture memory per TMU reported to the game, 16-64 MB (restart)
+	bool glide_global_cache = false; // [Graphic] glide_global_cache: GPU texture slots keyed by content, not glide address
 	bool hires_textures = false; // [Graphic] hires_textures: AI-upscaled texture pack d2gl_hires.pak (restart)
 	bool silhouettes = false; // [Graphic] silhouettes: tinted player shape where walls/objects hide it (glide)
 	Select<int> orb_style = { 0, { { "Classic", 0 }, { "Procedural", 1 }, { "Workshop", 2 } } }; // [Graphic] orb_style: 1 = procedural animated orb liquid (glide)
