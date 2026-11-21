@@ -411,6 +411,8 @@ void Menu::draw()
 						saveBool("Graphic", "hires_ui", App.hires_ui);
 					drawCheckbox_m("Hi-Res Items", App.hires_items, "AI-upscaled inventory items from d2gl_hires_items.pak (glide). Off applies at once; on needs it enabled at game start.", hires_items)
 						saveBool("Graphic", "hires_items", App.hires_items);
+					drawCheckbox_m("Hi-Res Tint", App.hires_tint, "Smooth edges for one-colour unit outlines, and hi-res for colour-remapped sprites found by shape (d2gl_hires_mask.idx, loaded when on at game start). New downloads.", hires_tint)
+						saveBool("Graphic", "hires_tint", App.hires_tint);
 					drawCheckbox_m("Hi-Res Textures", App.hires_textures, "AI-upscaled textures from d2gl_hires.pak (glide). Off applies at once; on needs it enabled at game start.", hires_textures)
 						saveBool("Graphic", "hires_textures", App.hires_textures);
 					drawCheckbox_m("Wall Silhouettes", App.silhouettes, "Your character shows as a tinted shape where walls, trees or buildings hide it (glide).", silhouettes) {

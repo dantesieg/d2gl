@@ -183,6 +183,60 @@ inline const PakEntry* find(uint32_t hash, uint32_t tw, uint32_t th)
 	return nullptr;
 }
 
+// [Graphic] hires_tint: d2gl_hires_mask.idx (tools/upscale/dumpmatch.c) maps the shape of a frame's download, the
+// MurmurHash3 of its binary mask (index > 0 -> 1, tw*th bytes), to the plain hash of one pack frame with that shape:
+// header { u32 'D2HM', u32 1, u32 count }, records { u32 maskhash, u16 tw, u16 th, u32 hash } sorted by maskhash, tw, th.
+// It finds the replacement of a colour-remapped frame the game draws outside the upload hook (remap baked in, plain
+// hash unknown); the shader takes only alpha and detail from it and the colours from the download (v_TexIds.y = 9).
+#pragma pack(push, 1)
+struct MaskRec {
+	uint32_t mh;
+	uint16_t tw, th;
+	uint32_t hash;
+};
+#pragma pack(pop)
+inline const MaskRec* g_mask = nullptr;
+inline uint32_t g_mask_count = 0;
+
+inline bool loadMask(const char* path)
+{
+	if (g_mask)
+		return true;
+	HANDLE f = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+	if (f == INVALID_HANDLE_VALUE)
+		return false;
+	LARGE_INTEGER sz = {};
+	GetFileSizeEx(f, &sz);
+	HANDLE m = sz.QuadPart >= 12 ? CreateFileMappingA(f, nullptr, PAGE_READONLY, 0, 0, nullptr) : nullptr;
+	CloseHandle(f);
+	const uint32_t* p = m ? (const uint32_t*)MapViewOfFile(m, FILE_MAP_READ, 0, 0, 0) : nullptr;
+	if (m)
+		CloseHandle(m);
+	if (!p)
+		return false;
+	if (p[0] != 0x4D483244 || p[1] != 1 || 12 + (uint64_t)p[2] * sizeof(MaskRec) > (uint64_t)sz.QuadPart) {
+		UnmapViewOfFile(p);
+		return false;
+	}
+	g_mask = (const MaskRec*)(p + 3), g_mask_count = p[2];
+	return true;
+}
+
+// the pack entry of a frame shaped like the download (mask hash mh), or nullptr
+inline const PakEntry* findMask(uint32_t mh, uint32_t tw, uint32_t th)
+{
+	uint32_t lo = 0, hi = g_mask_count;
+	while (lo < hi) {
+		const uint32_t mid = (lo + hi) / 2;
+		const MaskRec& r = g_mask[mid];
+		if (r.mh < mh || (r.mh == mh && (r.tw < tw || (r.tw == tw && r.th < th))))
+			lo = mid + 1;
+		else
+			hi = mid;
+	}
+	return lo < g_mask_count && g_mask[lo].mh == mh && g_mask[lo].tw == tw && g_mask[lo].th == th ? find(g_mask[lo].hash, tw, th) : nullptr;
+}
+
 // [Graphic] hires_async: chunk reads and decodes on a worker thread; a draw whose chunk is not decoded yet uses the
 // original this frame and is retried the next (g_chunk_wait). Off: decoded on the game thread at first use.
 inline bool g_async = false;

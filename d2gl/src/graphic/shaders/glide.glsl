@@ -62,8 +62,8 @@ layout(std140) uniform ubo_Colors {
 };
 
 uniform sampler2DArray u_Texture;
-uniform sampler2DArray u_HiTexture; // [Graphic] hires_textures: same coordinates, used when v_TexIds.y >= 1
-uniform int u_HiFull;                // 1: full-colour BC7 replacements (pack v5; v_TexIds.y = 1 + bake act), 0: palette indices
+uniform sampler2DArray u_HiTexture; // [Graphic] hires_textures: same coordinates, used when v_TexIds.y >= 1 (not 8)
+uniform int u_HiFull;                // 1: full-colour BC7 replacements (pack v5; v_TexIds.y = 1 + bake act, 9 = by shape), 0: palette indices
 uniform sampler2D u_BakePal;         // v5: 256x7 bake palettes (5 acts, fechar, static) the replacements were made with
 uniform int u_BlendIndex; // pipeline blend index: 0 opaque, 1 multiply, 2 additive, 3 alpha
 uniform float u_LightFlicker; // [Graphic] light_flicker: 0 = off, spell/fire light pulses up to +-45 %
@@ -113,6 +113,50 @@ bool nativeSample(out vec4 col)
 		return false;
 	col = acc / wsum;
 	return true;
+}
+
+// [Graphic] hires_tint, v_TexIds.y 8: a flat one-colour outline drawn smooth. Bilinear coverage of its low-res mask (4
+// texelFetch clamped to the sprite's atlas rect), ramp narrowed like the packs' soft alpha; idx = the nearest non-zero texel.
+float tintMask(out int idx)
+{
+	vec2 p = v_TexCoord * 512.0 - 0.5;
+	vec2 i0 = floor(p);
+	vec2 f = p - i0;
+	vec2 lo = vec2(v_TexRect.xy);
+	vec2 hi = lo + vec2(v_TexRect.zw) - 1.0;
+	float cov = 0.0, best = -1.0;
+	idx = 0;
+	for (int k = 0; k < 4; k++) {
+		vec2 o = vec2(k & 1, k >> 1);
+		float w = (o.x > 0.5 ? f.x : 1.0 - f.x) * (o.y > 0.5 ? f.y : 1.0 - f.y);
+		ivec2 t = ivec2(clamp(i0 + o, lo, hi));
+		float red = texelFetch(u_Texture, ivec3(t, v_TexIds.x), 0).r;
+		if (red > 0.0) {
+			cov += w;
+			if (w > best) {
+				best = w;
+				idx = int(red * 255.0 + 0.5);
+			}
+		}
+	}
+	return clamp((cov - 0.25) / 0.5, 0.0, 1.0);
+}
+
+// [Graphic] hires_tint, v_TexIds.y 9: replacement found by shape for a frame remapped outside the upload hook (no
+// un-remapped index): the replacement's mean colour over this low-res texel stands in for bake[un-remapped]
+vec3 hiTexelMean()
+{
+	int s = textureSize(u_HiTexture, 0).x / 512;
+	ivec2 t = ivec2(floor(v_TexCoord * 512.0)) * s;
+	vec3 acc = vec3(0.0);
+	float wsum = 0.0;
+	for (int y = 0; y < s; y++)
+		for (int x = 0; x < s; x++) {
+			vec4 c = texelFetch(u_HiTexture, ivec3(t + ivec2(x, y), v_TexIds.x), 0);
+			acc += c.rgb * c.a;
+			wsum += c.a;
+		}
+	return wsum > 0.0 ? acc / wsum : vec3(1.0);
 }
 
 float orbHash(vec2 p)
@@ -348,6 +392,20 @@ void main()
 		FragColor = v_Color2;
 	else if (v_Flags.y == 2u) // local = iterated (per-vertex colour)
 		FragColor = v_Color1;
+	else if (v_TexIds.y == 8 && v_TexRect.z > 0u)
+	{
+		int ti;
+		float a = tintMask(ti);
+		bool key = (v_Flags.x & 15u) == 1u || v_Flags.y == 3u;
+		if (u_HiFull == 1 && u_BlendIndex == 0 && a > 0.0)
+			hiA = a; // opaque pass blends by alpha with full-colour packs
+		else if (a < 0.5) {
+			if (key)
+				discard;
+			ti = int(texture(u_Texture, vec3(v_TexCoord, v_TexIds.x)).r * 255.0 + 0.5);
+		}
+		FragColor = v_Color1 * u_Palette[ti];
+	}
 	else if (max(u_NativeScale.x, u_NativeScale.y) > 1.0 && u_NativeFilter > 0 && v_TexRect.z > 0u && v_TexIds.y == 0)
 	{
 		vec4 pal;
@@ -355,7 +413,7 @@ void main()
 			discard;
 		FragColor = v_Color1 * pal;
 	}
-	else if (v_TexIds.y >= 1 && u_HiFull == 1)
+	else if (v_TexIds.y >= 1 && v_TexIds.y != 8 && u_HiFull == 1)
 	{
 		// full-colour replacement, recoloured per source pixel by palette[download] / bake[un-remapped]: covers monster and
 		// item colour remaps and act palettes; soft alpha edge (BC7 alpha tops out at 254)
@@ -369,7 +427,7 @@ void main()
 			FragColor = v_Color1 * u_Palette[int(ix.r * 255.0 + 0.5)];
 		} else {
 			vec3 cur = u_Palette[int(ix.r * 255.0 + 0.5)].rgb;
-			vec3 bake = texelFetch(u_BakePal, ivec2(int(ix.g * 255.0 + 0.5), v_TexIds.y - 1), 0).rgb;
+			vec3 bake = v_TexIds.y == 9 ? (ix.r == 0.0 ? cur : hiTexelMean()) : texelFetch(u_BakePal, ivec2(int(ix.g * 255.0 + 0.5), v_TexIds.y - 1), 0).rgb;
 			FragColor = v_Color1 * vec4(min(hc.rgb * (cur + 0.02) / (bake + 0.02), vec3(1.0)), 1.0);
 		}
 	}

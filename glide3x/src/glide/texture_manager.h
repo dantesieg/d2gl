@@ -56,6 +56,7 @@ struct GlideSlot {
 	const void* retry = nullptr; // match not uploaded for lack of room: entry, retried the next frame
 	uint32_t retry_frame = 0;
 	uint16_t w = 0, h = 0; // size of the last download (glide capture snapshot)
+	uint8_t tint = 0; // [Graphic] hires_tint: 1 = flat one-colour outline (smooth mask in the shader), 2 = hires found by shape
 };
 
 struct GlideTexture {

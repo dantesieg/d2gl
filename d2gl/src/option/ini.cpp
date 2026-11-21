@@ -235,6 +235,9 @@ void saveIni()
 		"hires_ui=%s\n"
 		"; Hi-res items: AI-upscaled inventory items from d2gl_hires_items.pak (glide, restart needed).\n"
 		"hires_items=%s\n"
+		"; Hi-res tint: smooth edges for flat one-colour unit outlines, and hi-res for colour-remapped sprites the game draws\n"
+		"; outside the upload hook, found by their shape in d2gl_hires_mask.idx (glide, needs hires_textures).\n"
+		"hires_tint=%s\n"
 		"; Glide texture memory per TMU reported to the game in MB, 16-64 (16 = original; bigger can mean fewer re-downloads; restart needed).\n"
 		"glide_tex_mb=%d\n"
 		"; GPU texture slots keyed by sprite content instead of the game's cache address (the same sprite at another address is not uploaded again).\n"
@@ -296,6 +299,7 @@ void saveIni()
 		boolString(App.hires_textures),
 		boolString(App.hires_ui),
 		boolString(App.hires_items),
+		boolString(App.hires_tint),
 		App.glide_tex_mb,
 		boolString(App.glide_global_cache),
 		boolString(App.hires_async),
@@ -642,6 +646,7 @@ void loadIni()
 		App.hires_textures = getBool("Graphic", "hires_textures", App.hires_textures);
 		App.hires_ui = getBool("Graphic", "hires_ui", App.hires_ui);
 		App.hires_items = getBool("Graphic", "hires_items", App.hires_items);
+		App.hires_tint = getBool("Graphic", "hires_tint", App.hires_tint);
 		App.glide_tex_mb = getInt("Graphic", "glide_tex_mb", App.glide_tex_mb, 16, 64);
 		App.glide_global_cache = getBool("Graphic", "glide_global_cache", App.glide_global_cache);
 		App.hires_async = getBool("Graphic", "hires_async", App.hires_async);

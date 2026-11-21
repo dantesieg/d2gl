@@ -273,6 +273,8 @@ Context::Context()
 			hires::load(2, "d2gl_hires_items.pak");
 		if (App.hires_ui || App.hires_textures)
 			hires::load(3, "d2gl_hires_extra.pak");
+		if (App.hires_tint && hires::g_bc7 == 1 && hires::loadMask("d2gl_hires_mask.idx"))
+			trace_log("hires_tint: %u frame shapes in d2gl_hires_mask.idx", hires::g_mask_count);
 		const bool hires = hires::g_count > 0;
 		const uint32_t hs = hires ? 512 * hires::g_scale : 1;
 		hires_texture_ci.size = { hs, hs };

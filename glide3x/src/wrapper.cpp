@@ -218,9 +218,12 @@ void Wrapper::grTexSource(GrChipID_t tmu, FxU32 start_address, GrTexInfo* info)
 		hires::g_on[0] = App.hires_ui, hires::g_on[1] = App.hires_textures, hires::g_on[2] = App.hires_items, hires::g_on[3] = App.hires_ui;
 		const void* hi = (hires::g_count && !d2::drawing_orb_liquid && slot) ? slot->hires : nullptr;
 		// y: 0 = no replacement, else 1 + the act palette a full-colour (v5) replacement was made with (shader u_BakePal row)
-		const bool use_hi = hi && hires::active(hi);
+		// [Graphic] hires_tint: 8 = flat one-colour outline (smooth mask), 9 = replacement found by shape (colours from the download)
+		const uint8_t tint = App.hires_tint && slot && !d2::drawing_orb_liquid ? slot->tint : 0;
+		const bool use_hi = hi && hires::active(hi) && (slot->tint != 2 || tint == 2);
 		const uint16_t bake = use_hi && hires::g_bc7 == 1 ? (uint16_t)((((const hires::PakEntry*)hi)->flags >> 3) & 7) : 0;
-		ctx->setVertexTexNum({ sub_tex_info->tex_num, (uint16_t)(use_hi ? 1 + (bake < 7 ? bake : 0) : 0) });
+		const uint16_t hid = tint == 1 ? 8 : (use_hi ? (tint == 2 ? 9 : 1 + (bake < 7 ? bake : 0)) : 0);
+		ctx->setVertexTexNum({ sub_tex_info->tex_num, hid });
 		ctx->setVertexOffset(sub_tex_info->offset);
 		ctx->setVertexTexShift(sub_tex_info->shift);
 		ctx->setVertexTexRect({ sub_tex_info->offset.x, sub_tex_info->offset.y, (uint16_t)glm::min(width, 512u), (uint16_t)glm::min(height, 512u) });
@@ -256,10 +259,45 @@ void Wrapper::grTexDownloadMipMap(GrChipID_t tmu, FxU32 start_address, GrTexInfo
 				rm.src.assign(pd.src, pd.src + (size_t)width * height);
 			}
 		}
+		// [Graphic] hires_tint, unmatched downloads only: non-zero pixels in <= 2 indices = a unit outline the game draws in one
+		// colour (hover / colour effects: the frame's mask dilated by 1); more = maybe a frame remapped outside the upload
+		// hook (monster colour variants), looked up by the hash of its binary mask in d2gl_hires_mask.idx
+		slot.tint = 0;
+		static uint32_t tint_flat = 0, tint_shape = 0;
+		if (!hi && App.hires_tint && (width > 16 || height > 16)) {
+			const uint8_t* px = info->data;
+			const size_t n = (size_t)width * height;
+			uint8_t a = 0, b = 0;
+			bool more = false;
+			for (size_t i = 0; i < n; i++) {
+				const uint8_t c = px[i];
+				if (!c || c == a || c == b)
+					continue;
+				if (!a)
+					a = c;
+				else if (!b)
+					b = c;
+				else {
+					more = true;
+					break;
+				}
+			}
+			if (!more && a)
+				slot.tint = 1, tint_flat++;
+			else if (more && hires::g_mask_count) {
+				static std::vector<uint8_t> mk;
+				mk.resize(n);
+				for (size_t i = 0; i < n; i++)
+					mk[i] = px[i] != 0;
+				hi = hires::findMask(helpers::hash(mk.data(), n), width, height);
+				if (hi)
+					slot.tint = 2, tint_shape++;
+			}
+		}
 		// debug: with a file d2gl_hires_dump next to the game, every distinct unmatched download (up to 20000) goes to
 		// d2gl_hires_dump.bin: u16 tw, th, u8 kind (0 plain, 1 remapped: un-remapped source), u8 0, tw*th indices
 		static int dump = GetFileAttributesA("d2gl_hires_dump") != INVALID_FILE_ATTRIBUTES ? 20000 : 0;
-		if (!hi && dump > 0) {
+		if (!hi && dump > 0 && slot.tint != 1) {
 			static std::unordered_set<uint32_t> dumped;
 			const bool rem = pd.active && pd.src && pd.tw == width && pd.th == height;
 			if (dumped.insert(rem ? pd.hash : slot.hash).second) {
@@ -287,8 +325,8 @@ void Wrapper::grTexDownloadMipMap(GrChipID_t tmu, FxU32 start_address, GrTexInfo
 			remapped += hires::g_luts.count(start_address) ? 1 : 0;
 		}
 		if ((seen & 1023) == 0) {
-			trace_log("hires_textures: %u of %u downloads matched (top %u, remapped %u of %u pending, %u size mismatch, tiles %u; unmatched tile-shaped %u, no room %u, retried %u, bad %u, chunk loads %u)",
-				matched, seen, top, remapped, pend, pend_size, tiles, hires::g_miss_tile, hires::g_no_room, hires::g_retry, hires::g_bad, hires::g_chunk_loads);
+			trace_log("hires_textures: %u of %u downloads matched (top %u, remapped %u of %u pending, %u size mismatch, tiles %u; unmatched tile-shaped %u, no room %u, retried %u, bad %u, chunk loads %u; tint: outlines %u, by shape %u)",
+				matched, seen, top, remapped, pend, pend_size, tiles, hires::g_miss_tile, hires::g_no_room, hires::g_retry, hires::g_bad, hires::g_chunk_loads, tint_flat, tint_shape);
 		}
 	}
 }
