@@ -119,8 +119,15 @@ bool saveString(LPCSTR section, LPCSTR key, const std::string& val)
 void saveIni()
 {
 	static char buf[16384]; buf[0] = 0;   // was 3400: long load_dlls lines overflowed sprintf_s
+	// Atomic save: write a temp file, keep the old one as .bak, then replace (a crash mid-write
+	// used to leave a truncated d2gl.ini).
+	const std::string tmp_file = App.ini_file + ".tmp";
 	std::ofstream out_file;
-	out_file.open(App.ini_file);
+	out_file.open(tmp_file, std::ios::out | std::ios::trunc);
+	if (!out_file.is_open()) {
+		error_log("saveIni: cannot open %s", tmp_file.c_str());
+		return;
+	}
 
 	static const char* screen_setting =
 		"; ==== D2GL Configs ====\n\n"
@@ -545,7 +552,20 @@ void saveIni()
 		App.dlls_late.c_str());
 	out_file << buf;
 
+	out_file.flush();
+	const bool ok = out_file.good();
 	out_file.close();
+	if (!ok || out_file.fail()) {
+		error_log("saveIni: write to %s failed, keeping %s", tmp_file.c_str(), App.ini_file.c_str());
+		DeleteFileA(tmp_file.c_str());
+		return;
+	}
+	if (GetFileAttributesA(App.ini_file.c_str()) != INVALID_FILE_ATTRIBUTES)
+		CopyFileA(App.ini_file.c_str(), (App.ini_file + ".bak").c_str(), FALSE);
+	if (!MoveFileExA(tmp_file.c_str(), App.ini_file.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+		error_log("saveIni: replace %s failed (%lu)", App.ini_file.c_str(), GetLastError());
+		DeleteFileA(tmp_file.c_str());
+	}
 }
 
 void loadIni()
