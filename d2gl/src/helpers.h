@@ -46,7 +46,7 @@ namespace d2gl::helpers {
 
 // IEEE half of a float, round to nearest even like glm::detail::toFloat16; F16C when the CPU has it (every x86 since 2012)
 extern const bool g_f16c;
-inline int16_t toHalf(float f) { return g_f16c ? (int16_t)_cvtss_sh(f, 0) : (int16_t)glm::detail::toFloat16(f); }
+inline int16_t toHalf(float f) { return g_f16c ? (int16_t)_mm_cvtsi128_si32(_mm_cvtps_ph(_mm_set_ss(f), 0)) : (int16_t)glm::detail::toFloat16(f); }
 
 std::string getCurrentDir();
 bool fileExists(std::string file_path);
