@@ -265,7 +265,7 @@ void Wrapper::grTexDownloadMipMap(GrChipID_t tmu, FxU32 start_address, GrTexInfo
 		slot.tint = 0;
 		static uint32_t tint_flat = 0, tint_shape = 0;
 		if (!hi && App.hires_tint && (width > 16 || height > 16)) {
-			const uint8_t* px = info->data;
+			const uint8_t* px = (const uint8_t*)info->data;
 			const size_t n = (size_t)width * height;
 			uint8_t a = 0, b = 0;
 			bool more = false;
