@@ -232,6 +232,9 @@ void saveIni()
 		"glide_tex_mb=%d\n"
 		"; GPU texture slots keyed by sprite content instead of the game's cache address (the same sprite at another address is not uploaded again).\n"
 		"glide_global_cache=%s\n"
+		"; Hi-res chunk loading on a worker thread: no disk read / decode on the game thread; a sprite whose data is not ready yet\n"
+		"; is drawn from the original for a frame or two (restart needed).\n"
+		"hires_async=%s\n"
 		"; Wall silhouettes: the player shows as a tinted shape where walls, trees or buildings hide it (glide).\n"
 		"silhouettes=%s\n"
 		"; Orb style: 0 classic game orbs, 1 procedural animated liquid, 2 Orb Workshop look (glide; per screen pixel with native_render).\n"
@@ -288,6 +291,7 @@ void saveIni()
 		boolString(App.hires_items),
 		App.glide_tex_mb,
 		boolString(App.glide_global_cache),
+		boolString(App.hires_async),
 		boolString(App.silhouettes),
 		App.orb_style.selected,
 		App.orb_motion.value,
@@ -613,6 +617,7 @@ void loadIni()
 		App.hires_items = getBool("Graphic", "hires_items", App.hires_items);
 		App.glide_tex_mb = getInt("Graphic", "glide_tex_mb", App.glide_tex_mb, 16, 64);
 		App.glide_global_cache = getBool("Graphic", "glide_global_cache", App.glide_global_cache);
+		App.hires_async = getBool("Graphic", "hires_async", App.hires_async);
 		App.silhouettes = getBool("Graphic", "silhouettes", App.silhouettes);
 		App.orb_style.selected = getInt("Graphic", "orb_style", App.orb_style.selected, 0, 2);
 		App.orb_motion.value = getFloat("Graphic", "orb_motion", App.orb_motion);

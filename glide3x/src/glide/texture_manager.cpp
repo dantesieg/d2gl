@@ -168,7 +168,7 @@ uint32_t TextureManager::upload(uint32_t address, uint16_t width, uint16_t heigh
 		if (ok)
 			command_buffer->textureUpdateHi(dst, texture_info->tex_num, { pw, ph }, { (uint16_t)(texture_info->offset.x * hires::g_scale), (uint16_t)(texture_info->offset.y * hires::g_scale) }, (uint32_t)bytes);
 		else {
-			if (!dst) {
+			if (!dst || hires::g_chunk_wait) { // no room this frame / chunk still loading (hires_async): retried next frame
 				hi->retry = hi->hires, hi->retry_frame = frame_count;
 				hires::g_no_room++;
 			} else
@@ -201,7 +201,7 @@ uint32_t TextureManager::upload(uint32_t address, uint16_t width, uint16_t heigh
 		if (ok)
 			command_buffer->textureUpdateHi(dst, texture_info->tex_num, { (uint16_t)(width * s), (uint16_t)(height * s) }, { (uint16_t)(texture_info->offset.x * s), (uint16_t)(texture_info->offset.y * s) });
 		else {
-			if (!dst) { // no room this frame: retried the next frame (corrupt / mismatched entries stay off)
+			if (!dst || hires::g_chunk_wait) { // no room this frame or chunk still loading: retried next frame (corrupt / mismatched entries stay off)
 				hi->retry = hi->hires, hi->retry_frame = frame_count;
 				hires::g_no_room++;
 			} else

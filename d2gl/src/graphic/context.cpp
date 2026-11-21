@@ -261,6 +261,7 @@ Context::Context()
 		// [Graphic] hires_textures: AI-upscaled replacements in a scale x atlas with the same layers and coordinates
 		TextureCreateInfo hires_texture_ci;
 		// interface and item packs also load with hires_textures, so their frames stay theirs (see hires::find)
+		hires::g_async = App.hires_async;
 		if (App.hires_ui || App.hires_textures)
 			hires::load(0, "d2gl_hires_ui.pak");
 		if (App.hires_textures)

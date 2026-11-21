@@ -16,8 +16,14 @@
 
 #include <cstdint>
 #include <cstring>
+#include <algorithm>
 #include <array>
+#include <condition_variable>
+#include <deque>
 #include <map>
+#include <mutex>
+#include <thread>
+#include <unordered_set>
 #include <vector>
 #include <windows.h>
 
@@ -177,76 +183,161 @@ inline const PakEntry* find(uint32_t hash, uint32_t tw, uint32_t th)
 	return nullptr;
 }
 
-// decoded chunk (small LRU: frames of one sprite share a chunk); nullptr on a corrupt chunk
-inline const uint8_t* chunkData(int pi, uint32_t ci)
+// [Graphic] hires_async: chunk reads and decodes on a worker thread; a draw whose chunk is not decoded yet uses the
+// original this frame and is retried the next (g_chunk_wait). Off: decoded on the game thread at first use.
+inline bool g_async = false;
+inline bool g_chunk_wait = false; // last withChunk() missed because the chunk is still being loaded (not corrupt)
+
+// reads and decodes chunk key k (pack in bits 30-31) into out; false on a corrupt chunk
+inline bool loadChunk(uint32_t k, std::vector<uint8_t>& out, std::vector<uint8_t>& comp)
 {
-	const Pack& P = g_packs[pi];
-	if (ci >= P.nchunks)
-		return nullptr;
-	ci |= (uint32_t)pi << 30; // slot key (pack in bits 30-31: << 31 dropped pack 2, its chunks hit pack 0's cache)
+	const Pack& P = g_packs[k >> 30];
+	const PakChunk& c = P.chunks[k & 0x3FFFFFFF];
+	if (c.csize < 1 || c.offset + c.csize > P.size)
+		return false;
+	comp.resize(c.csize);
+	OVERLAPPED ov = {}; // positional read: safe from two threads on one synchronous handle
+	ov.Offset = (DWORD)(c.offset & 0xFFFFFFFF), ov.OffsetHigh = (DWORD)(c.offset >> 32);
+	DWORD got = 0;
+	if (!ReadFile(P.file, comp.data(), c.csize, &got, &ov) || got != c.csize)
+		return false;
+	out.resize(c.usize);
+	if (P.version >= 4)
+		return LZ4_decompress_safe((const char*)comp.data(), (char*)out.data(), (int)c.csize, (int)c.usize) == (int)c.usize;
+	if (c.csize < 5)
+		return false;
+	static const ISzAlloc alloc = { [](ISzAllocPtr, size_t n) -> void* { return malloc(n); }, [](ISzAllocPtr, void* p) { free(p); } };
+	SizeT dlen = c.usize, slen = c.csize - 5;
+	ELzmaStatus st;
+	return LzmaDecode(out.data(), &dlen, comp.data() + 5, &slen, comp.data(), 5, LZMA_FINISH_ANY, &st, &alloc) == SZ_OK && dlen == c.usize;
+}
+
+// decoded chunks, LRU (frames of one sprite share a chunk). The old 64 slots (~7 MB of v5 chunks) reloaded ~160 chunks/s;
+// now as many slots as fit BUDGET bytes of average chunks, 64..N (32-bit process: v4 chunks are bigger)
+struct ChunkCache {
 	struct Slot {
 		uint32_t chunk = UINT32_MAX, tick = 0;
 		std::vector<uint8_t> data;
 	};
-	static Slot slots[64];
-	static uint32_t tick = 0;
-	Slot* lru = &slots[0];
-	for (auto& sl : slots) {
-		if (sl.chunk == ci) {
-			sl.tick = ++tick;
-			return sl.data.data();
+	static constexpr int N = 512, MAXQ = 32;
+	static constexpr uint64_t BUDGET = 96ull << 20;
+	Slot slots[N];
+	int n = 0; // slots in use, set at first use from the loaded packs
+	uint32_t tick = 0;
+	std::mutex m; // async only: slots, queue, failed
+	std::condition_variable cv;
+	std::deque<uint32_t> queue;
+	std::unordered_set<uint32_t> queued, failed;
+	bool started = false;
+
+	void size()
+	{
+		uint64_t bytes = 0, count = 0;
+		for (const auto& P : g_packs)
+			for (uint32_t i = 0; i < P.nchunks; i++)
+				bytes += P.chunks[i].usize, count++;
+		const uint64_t avg = count ? bytes / count : 1;
+		n = (int)std::clamp<uint64_t>(BUDGET / (avg ? avg : 1), 64, N);
+	}
+	Slot* find(uint32_t k)
+	{
+		if (!n)
+			size();
+		for (int i = 0; i < n; i++)
+			if (slots[i].chunk == k)
+				return slots[i].tick = ++tick, &slots[i];
+		return nullptr;
+	}
+	Slot* lru()
+	{
+		Slot* r = &slots[0];
+		for (int i = 1; i < n; i++)
+			if (slots[i].tick < r->tick)
+				r = &slots[i];
+		return r;
+	}
+};
+inline ChunkCache g_cc;
+
+inline void chunkWorker()
+{
+	std::vector<uint8_t> buf, comp;
+	for (;;) {
+		uint32_t k;
+		{
+			std::unique_lock lk(g_cc.m);
+			g_cc.cv.wait(lk, [] { return !g_cc.queue.empty(); });
+			k = g_cc.queue.front();
+			g_cc.queue.pop_front();
 		}
-		if (sl.tick < lru->tick)
-			lru = &sl;
+		const bool ok = loadChunk(k, buf, comp);
+		std::lock_guard lk(g_cc.m);
+		g_cc.queued.erase(k);
+		if (!ok) {
+			g_cc.failed.insert(k);
+			continue;
+		}
+		auto* sl = g_cc.lru();
+		std::swap(sl->data, buf);
+		sl->chunk = k, sl->tick = ++g_cc.tick;
+		g_chunk_loads++;
 	}
-	const PakChunk& c = P.chunks[ci & 0x3FFFFFFF];
-	if (c.csize < 1 || c.offset + c.csize > P.size)
-		return nullptr;
-	g_chunk_loads++;
-	static std::vector<uint8_t> comp;
-	comp.resize(c.csize);
-	OVERLAPPED ov = {};
-	ov.Offset = (DWORD)(c.offset & 0xFFFFFFFF), ov.OffsetHigh = (DWORD)(c.offset >> 32);
-	DWORD got = 0;
-	if (!ReadFile(P.file, comp.data(), c.csize, &got, &ov) || got != c.csize)
-		return nullptr;
-	lru->chunk = UINT32_MAX;
-	lru->data.resize(c.usize);
-	if (P.version >= 4) {
-		if (LZ4_decompress_safe((const char*)comp.data(), (char*)lru->data.data(), (int)c.csize, (int)c.usize) != (int)c.usize)
-			return nullptr;
-		lru->chunk = ci, lru->tick = ++tick;
-		return lru->data.data();
+}
+
+// calls f(decoded chunk) and returns true; false on a corrupt chunk, or (async) while the chunk is still loading
+// (g_chunk_wait set). f runs under the cache lock in async mode: keep it a short copy.
+template <class F>
+inline bool withChunk(int pi, uint32_t ci, F&& f)
+{
+	g_chunk_wait = false;
+	if (ci >= g_packs[pi].nchunks)
+		return false;
+	const uint32_t k = ci | (uint32_t)pi << 30; // slot key (pack in bits 30-31: << 31 dropped pack 2, its chunks hit pack 0's cache)
+	if (!g_async) {
+		if (auto* sl = g_cc.find(k))
+			return f(sl->data.data()), true;
+		static std::vector<uint8_t> comp;
+		auto* sl = g_cc.lru();
+		sl->chunk = UINT32_MAX;
+		if (!loadChunk(k, sl->data, comp))
+			return false;
+		sl->chunk = k, sl->tick = ++g_cc.tick;
+		g_chunk_loads++;
+		return f(sl->data.data()), true;
 	}
-	if (c.csize < 5)
-		return nullptr;
-	static const ISzAlloc alloc = { [](ISzAllocPtr, size_t n) -> void* { return malloc(n); }, [](ISzAllocPtr, void* p) { free(p); } };
-	SizeT dlen = c.usize, slen = c.csize - 5;
-	ELzmaStatus st;
-	if (LzmaDecode(lru->data.data(), &dlen, comp.data() + 5, &slen, comp.data(), 5, LZMA_FINISH_ANY, &st, &alloc) != SZ_OK || dlen != c.usize)
-		return nullptr;
-	lru->chunk = ci, lru->tick = ++tick;
-	return lru->data.data();
+	std::unique_lock lk(g_cc.m);
+	if (auto* sl = g_cc.find(k))
+		return f(sl->data.data()), true;
+	if (g_cc.failed.count(k))
+		return false;
+	if (!g_cc.queued.count(k) && g_cc.queue.size() < ChunkCache::MAXQ) { // full queue: asked again on the retry
+		g_cc.queued.insert(k);
+		g_cc.queue.push_back(k);
+		if (!g_cc.started)
+			g_cc.started = true, std::thread(chunkWorker).detach();
+		g_cc.cv.notify_one();
+	}
+	g_chunk_wait = true;
+	return false;
 }
 
 // expands an entry into dst (scale*tw x scale*th, zero-filled around the frame); false on a corrupt chunk
 inline bool expand(const PakEntry* e, uint8_t* dst)
 {
+	g_chunk_wait = false;
 	const int pi = packOf(e);
 	if (pi < 0)
 		return false;
 	const uint32_t s = g_scale, w = e->fw * s, h = e->fh * s, dw = e->tw * s, dh = e->th * s;
 	if ((uint64_t)e->offset + (uint64_t)w * h > g_packs[pi].chunks[e->chunk].usize)
 		return false;
-	const uint8_t* src = chunkData(pi, e->chunk);
-	if (!src)
-		return false;
-	src += e->offset;
-	memset(dst, 0, (size_t)dw * dh);
-	const uint32_t y0 = (e->flags & 1) ? 0 : dh - h;
-	for (uint32_t y = 0; y < h; y++)
-		memcpy(dst + (size_t)(y0 + y) * dw, src + (size_t)y * w, w);
-	return true;
+	return withChunk(pi, e->chunk, [&](const uint8_t* src) {
+		src += e->offset;
+		memset(dst, 0, (size_t)dw * dh);
+		const uint32_t y0 = (e->flags & 1) ? 0 : dh - h;
+		for (uint32_t y = 0; y < h; y++)
+			memcpy(dst + (size_t)(y0 + y) * dw, src + (size_t)y * w, w);
+	});
 }
 
 // v5: an entry's BC7 region inside its scale x download: block columns, first block row, block rows
@@ -263,6 +354,7 @@ inline size_t bc7Size(uint32_t tw, uint32_t th) { return (size_t)((g_scale * tw 
 // v5: the whole download as BC7 into dst (bc7Size bytes): the entry's region, zero blocks (transparent) elsewhere
 inline bool expandBc7(const PakEntry* e, uint8_t* dst)
 {
+	g_chunk_wait = false;
 	const int pi = packOf(e);
 	if (pi < 0)
 		return false;
@@ -270,14 +362,12 @@ inline bool expandBc7(const PakEntry* e, uint8_t* dst)
 	const uint32_t dbw = (g_scale * e->tw + 3) / 4, dbh = (g_scale * e->th + 3) / 4;
 	if (r.bw > dbw || r.by + r.bh > dbh || (uint64_t)e->offset + (uint64_t)r.bw * r.bh * 16 > g_packs[pi].chunks[e->chunk].usize)
 		return false;
-	const uint8_t* src = chunkData(pi, e->chunk);
-	if (!src)
-		return false;
-	src += e->offset;
-	memset(dst, 0, (size_t)dbw * dbh * 16);
-	for (uint32_t y = 0; y < r.bh; y++)
-		memcpy(dst + ((size_t)(r.by + y) * dbw) * 16, src + (size_t)y * r.bw * 16, (size_t)r.bw * 16);
-	return true;
+	return withChunk(pi, e->chunk, [&](const uint8_t* src) {
+		src += e->offset;
+		memset(dst, 0, (size_t)dbw * dbh * 16);
+		for (uint32_t y = 0; y < r.bh; y++)
+			memcpy(dst + ((size_t)(r.by + y) * dbw) * 16, src + (size_t)y * r.bw * 16, (size_t)r.bw * 16);
+	});
 }
 
 // undoes XOR coding: dst (scale*tw x scale*th) ^= nearest-neighbour upscale of the tw x th download
