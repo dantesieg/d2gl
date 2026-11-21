@@ -342,11 +342,22 @@ void MotionPrediction::setUnitMotion(UnitMotion* unit_motion, int32_t delta)
 		unit_motion->dt_last_pos_change = 0;
 	}
 
+	if (App.motion_settle && unit_motion->velocity.x == 0 && unit_motion->velocity.y == 0 && unit_motion->predicted_pos != unit_motion->last_pos) {
+		// [Feature] motion_settle: stopped: ease the leftover offset out (about 95 % in 120 ms) instead of keeping it
+		const float k = 1.0f - expf(-(float)delta / 65536.0f / 0.04f);
+		for (int i = 0; i < 2; i++) {
+			const int64_t d = (int64_t)unit_motion->last_pos[i] - unit_motion->predicted_pos[i];
+			unit_motion->predicted_pos[i] = std::llabs(d) < 2048 ? unit_motion->last_pos[i] : (int32_t)(unit_motion->predicted_pos[i] + (int64_t)(d * k));
+		}
+		unit_motion->corrected_pos = unit_motion->predicted_pos;
+	}
+
 	if (unit_motion->velocity.x != 0 || unit_motion->velocity.y != 0) {
 		if (unit_motion->dt_last_pos_change < (65536 / 25)) {
 			glm::ivec2 step = { (int32_t)(((int64_t)delta * unit_motion->velocity.x) >> 16), (int32_t)(((int64_t)delta * unit_motion->velocity.y) >> 16) };
 
-			const int32_t correction = 7000;
+			// [Feature] motion_settle: 7000/65536 per frame at 60 fps, scaled to the frame time
+			const int32_t correction = App.motion_settle ? (int32_t)(65536.0 * (1.0 - pow(1.0 - 7000.0 / 65536.0, (double)delta / 65536.0 * 60.0))) : 7000;
 			const int32_t one_minus_correction = 65536 - correction;
 
 			unit_motion->predicted_pos.x = (int32_t)(((int64_t)unit_motion->predicted_pos.x * one_minus_correction + (int64_t)unit_motion->corrected_pos.x * correction) >> 16);
@@ -369,7 +380,7 @@ glm::ivec2 MotionPrediction::getUnitOffset(UnitMotion* unit_motion)
 		const glm::vec2 offset = { (unit_motion->predicted_pos.x - unit_motion->last_pos.x) / 65536.0f, (unit_motion->predicted_pos.y - unit_motion->last_pos.y) / 65536.0f };
 		const glm::vec2 scale_factors = { 32.0f / sqrtf(2.0f), 16.0f / sqrtf(2.0f) };
 		const glm::vec2 screen_offset = scale_factors * glm::vec2(offset.x - offset.y, offset.x + offset.y) + 0.5f;
-		unit_motion->offset = { (int)screen_offset.x, (int)screen_offset.y };
+		unit_motion->offset = App.motion_settle ? glm::ivec2{ (int)floorf(screen_offset.x), (int)floorf(screen_offset.y) } : glm::ivec2{ (int)screen_offset.x, (int)screen_offset.y };
 		unit_motion->offset_update = false;
 	}
 	return unit_motion->offset;
