@@ -13,4 +13,5 @@ jobs:
           path: |
             **/Release/*.dll
             **/Release/*.pdb
+            **/Release/*.map
             !**/vendor/**
