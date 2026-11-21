@@ -254,7 +254,7 @@ struct D2GLApp {
 
 	bool hd_cursor = false;
 	bool motion_prediction = false;
-	bool motion_settle = false; // [Feature] motion_settle: settle after stops, even rounding, frame-rate independent blend
+	bool motion_settle = false; // [Feature] motion_settle: even rounding, frame-rate independent blend
 	bool skip_intro = false;
 	bool no_pickup = false;
 	bool show_item_quantity = false;
