@@ -37,7 +37,7 @@ namespace d2gl {
 #define MAX_INDICES 6 * 50000
 #define MAX_VERTICES 4 * 50000
 #define MAX_VERTICES_MOD 4 * 20000
-#define PIXEL_BUFFER_SIZE 12 * 1024 * 1024
+#define PIXEL_BUFFER_SIZE 24 * 1024 * 1024 // glide atlas updates are RG8 (2 bytes per pixel)
 #define MAX_FRAMETIME_SAMPLE_COUNT 120
 
 #define TEXTURE_SLOT_DEFAULT 0
@@ -65,6 +65,7 @@ namespace d2gl {
 #define TEXTURE_SLOT_GI_SCENE 21 // radiance GI: 1/4-res emitters + occluders
 #define TEXTURE_SLOT_GI_C0 22    // radiance GI cascades 0..3 (22..25)
 #define TEXTURE_SLOT_GI 26       // radiance GI fluence
+#define TEXTURE_SLOT_BAKEPAL 27  // [Graphic] hires_textures v5: act palettes the full-colour packs were made with
 #define TEXTURE_SLOT_EMIT 20 // game framebuffer attachment 5: HDR emission (additive sprites), [HDR] emissive
 
 #define IMAGE_UNIT_BLUR 0
@@ -185,6 +186,7 @@ class Context {
 	// Glide only
 	std::unique_ptr<Texture> m_glide_texture;
 	std::unique_ptr<Texture> m_hires_texture; // [Graphic] hires_textures: scale x atlas, same layers (1x1 dummy when off)
+	std::unique_ptr<Texture> m_bake_pal_texture; // [Graphic] hires_textures v5: 256x5 act palettes (hires_bake_pal.h)
 	std::map<uint32_t, std::pair<uint32_t, BlendType>> m_blend_types;
 	uint32_t m_current_blend_index = 0;
 	bool m_blend_locked = false;

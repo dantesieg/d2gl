@@ -86,6 +86,12 @@ void Texture::fill(const uint8_t* pixels, uint32_t width, uint32_t height, uint3
 		glTexSubImage3D(m_target, 0, offset_x, offset_y, layer, width, height, 1, m_format, m_type, pixels);
 }
 
+void Texture::fillCompressed(const uint8_t* blocks, uint32_t bytes, uint32_t width, uint32_t height, uint32_t offset_x, uint32_t offset_y, uint32_t layer)
+{
+	bind(true);
+	glCompressedTexSubImage3D(m_target, 0, offset_x, offset_y, layer, width, height, 1, m_internal_format, bytes, blocks);
+}
+
 void Texture::fillFromBuffer(const std::unique_ptr<FrameBuffer>& fbo, uint32_t index)
 {
 	fbo->bind(false);

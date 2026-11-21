@@ -155,7 +155,28 @@ uint32_t TextureManager::upload(uint32_t address, uint16_t width, uint16_t heigh
 {
 	const auto command_buffer = App.context->getCommandBuffer();
 
-	command_buffer->textureUpdate(g_glide_texture.memory + address, texture_info->tex_num, { width, height }, texture_info->offset);
+	const auto rm = hires::g_luts.find(address); // remapped frame: its un-remapped download goes to the atlas G channel
+	const bool has_orig = rm != hires::g_luts.end() && rm->second.src.size() == (size_t)width * height;
+	command_buffer->textureUpdate(g_glide_texture.memory + address, has_orig ? rm->second.src.data() : g_glide_texture.memory + address, texture_info->tex_num, { width, height }, texture_info->offset);
+	if (hi && *hi && hires::g_bc7 == 1) { // v5: BC7 blocks of the whole download, recoloured in the shader
+		const auto he = (const hires::PakEntry*)*hi;
+		const size_t bytes = hires::bc7Size(width, height);
+		uint8_t* dst = command_buffer->allocHi(bytes);
+		const bool ok = dst && hires::expandBc7(he, dst);
+		const uint16_t pw = (uint16_t)((hires::g_scale * width + 3) & ~3u), ph = (uint16_t)((hires::g_scale * height + 3) & ~3u);
+		if (ok)
+			command_buffer->textureUpdateHi(dst, texture_info->tex_num, { pw, ph }, { (uint16_t)(texture_info->offset.x * hires::g_scale), (uint16_t)(texture_info->offset.y * hires::g_scale) }, (uint32_t)bytes);
+		else {
+			if (!dst) {
+				g_glide_texture.hires_retry[address] = { *hi, frame_count };
+				hires::g_no_room++;
+			} else
+				hires::g_bad++;
+			*hi = nullptr;
+			hash ^= 0x5BD1E995u;
+		}
+		return hash;
+	}
 	if (hi && *hi) {
 		const uint16_t s = (uint16_t)hires::g_scale;
 		uint8_t* dst = command_buffer->allocHi((size_t)width * s * height * s);

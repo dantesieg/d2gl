@@ -103,10 +103,16 @@ void CommandBuffer::colorUpdate(UBOType type, const void* data)
 	next();
 }
 
-void CommandBuffer::textureUpdate(uint8_t* data, uint16_t tex_num, glm::vec<2, uint16_t> size, glm::vec<2, uint16_t> offset)
+// the glide atlas is RG8: R = the download, G = the same frame before its colour remap ([Graphic] hires_textures v5
+// recolours full-colour replacements by palette[R] / bake palette[G]); orig = data when there is no remap
+void CommandBuffer::textureUpdate(uint8_t* data, const uint8_t* orig, uint16_t tex_num, glm::vec<2, uint16_t> size, glm::vec<2, uint16_t> offset)
 {
-	const uint32_t data_size = size.x * size.y;
-	memcpy((void*)((uint32_t)m_tex_buffer + m_tex_update_queue.data_offset), data, data_size);
+	const uint32_t n = size.x * size.y, data_size = n * 2;
+	if (m_tex_update_queue.data_offset + data_size > PIXEL_BUFFER_SIZE)
+		return;
+	uint8_t* dst = m_tex_buffer + m_tex_update_queue.data_offset;
+	for (uint32_t i = 0; i < n; i++)
+		dst[i * 2] = data[i], dst[i * 2 + 1] = orig[i];
 
 	auto tex_data = &m_tex_update_queue.tex_data[m_tex_update_queue.count];
 	tex_data->offset = m_tex_update_queue.data_offset;
@@ -129,11 +135,11 @@ uint8_t* CommandBuffer::allocHi(size_t bytes)
 	return p;
 }
 
-void CommandBuffer::textureUpdateHi(const uint8_t* data, uint16_t tex_num, glm::vec<2, uint16_t> size, glm::vec<2, uint16_t> offset)
+void CommandBuffer::textureUpdateHi(const uint8_t* data, uint16_t tex_num, glm::vec<2, uint16_t> size, glm::vec<2, uint16_t> offset, uint32_t bytes)
 {
 	if (m_hi_tex_update_queue.count >= m_hi_tex_update_queue.tex_data.size())
 		return;
-	m_hi_tex_update_queue.tex_data[m_hi_tex_update_queue.count++] = { data, tex_num, size, offset };
+	m_hi_tex_update_queue.tex_data[m_hi_tex_update_queue.count++] = { data, bytes, tex_num, size, offset };
 }
 
 void CommandBuffer::gameTextureUpdate(uint8_t* data, glm::vec<2, uint16_t> size, uint32_t bit)

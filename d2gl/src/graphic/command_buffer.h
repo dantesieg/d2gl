@@ -32,6 +32,7 @@ struct Command {
 
 struct HiTexData { // [Graphic] hires_textures: data points into the command buffer's hi arena
 	const uint8_t* data;
+	uint32_t bytes; // > 0: BC7 blocks (v5 packs), size = padded pixel size
 	uint16_t tex_num;
 	glm::vec<2, uint16_t> tex_size;
 	glm::vec<2, uint16_t> tex_offset;
@@ -146,9 +147,9 @@ public:
 	void resize();
 
 	void colorUpdate(UBOType type, const void* data);
-	void textureUpdate(uint8_t* data, uint16_t tex_num, glm::vec<2, uint16_t> size, glm::vec<2, uint16_t> offset);
+	void textureUpdate(uint8_t* data, const uint8_t* orig, uint16_t tex_num, glm::vec<2, uint16_t> size, glm::vec<2, uint16_t> offset); // RG: download, un-remapped download
 	uint8_t* allocHi(size_t bytes);
-	void textureUpdateHi(const uint8_t* data, uint16_t tex_num, glm::vec<2, uint16_t> size, glm::vec<2, uint16_t> offset);
+	void textureUpdateHi(const uint8_t* data, uint16_t tex_num, glm::vec<2, uint16_t> size, glm::vec<2, uint16_t> offset, uint32_t bytes = 0);
 	void gameTextureUpdate(uint8_t* data, glm::vec<2, uint16_t> size, uint32_t bit = 1);
 	void setHDTextMasking(bool masking, glm::vec4 metrics);
 };

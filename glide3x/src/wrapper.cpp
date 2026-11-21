@@ -215,7 +215,10 @@ void Wrapper::grTexSource(GrChipID_t tmu, FxU32 start_address, GrTexInfo* info)
 	if (sub_tex_info) {
 		hires::g_on[0] = App.hires_ui, hires::g_on[1] = App.hires_textures, hires::g_on[2] = App.hires_items, hires::g_on[3] = App.hires_ui;
 		const auto hi = (hires::g_count && !d2::drawing_orb_liquid) ? g_glide_texture.hires.find(start_address) : g_glide_texture.hires.end();
-		ctx->setVertexTexNum({ sub_tex_info->tex_num, (uint16_t)((hi != g_glide_texture.hires.end() && hires::active(hi->second)) ? 1 : 0) });
+		// y: 0 = no replacement, else 1 + the act palette a full-colour (v5) replacement was made with (shader u_BakePal row)
+		const bool use_hi = hi != g_glide_texture.hires.end() && hires::active(hi->second);
+		const uint16_t bake = use_hi && hires::g_bc7 == 1 ? (uint16_t)((((const hires::PakEntry*)hi->second)->flags >> 3) & 7) : 0;
+		ctx->setVertexTexNum({ sub_tex_info->tex_num, (uint16_t)(use_hi ? 1 + (bake < 5 ? bake : 0) : 0) });
 		ctx->setVertexOffset(sub_tex_info->offset);
 		ctx->setVertexTexShift(sub_tex_info->shift);
 		ctx->setVertexTexRect({ sub_tex_info->offset.x, sub_tex_info->offset.y, (uint16_t)glm::min(width, 512u), (uint16_t)glm::min(height, 512u) });

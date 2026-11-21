@@ -1,12 +1,14 @@
 /*
 	[Graphic] hires_textures: AI-upscaled replacements for glide textures (tools/upscale in median-2026).
 	d2gl_hires.pak next to the game; header, index and chunk table are memory-mapped read-only:
-	  header  { u32 magic 'D2HR', u32 version 3 (LZMA) | 4 (LZ4), u32 count, u32 scale, u32 chunks }
+	  header  { u32 magic 'D2HR', u32 version 3 (LZMA) | 4 (LZ4) | 5 (LZ4, full colour BC7), u32 count, u32 scale, u32 chunks }
 	  entries { u32 hash, u16 tw, u16 th, u16 fw, u16 fh, u16 flags, u16 pad, u32 chunk, u32 offset }[count],
 	          sorted by hash, tw, th; flags bit 0 = frame at the top of the download (else bottom),
-	          bit 1 = stored XOR the nearest-neighbour upscale of the (un-remapped) download
+	          bit 1 = stored XOR the nearest-neighbour upscale of the (un-remapped) download,
+	          bits 3-5 (v5) = act palette the colours were made with (0 = act 1; see hires_bake_pal.h)
 	  chunks  { u64 offset, u32 csize, u32 usize }[chunks]
-	  data    LZMA chunks (5 props bytes + raw stream) or LZ4 blocks of several frames' scale*fw x scale*fh 8-bit palette indices;
+	  data    LZMA chunks (5 props bytes + raw stream) or LZ4 blocks of several frames' scale*fw x scale*fh 8-bit palette indices
+	          (v5: BC7 RGBA blocks of the entry's region of the scale x download, bc7Region: smooth alpha edges);
 	          an entry's frame is at offset inside its decoded chunk (entries may share frames)
 	hash = helpers::hash (MurmurHash3 x86_32, seed 0) of the tw*th glide download.
 */
@@ -53,6 +55,7 @@ inline Pack g_packs[NPACK]; // 0 = interface (d2gl_hires_ui.pak, [Graphic] hires
                            // 2 = items (d2gl_hires_items.pak, hires_items), 3 = extra interface sprites of our own
                            // (d2gl_hires_extra.pak: MedianRevived PanelStyle art; follows hires_ui)
 inline uint32_t g_scale = 0, g_count = 0; // shared scale of the loaded packs, total entries
+inline int g_bc7 = -1; // -1 = no pack yet, 0 = palette-index packs (v3/v4), 1 = full-colour BC7 packs (v5); one kind at a time
 inline bool g_on[NPACK] = {}; // packs enabled right now (off applies at once)
 // diagnostics for the periodic hires_textures log line (cumulative): unmatched downloads shaped like a floor tile (256x128)
 // or wall block (32x32) outside the sprite upload hook, matches not uploaded for lack of room in the frame's hi-res arena or
@@ -112,7 +115,8 @@ inline bool load(int pi, const char* path)
 	GetFileSizeEx(f, &sz);
 	PakHeader hd = {};
 	DWORD got = 0;
-	if (!ReadFile(f, &hd, sizeof(hd), &got, nullptr) || got != sizeof(hd) || hd.magic != 0x52483244 || (hd.version != 3 && hd.version != 4) || (hd.scale != 2 && hd.scale != 4) || (g_scale && hd.scale != g_scale)) {
+	if (!ReadFile(f, &hd, sizeof(hd), &got, nullptr) || got != sizeof(hd) || hd.magic != 0x52483244 || (hd.version < 3 || hd.version > 5) || (hd.scale != 2 && hd.scale != 4) || (g_scale && hd.scale != g_scale) ||
+		(g_bc7 >= 0 && g_bc7 != (hd.version == 5 ? 1 : 0))) {
 		CloseHandle(f);
 		return false;
 	}
@@ -127,7 +131,7 @@ inline bool load(int pi, const char* path)
 	}
 	const PakEntry* ents = (const PakEntry*)(p + sizeof(PakHeader));
 	P = { p, f, ents, (const PakChunk*)(ents + hd.count), hd.count, hd.scale, hd.chunks, hd.version, (uint64_t)sz.QuadPart };
-	g_scale = hd.scale, g_count += hd.count;
+	g_scale = hd.scale, g_count += hd.count, g_bc7 = hd.version == 5 ? 1 : 0;
 	return true;
 }
 
@@ -208,7 +212,7 @@ inline const uint8_t* chunkData(int pi, uint32_t ci)
 		return nullptr;
 	lru->chunk = UINT32_MAX;
 	lru->data.resize(c.usize);
-	if (P.version == 4) {
+	if (P.version >= 4) {
 		if (LZ4_decompress_safe((const char*)comp.data(), (char*)lru->data.data(), (int)c.csize, (int)c.usize) != (int)c.usize)
 			return nullptr;
 		lru->chunk = ci, lru->tick = ++tick;
@@ -242,6 +246,37 @@ inline bool expand(const PakEntry* e, uint8_t* dst)
 	const uint32_t y0 = (e->flags & 1) ? 0 : dh - h;
 	for (uint32_t y = 0; y < h; y++)
 		memcpy(dst + (size_t)(y0 + y) * dw, src + (size_t)y * w, w);
+	return true;
+}
+
+// v5: an entry's BC7 region inside its scale x download: block columns, first block row, block rows
+// (same formula as tools/upscale build_pack.py bc7_region)
+struct Bc7Region { uint32_t bw, by, bh; };
+inline Bc7Region bc7Region(const PakEntry* e)
+{
+	const uint32_t s = g_scale, y0 = (e->flags & 1) ? 0 : s * (e->th - e->fh), ys = y0 & ~3u;
+	return { (s * e->fw + 3) / 4, ys / 4, (((s * e->th + 3) & ~3u) - ys) / 4 };
+}
+// bytes of the whole download in BC7 (scale x, padded to 4x4 blocks)
+inline size_t bc7Size(uint32_t tw, uint32_t th) { return (size_t)((g_scale * tw + 3) / 4) * ((g_scale * th + 3) / 4) * 16; }
+
+// v5: the whole download as BC7 into dst (bc7Size bytes): the entry's region, zero blocks (transparent) elsewhere
+inline bool expandBc7(const PakEntry* e, uint8_t* dst)
+{
+	const int pi = packOf(e);
+	if (pi < 0)
+		return false;
+	const Bc7Region r = bc7Region(e);
+	const uint32_t dbw = (g_scale * e->tw + 3) / 4, dbh = (g_scale * e->th + 3) / 4;
+	if (r.bw > dbw || r.by + r.bh > dbh || (uint64_t)e->offset + (uint64_t)r.bw * r.bh * 16 > g_packs[pi].chunks[e->chunk].usize)
+		return false;
+	const uint8_t* src = chunkData(pi, e->chunk);
+	if (!src)
+		return false;
+	src += e->offset;
+	memset(dst, 0, (size_t)dbw * dbh * 16);
+	for (uint32_t y = 0; y < r.bh; y++)
+		memcpy(dst + ((size_t)(r.by + y) * dbw) * 16, src + (size_t)y * r.bw * 16, (size_t)r.bw * 16);
 	return true;
 }
 

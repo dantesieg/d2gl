@@ -19,6 +19,7 @@
 #include "pch.h"
 #include "context.h"
 #include "d2/common.h"
+#include "graphic/hires_bake_pal.h"
 #include "graphic/hires_pack.h"
 #include "helpers.h"
 #include "modules/hd_cursor.h"
@@ -254,7 +255,7 @@ Context::Context()
 		TextureCreateInfo glide_texture_ci;
 		glide_texture_ci.size = { 512, 512 };
 		glide_texture_ci.layer_count = 512;
-		glide_texture_ci.format = { GL_R8, GL_RED };
+		glide_texture_ci.format = { GL_RG8, GL_RG }; // R = download, G = before its colour remap (CommandBuffer::textureUpdate)
 		m_glide_texture = std::make_unique<Texture>(glide_texture_ci);
 
 		// [Graphic] hires_textures: AI-upscaled replacements in a scale x atlas with the same layers and coordinates
@@ -272,9 +273,15 @@ Context::Context()
 		const uint32_t hs = hires ? 512 * hires::g_scale : 1;
 		hires_texture_ci.size = { hs, hs };
 		hires_texture_ci.layer_count = hires ? 512 : 1;
-		hires_texture_ci.format = { GL_R8, GL_RED };
+		// v5 packs: full colour + smooth alpha as BC7 (1 byte per pixel like the index atlas); filtered like the index atlas
+		hires_texture_ci.format = hires::g_bc7 == 1 ? std::pair<GLint, GLenum>{ GL_COMPRESSED_RGBA_BPTC_UNORM, GL_RGBA } : std::pair<GLint, GLenum>{ GL_R8, GL_RED };
 		hires_texture_ci.slot = TEXTURE_SLOT_HIRES;
 		m_hires_texture = std::make_unique<Texture>(hires_texture_ci);
+		TextureCreateInfo bake_pal_ci;
+		bake_pal_ci.size = { 256, 5 };
+		bake_pal_ci.slot = TEXTURE_SLOT_BAKEPAL;
+		m_bake_pal_texture = std::make_unique<Texture>(bake_pal_ci);
+		m_bake_pal_texture->fill(g_hires_bake_pal, 256, 5);
 		if (hires)
 			trace_log("hires_textures: %u interface + %u world + %u item + %u extra replacements, scale %u", hires::g_packs[0].count, hires::g_packs[1].count, hires::g_packs[2].count, hires::g_packs[3].count, hires::g_scale);
 
@@ -295,10 +302,13 @@ Context::Context()
 			{ BindingType::UniformBuffer, "ubo_Colors", m_game_color_ubo->getBinding() },
 			{ BindingType::Texture, "u_Texture", TEXTURE_SLOT_DEFAULT, &m_glide_texture },
 			{ BindingType::Texture, "u_HiTexture", TEXTURE_SLOT_HIRES, &m_hires_texture },
+			{ BindingType::Texture, "u_BakePal", TEXTURE_SLOT_BAKEPAL, &m_bake_pal_texture },
 		};
 		game_pipeline_ci.attachment_blends.clear();
 		for (auto& blend : g_blend_types) {
-			game_pipeline_ci.attachment_blends.push_back({ blend.second.second, BlendType::SAlpha_OneMinusSAlpha, BlendType::SAlpha_OneMinusSAlpha, BlendType::One_One, blend.second.first == 0 ? BlendType::One_Zero : BlendType::One_One });
+			// [Graphic] hires_textures v5: the opaque pass blends by alpha (alpha is 1 except on replacement edges)
+			const BlendType color_blend = blend.second.first == 0 && hires::g_bc7 == 1 ? BlendType::SAlpha_OneMinusSAlpha : blend.second.second;
+			game_pipeline_ci.attachment_blends.push_back({ color_blend, BlendType::SAlpha_OneMinusSAlpha, BlendType::SAlpha_OneMinusSAlpha, BlendType::One_One, blend.second.first == 0 ? BlendType::One_Zero : BlendType::One_One });
 			// emission: opaque replaces (occludes), alpha attenuates by coverage, additive/multiply add (multiply adds 0)
 			if (m_emit_supported)
 				game_pipeline_ci.attachment_blends.back().push_back(blend.second.first == 0 ? BlendType::One_Zero : (blend.second.first == 3 ? BlendType::SAlpha_OneMinusSAlpha : BlendType::One_One));
@@ -612,7 +622,10 @@ void Context::renderThread(void* context)
 		// [Graphic] hires_textures: straight from the mapped pack (no unpack buffer bound)
 		for (uint32_t i = 0; i < cmd->m_hi_tex_update_queue.count; i++) {
 			const auto data = &cmd->m_hi_tex_update_queue.tex_data[i];
-			ctx->m_hires_texture->fill(data->data, data->tex_size.x, data->tex_size.y, data->tex_offset.x, data->tex_offset.y, data->tex_num);
+			if (data->bytes)
+				ctx->m_hires_texture->fillCompressed(data->data, data->bytes, data->tex_size.x, data->tex_size.y, data->tex_offset.x, data->tex_offset.y, data->tex_num);
+			else
+				ctx->m_hires_texture->fill(data->data, data->tex_size.x, data->tex_size.y, data->tex_offset.x, data->tex_offset.y, data->tex_num);
 		}
 
 		if (cmd->m_tex_update.bit && ctx->m_game_texture) {
@@ -648,6 +661,8 @@ void Context::renderThread(void* context)
 							ctx->m_game_pipeline->setUniform1f("u_SpellGlow", last_glow = st.spell_glow);
 						if (!same_pipe || last_filter != App.game.native_filter.selected)
 							ctx->m_game_pipeline->setUniform1i("u_NativeFilter", last_filter = App.game.native_filter.selected);
+						if (!same_pipe)
+							ctx->m_game_pipeline->setUniform1i("u_HiFull", hires::g_bc7 == 1 ? 1 : 0);
 						static float last_flicker = -1.0f, last_item_glow = -1.0f, last_orb = -1.0f, last_hot = -1.0f, last_unit = -1.0f;
 						const float unit_emit = ctx->m_emit_attached ? App.hdr.unit_emissive.value : 1.0f;
 						if (!same_pipe || last_unit != unit_emit)

@@ -54,6 +54,7 @@ public:
 	void bindImage(uint32_t unit = 0);
 
 	void fill(const uint8_t* pixels, uint32_t width, uint32_t height, uint32_t offset_x = 0, uint32_t offset_y = 0, uint32_t layer = 0);
+	void fillCompressed(const uint8_t* blocks, uint32_t bytes, uint32_t width, uint32_t height, uint32_t offset_x, uint32_t offset_y, uint32_t layer); // texture made with a compressed internal format
 	void fillFromBuffer(const std::unique_ptr<FrameBuffer>& fbo, uint32_t index = 0);
 	TextureData fillImage(ImageData image, uint32_t div_x = 1, uint32_t div_y = 1);
 

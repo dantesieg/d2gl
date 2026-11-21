@@ -62,7 +62,9 @@ layout(std140) uniform ubo_Colors {
 };
 
 uniform sampler2DArray u_Texture;
-uniform sampler2DArray u_HiTexture; // [Graphic] hires_textures: same coordinates, used when v_TexIds.y == 1
+uniform sampler2DArray u_HiTexture; // [Graphic] hires_textures: same coordinates, used when v_TexIds.y >= 1
+uniform int u_HiFull;                // 1: full-colour BC7 replacements (pack v5; v_TexIds.y = 1 + bake act), 0: palette indices
+uniform sampler2D u_BakePal;         // v5: 256x5 act palettes the replacements were made with
 uniform int u_BlendIndex; // pipeline blend index: 0 opaque, 1 multiply, 2 additive, 3 alpha
 uniform float u_LightFlicker; // [Graphic] light_flicker: 0 = off, spell/fire light pulses up to +-45 %
 uniform float u_Time;         // seconds, wraps every hour
@@ -287,7 +289,7 @@ vec3 potionLiquid(vec3 c)
 	float t = u_Time;
 
 	vec2 up = v_TexCoord - vec2(0.0, 2.0 / 512.0);
-	float ur = v_TexIds.y == 1 ? texture(u_HiTexture, vec3(up, v_TexIds.x)).r : texture(u_Texture, vec3(up, v_TexIds.x)).r;
+	float ur = (v_TexIds.y == 1 && u_HiFull == 0) ? texture(u_HiTexture, vec3(up, v_TexIds.x)).r : texture(u_Texture, vec3(up, v_TexIds.x)).r;
 	float surface = mask * (ur == 0.0 ? 1.0 : 1.0 - potionMask(u_Palette[int(ur * 255.0 + 0.5)].rgb));
 
 	float n = orbNoise(lp * 0.25 + vec2(t * 0.35, -t * 0.5)) * 0.65 + orbNoise(lp * 0.55 - vec2(t * 0.6, t * 0.2)) * 0.35;
@@ -329,6 +331,7 @@ void main()
 
 	// v_Flags.x high nibble: 1 multiply shadow, 2 opaque occluder, 3 AO ellipse, 4 alpha shadow, 5 alpha occluder
 	uint sk = v_Flags.x >> 4u;
+	float hiA = 1.0; // [Graphic] hires_textures v5: replacement coverage (smooth edge)
 	FragColorShadow = vec4(0.0);
 	FragLight = vec4(0.0);
 	FragEmit = vec4(0.0);
@@ -352,6 +355,24 @@ void main()
 			discard;
 		FragColor = v_Color1 * pal;
 	}
+	else if (v_TexIds.y >= 1 && u_HiFull == 1)
+	{
+		// full-colour replacement, recoloured per source pixel by palette[download] / bake[un-remapped]: covers monster and
+		// item colour remaps and act palettes; soft alpha edge (BC7 alpha tops out at 254)
+		vec4 hc = texture(u_HiTexture, vec3(v_TexCoord, v_TexIds.x));
+		vec2 ix = texture(u_Texture, vec3(v_TexCoord, v_TexIds.x)).rg;
+		hiA = clamp((hc.a - 0.02) / 0.96, 0.0, 1.0);
+		if (hiA <= 0.0) {
+			if ((v_Flags.x & 15u) == 1u || v_Flags.y == 3u)
+				discard;
+			hiA = 1.0;
+			FragColor = v_Color1 * u_Palette[int(ix.r * 255.0 + 0.5)];
+		} else {
+			vec3 cur = u_Palette[int(ix.r * 255.0 + 0.5)].rgb;
+			vec3 bake = texelFetch(u_BakePal, ivec2(int(ix.g * 255.0 + 0.5), v_TexIds.y - 1), 0).rgb;
+			FragColor = v_Color1 * vec4(min(hc.rgb * (cur + 0.02) / (bake + 0.02), vec3(1.0)), 1.0);
+		}
+	}
 	else
 	{
 		float red = v_TexIds.y == 1 ? texture(u_HiTexture, vec3(v_TexCoord, v_TexIds.x)).r : texture(u_Texture, vec3(v_TexCoord, v_TexIds.x)).r;
@@ -369,6 +390,8 @@ void main()
 	FragColor.g = u_Gamma[int(FragColor.g * 255)].g;
 	FragColor.b = u_Gamma[int(FragColor.b * 255)].b;
 	FragColor.a = (v_Flags.z & 15u) == 1u ? v_Color2.a : ((v_Flags.z & 15u) == 2u ? v_Color1.a : 1.0); // z >> 4: item glow level
+	if (u_HiFull == 1 && u_BlendIndex == 0) // opaque pass blends by alpha with full-colour packs: smooth replacement edges
+		FragColor.a = hiA;
 	if (v_Flags.y == 3u) // [Graphic] silhouettes: keyed sprite shape in the iterated tint (hidden player)
 		FragColor = v_Color1;
 
