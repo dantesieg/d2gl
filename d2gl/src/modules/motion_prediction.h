@@ -34,6 +34,8 @@ struct UnitMotion {
 	glm::ivec2 corrected_pos = { 0, 0 };
 	glm::ivec2 velocity = { 0, 0 };
 	int64_t dt_last_pos_change = 0;
+	glm::vec2 settle_vel = { 0.0f, 0.0f }; // [Feature] motion_settle: velocity at the stop (16.16 units per second)
+	float settle_d0 = 0.0f;                 // leftover distance at the stop
 };
 
 struct ParticleMotion {

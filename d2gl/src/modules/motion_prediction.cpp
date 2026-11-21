@@ -332,6 +332,10 @@ void MotionPrediction::setUnitMotion(UnitMotion* unit_motion, int32_t delta)
 	unit_motion->dt_last_pos_change += delta;
 
 	if (dx != 0 || dy != 0 || unit_motion->dt_last_pos_change >= (65536 / 25)) {
+		if (App.motion_settle && dx == 0 && dy == 0 && (unit_motion->velocity.x != 0 || unit_motion->velocity.y != 0)) { // stopping now
+			unit_motion->settle_vel = glm::vec2(unit_motion->velocity);
+			unit_motion->settle_d0 = glm::length(glm::vec2(unit_pos - unit_motion->predicted_pos));
+		}
 		unit_motion->corrected_pos.x = ((int64_t)unit_pos.x + unit_motion->last_pos.x) >> 1;
 		unit_motion->corrected_pos.y = ((int64_t)unit_pos.y + unit_motion->last_pos.y) >> 1;
 
@@ -343,11 +347,23 @@ void MotionPrediction::setUnitMotion(UnitMotion* unit_motion, int32_t delta)
 	}
 
 	if (App.motion_settle && unit_motion->velocity.x == 0 && unit_motion->velocity.y == 0 && unit_motion->predicted_pos != unit_motion->last_pos) {
-		// [Feature] motion_settle: stopped: ease the leftover offset out (about 95 % in 120 ms) instead of keeping it
-		const float k = 1.0f - expf(-(float)delta / 65536.0f / 0.04f);
-		for (int i = 0; i < 2; i++) {
-			const int64_t d = (int64_t)unit_motion->last_pos[i] - unit_motion->predicted_pos[i];
-			unit_motion->predicted_pos[i] = std::llabs(d) < 2048 ? unit_motion->last_pos[i] : (int32_t)(unit_motion->predicted_pos[i] + (int64_t)(d * k));
+		// [Feature] motion_settle: stopped: the prediction trails the unit (it aims at the midpoint of the last step), so
+		// it keeps going at the speed it had and brakes evenly to the real position (no jump, no lunge); a prediction
+		// that overshot eases back
+		const float dt = (float)delta / 65536.0f;
+		const glm::vec2 d = glm::vec2(unit_motion->last_pos - unit_motion->predicted_pos);
+		const float dist = glm::length(d);
+		if (dist < 2048.0f || dt <= 0.0f)
+			unit_motion->predicted_pos = dist < 2048.0f ? unit_motion->last_pos : unit_motion->predicted_pos;
+		else {
+			const float v0 = glm::length(unit_motion->settle_vel);
+			float move;
+			if (v0 > 0.0f && glm::dot(d, unit_motion->settle_vel) > 0.0f && unit_motion->settle_d0 > 0.0f)
+				move = glm::max(v0 * sqrtf(glm::min(dist / unit_motion->settle_d0, 1.0f)), 32768.0f) * dt; // v^2 = 2ad
+			else
+				move = dist * (1.0f - expf(-dt / 0.08f));
+			move = glm::min(move, dist);
+			unit_motion->predicted_pos += glm::ivec2(d / dist * move);
 		}
 		unit_motion->corrected_pos = unit_motion->predicted_pos;
 	}
