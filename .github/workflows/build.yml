@@ -12,4 +12,5 @@ jobs:
           name: d2gl
           path: |
             **/Release/*.dll
+            **/Release/*.pdb
             !**/vendor/**
