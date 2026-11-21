@@ -23,6 +23,7 @@
 #include "helpers.h"
 #include "modules/motion_prediction.h"
 #include "win32.h"
+#include <unordered_set>
 
 namespace d2gl {
 
@@ -246,25 +247,29 @@ void Wrapper::grTexDownloadMipMap(GrChipID_t tmu, FxU32 start_address, GrTexInfo
 		pend_size += !hi && pd.active && (pd.tw != width || pd.th != height) ? 1 : 0;
 		if (!hi && pd.active && pd.tw == width && pd.th == height) {
 			hi = hires::find(pd.hash, width, height);
-			// debug: with a file d2gl_hires_dump next to the game, the first 2000 unmatched remapped frames go to
-			// d2gl_hires_dump.bin (u16 tw, th, un-remapped download)
-			static int dump = GetFileAttributesA("d2gl_hires_dump") != INVALID_FILE_ATTRIBUTES ? 2000 : 0;
-			if (!hi && dump > 0 && pd.src) {
+			if (hi) {
+				auto& rm = hires::g_luts[start_address];
+				memcpy(rm.lut.data(), pd.lut, 256);
+				rm.src.assign(pd.src, pd.src + (size_t)width * height);
+			}
+		}
+		// debug: with a file d2gl_hires_dump next to the game, every distinct unmatched download (up to 20000) goes to
+		// d2gl_hires_dump.bin: u16 tw, th, u8 kind (0 plain, 1 remapped: un-remapped source), u8 0, tw*th indices
+		static int dump = GetFileAttributesA("d2gl_hires_dump") != INVALID_FILE_ATTRIBUTES ? 20000 : 0;
+		if (!hi && dump > 0) {
+			static std::unordered_set<uint32_t> dumped;
+			const bool rem = pd.active && pd.src && pd.tw == width && pd.th == height;
+			if (dumped.insert(rem ? pd.hash : g_glide_texture.hash[start_address]).second) {
 				static FILE* df = [] { FILE* f = nullptr; fopen_s(&f, "d2gl_hires_dump.bin", "wb"); return f; }();
 				if (df) {
-					const uint16_t d[2] = { (uint16_t)width, (uint16_t)height };
-					fwrite(d, 2, 2, df);
-					fwrite(pd.src, 1, (size_t)width * height, df);
+					const uint16_t d[3] = { (uint16_t)width, (uint16_t)height, (uint16_t)(rem ? 1 : 0) };
+					fwrite(d, 2, 3, df);
+					fwrite(rem ? pd.src : info->data, 1, (size_t)width * height, df);
 					if (--dump == 0)
 						fclose(df);
 					else
 						fflush(df);
 				}
-			}
-			if (hi) {
-				auto& rm = hires::g_luts[start_address];
-				memcpy(rm.lut.data(), pd.lut, 256);
-				rm.src.assign(pd.src, pd.src + (size_t)width * height);
 			}
 		}
 		pd.active = false;
