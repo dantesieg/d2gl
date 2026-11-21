@@ -55,6 +55,7 @@ struct GlideSlot {
 	const void* hires = nullptr; // [Graphic] hires_textures: hires::PakEntry of the download at this address
 	const void* retry = nullptr; // match not uploaded for lack of room: entry, retried the next frame
 	uint32_t retry_frame = 0;
+	uint16_t w = 0, h = 0; // size of the last download (glide capture snapshot)
 };
 
 struct GlideTexture {

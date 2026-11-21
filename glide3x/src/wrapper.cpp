@@ -238,6 +238,7 @@ void Wrapper::grTexDownloadMipMap(GrChipID_t tmu, FxU32 start_address, GrTexInfo
 	GlideSlot& slot = g_glide_texture.slots[start_address];
 	slot.hash = helpers::hash(info->data, width * height);
 	slot.retry = nullptr; // new contents: a pending retry is stale
+	slot.w = (uint16_t)width, slot.h = (uint16_t)height;
 	if (hires::g_count) {
 		hires::g_on[0] = App.hires_ui, hires::g_on[1] = App.hires_textures, hires::g_on[2] = App.hires_items, hires::g_on[3] = App.hires_ui;
 		const hires::PakEntry* hi = hires::find(slot.hash, width, height);

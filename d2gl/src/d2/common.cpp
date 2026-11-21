@@ -290,6 +290,39 @@ static bool uploadHookValid()
 	return true;
 }
 
+void replayStubs()
+{
+	// each pointer gets its own zeroed 256-byte cell (the game is absent, so every getProc above is null)
+	static uint8_t cells[26][256] = {};
+	int i = 0;
+	*(void**)&screen_width = cells[i++];
+	*(void**)&screen_height = cells[i++];
+	*(void**)&screen_shift = cells[i++];
+	*(void**)&video_mode = cells[i++];
+	*(void**)&perspective = cells[i++];
+	*(void**)&esc_menu_open = cells[i++];
+	*(void**)&is_alt_clicked = cells[i++];
+	*(void**)&is_in_game = cells[i++];
+	*(void**)&player_unit = cells[i++];
+	*(void**)&selected_item = cells[i++];
+	*(void**)&hovered_monster_name = cells[i++];
+	*(void**)&level_no = cells[i++];
+	*(void**)&mouse_x = cells[i++];
+	*(void**)&mouse_y = cells[i++];
+	*(void**)&mouse_x_menu = cells[i++];
+	*(void**)&mouse_y_menu = cells[i++];
+	*(void**)&cursor_state1 = cells[i++];
+	*(void**)&cursor_state2 = cells[i++];
+	*(void**)&cursor_state3 = cells[i++];
+	*(void**)&shake_x = cells[i++];
+	*(void**)&shake_y = cells[i++];
+	*(void**)&no_pickup = cells[i++];
+	*(void**)&hover_text_x = cells[i++];
+	*(void**)&hover_text_y = cells[i++];
+	*(void**)&automap_on = cells[i++];
+	*(void**)&automap_type = cells[i++];
+}
+
 void initHooks()
 {
 	*is_in_game = 0;

@@ -176,6 +176,7 @@ extern std::unique_ptr<Patch> patch_motion_prediction;
 extern std::unique_ptr<Patch> patch_hd_text;
 
 void initHooks();
+void replayStubs(); // d2gl_replay: game data pointers -> zeroed memory (no game in the process)
 void destroyHooks();
 
 }

@@ -530,6 +530,11 @@ void saveIni()
 		"; P3, vsync off only: if the fps limit is within 3%% of the display refresh, pace at the exact refresh\n"
 		"; period (DwmGetCompositionTimingInfo, else EnumDisplaySettings). Not measured yet.\n"
 		"pace_to_refresh=%s\n\n"
+		"; Glide capture (debug): while on, creating a file named d2gl_capture next to the game records the next\n"
+		"; glide_capture_frames frames of glide calls to d2gl_capture_###.gcap (file contents may hold a frame count).\n"
+		"; Replay with d2gl_replay.exe, see docs/capture/FORMAT.md. Off has zero cost.\n"
+		"glide_capture=%s\n"
+		"glide_capture_frames=%d\n\n"
 		"; Comma-delimited DLLs to load (early: right after attached).\n"
 		"load_dlls_early=%s\n\n"
 		"; Comma-delimited DLLs to load (late: right after window created).\n"
@@ -548,6 +553,8 @@ void saveIni()
 		boolString(App.perf.hdr_single_fence),
 		boolString(App.perf.hdr_waitable),
 		boolString(App.perf.pace_to_refresh),
+		boolString(App.glide_capture),
+		App.glide_capture_frames,
 		App.dlls_early.c_str(),
 		App.dlls_late.c_str());
 	out_file << buf;
@@ -748,6 +755,8 @@ void loadIni()
 		App.perf.hdr_single_fence = getBool("Other", "hdr_single_fence", App.perf.hdr_single_fence);
 		App.perf.hdr_waitable = getBool("Other", "hdr_latency_waitable", App.perf.hdr_waitable);
 		App.perf.pace_to_refresh = getBool("Other", "pace_to_refresh", App.perf.pace_to_refresh);
+		App.glide_capture = getBool("Other", "glide_capture", App.glide_capture);
+		App.glide_capture_frames = getInt("Other", "glide_capture_frames", App.glide_capture_frames, 1, 3600);
 
 		App.dlls_early = getString("Other", "load_dlls_early", App.dlls_early);
 		App.dlls_late = getString("Other", "load_dlls_late", App.dlls_late);

@@ -12,6 +12,7 @@ jobs:
           name: d2gl
           path: |
             **/Release/*.dll
+            **/Release/*.exe
             **/Release/*.pdb
             **/Release/*.map
             !**/vendor/**

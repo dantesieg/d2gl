@@ -188,6 +188,15 @@ struct D2GLApp {
 	Select<int> orb_style = { 0, { { "Classic", 0 }, { "Procedural", 1 }, { "Workshop", 2 } } }; // [Graphic] orb_style: 1 = procedural animated orb liquid (glide)
 	Range<float> orb_motion = { 1.0f, 0.0f, 2.0f }; // [Graphic] orb_motion: wave/swirl/bubble strength of orb_style 1 (0 = static)
 	bool liquid_potions = false; // [Graphic] liquid_potions: animated liquid inside potion bottles in the UI (glide, 1.14d)
+	bool glide_capture = false; // [Other] glide_capture: poll for the trigger file d2gl_capture and record glide calls (docs/capture)
+	int glide_capture_frames = 60; // [Other] glide_capture_frames: frames per capture (1-3600)
+	// glide replay (d2gl_replay.exe): set only when the DLL was loaded with D2GL_REPLAY=1, never in the game
+	struct {
+		bool active = false;
+		std::string out_dir;
+		uint32_t shots_wanted = 0;
+		volatile LONG shots_done = 0;
+	} replay;
 
 
 	struct {

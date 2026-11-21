@@ -31,6 +31,7 @@
 #include "perf/perf_log.h"
 #include "upscaler.h"
 #include "win32.h"
+#include "stb/stb_image_write.h"
 
 #include <imgui/imgui.h>
 #include <imgui/imgui_impl_opengl3.h>
@@ -43,6 +44,8 @@ static volatile int64_t g_game_wait_qpc = 0;
 extern "C" __declspec(dllexport) int64_t __cdecl d2gl_game_wait_qpc() { return g_game_wait_qpc; }
 
 namespace d2gl {
+
+void (*g_stage_hook)() = nullptr;
 
 Context::Context()
 {
@@ -481,8 +484,10 @@ Context::Context()
 		ReleaseSemaphore(m_semaphore_gpu[i], 1, NULL);
 	}
 
-	modules::HDText::Instance();
-	modules::HDCursor::Instance();
+	if (!App.replay.active) { // replay: no game to read fonts / language from
+		modules::HDText::Instance();
+		modules::HDCursor::Instance();
+	}
 
 	wglMakeCurrent(NULL, NULL);
 	m_render_thread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)Context::renderThread, reinterpret_cast<void*>(this), 0, NULL);
@@ -1013,13 +1018,17 @@ void Context::renderThread(void* context)
 			ReleaseSemaphore(ctx->m_semaphore_gpu[frame_index], 1, NULL);
 		if (ctx->m_hdr) {
 			FrameBuffer::unBind(); // the menu goes into the HDR target like everything else
-			option::Menu::instance().draw();
+			if (!App.replay.active)
+				option::Menu::instance().draw();
 			ctx->m_hdr->setEmissive(ctx->m_emit_attached, ctx->m_emit_graded);
 			ctx->m_hdr->setCinematic(cmd->m_screen != GameScreen::InGame);
 			if (!ctx->m_hdr->present(App.vsync))
 				ctx->hdrFallbackToWgl("present failed");
 		} else {
-			option::Menu::instance().draw();
+			if (!App.replay.active)
+				option::Menu::instance().draw();
+			if (App.replay.active)
+				ctx->replayShot(); // the finished frame (game + mod layer), before the swap
 			SwapBuffers(ctx->m_gl_hdc);
 		}
 		const int64_t t_swapped = perf_on ? ctx->qpcNow() : 0;
@@ -1162,7 +1171,8 @@ void Context::onResize(glm::uvec2 w_size, glm::uvec2 g_size, glm::uvec2 l_size, 
 
 	if (game_resized) {
 		glm::mat4 mvp = glm::ortho(0.0f, (float)logical_size.x, (float)logical_size.y, 0.0f); // game units, also with native_render
-		modules::HDText::Instance().setMVP(mvp);
+		if (!App.replay.active)
+			modules::HDText::Instance().setMVP(mvp);
 		m_mod_pipeline->setUniformMat4f("u_MVP", mvp);
 
 		FrameBufferCreateInfo frambuffer_ci;
@@ -1436,6 +1446,8 @@ void Context::onShaderChange()
 
 void Context::onStageChange()
 {
+	if (g_stage_hook)
+		g_stage_hook();
 	if (App.game.screen == GameScreen::Movie)
 		return;
 
@@ -1475,7 +1487,8 @@ void Context::onStageChange()
 
 				modules::MiniMap::Instance().draw();
 			}
-			modules::HDText::Instance().drawEntryText();
+			if (!App.replay.active)
+				modules::HDText::Instance().drawEntryText();
 			break;
 		case DrawStage::CursorItem:
 			flushVertices();
@@ -1488,7 +1501,8 @@ void Context::onStageChange()
 			flushVertices();
 			setVertexFlagW(10);
 			appendDelayedObjects();
-			modules::HDCursor::Instance().draw();
+			if (!App.replay.active)
+				modules::HDCursor::Instance().draw();
 			break;
 	}
 }
@@ -1535,7 +1549,8 @@ void Context::beginFrame()
 	m_stencil_mode = m_stencil_class = m_quad_vtx = 0;
 	m_player_drawn = false;
 	m_silhouette_verts.clear();
-	modules::HDText::Instance().reset();
+	if (!App.replay.active)
+		modules::HDText::Instance().reset();
 	modules::MotionPrediction::Instance().update();
 
 	m_command_buffer[m_frame_index].pushCommand(CommandType::Begin);
@@ -1554,14 +1569,16 @@ void Context::presentFrame()
 	setVertexFlagW(0);
 	m_command_buffer[m_frame_index].pushCommand(CommandType::Submit);
 
-	modules::HDText::Instance().update();
+	if (!App.replay.active)
+		modules::HDText::Instance().update();
 
 	if (m_vertices_mod.count) {
 		m_command_buffer[m_frame_index].m_vertex_mod_count = m_vertices_mod.count;
 		m_command_buffer[m_frame_index].m_occluders = m_occluders;
 		m_frame.drawcall_count++;
 	}
-	option::Menu::instance().check();
+	if (!App.replay.active)
+		option::Menu::instance().check();
 	win32::checkCursorLock();
 
 	CommandBuffer& cb = m_command_buffer[m_frame_index];
@@ -2121,6 +2138,26 @@ void Context::resetFileTime()
 	FILETIME ft = { 0 };
 	GetSystemTimeAsFileTime(&ft);
 	memcpy(&m_limiter.due_time, &ft, sizeof(LARGE_INTEGER));
+}
+
+// d2gl_replay: frame N of the capture -> <out_dir>/frame_NNNNN.png (render thread, default framebuffer, before the swap)
+void Context::replayShot()
+{
+	const LONG n = App.replay.shots_done;
+	if ((uint32_t)n >= App.replay.shots_wanted)
+		return;
+	const int w = (int)App.viewport.size.x, h = (int)App.viewport.size.y;
+	std::vector<uint8_t> data((size_t)w * h * 3);
+	glPixelStorei(GL_PACK_ALIGNMENT, 1);
+	glReadBuffer(GL_BACK);
+	glReadPixels(App.viewport.offset.x, App.viewport.offset.y, w, h, GL_RGB, GL_UNSIGNED_BYTE, data.data());
+	char name[32];
+	sprintf_s(name, "frame_%05ld.png", n);
+	const std::string path = App.replay.out_dir + "\\" + name;
+	stbi_flip_vertically_on_write(1);
+	if (!stbi_write_png(path.c_str(), w, h, 3, data.data(), w * 3))
+		error_log("replay: cannot write %s", path.c_str());
+	InterlockedIncrement(&App.replay.shots_done);
 }
 
 void Context::takeScreenShot()

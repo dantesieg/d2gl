@@ -363,7 +363,7 @@ uint32_t hash(const void* key, size_t len)
 BufferData loadFile(const std::string& file_path)
 {
 	static bool is_mpq_loaded = false;
-	if (!is_mpq_loaded) {
+	if (!is_mpq_loaded && !App.replay.active) { // replay: no game MPQ loader, loose data\ files only
 		std::string mpq_path = getCurrentDir() + App.mpq_file;
 		if (!d2::mpqLoad(mpq_path.c_str()))
 			error_log("%s not loaded.", mpq_path.c_str());

@@ -43,6 +43,13 @@ void checkCompatibilityMode()
 
 void dllAttach(HMODULE hmodule)
 {
+	// d2gl_replay.exe: no game in this process, no hooks; d2gl_replay() sets everything up (glide3x/src/glide/capture.cpp)
+	char replay_env[8] = { 0 };
+	if (App.api == Api::Glide && GetEnvironmentVariableA("D2GL_REPLAY", replay_env, sizeof(replay_env)) && replay_env[0] == '1') {
+		App.replay.active = true;
+		return;
+	}
+
 	std::string command_line = GetCommandLineA();
 	helpers::strToLower(command_line);
 

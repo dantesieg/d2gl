@@ -123,6 +123,9 @@ struct GLCaps {
 	bool independent_blending = false;
 };
 
+// glide capture: called at the top of Context::onStageChange while recording (glide3x/src/glide/capture.cpp)
+extern void (*g_stage_hook)();
+
 class Context {
 	HGLRC m_context = nullptr;
 	// HDR (App.hdr.mode): GL lives on a hidden window's DC so App.hwnd can host the DXGI swapchain.
@@ -317,6 +320,7 @@ public:
 	void toggleVsync();
 	void setFpsLimit(bool active, int max_fps);
 	void takeScreenShot();
+	void replayShot();
 
 	void imguiStartFrame();
 	void imguiRender();
