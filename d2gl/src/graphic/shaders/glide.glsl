@@ -64,7 +64,7 @@ layout(std140) uniform ubo_Colors {
 uniform sampler2DArray u_Texture;
 uniform sampler2DArray u_HiTexture; // [Graphic] hires_textures: same coordinates, used when v_TexIds.y >= 1
 uniform int u_HiFull;                // 1: full-colour BC7 replacements (pack v5; v_TexIds.y = 1 + bake act), 0: palette indices
-uniform sampler2D u_BakePal;         // v5: 256x5 act palettes the replacements were made with
+uniform sampler2D u_BakePal;         // v5: 256x7 bake palettes (5 acts, fechar, static) the replacements were made with
 uniform int u_BlendIndex; // pipeline blend index: 0 opaque, 1 multiply, 2 additive, 3 alpha
 uniform float u_LightFlicker; // [Graphic] light_flicker: 0 = off, spell/fire light pulses up to +-45 %
 uniform float u_Time;         // seconds, wraps every hour

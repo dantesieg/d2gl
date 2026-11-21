@@ -220,7 +220,7 @@ void Wrapper::grTexSource(GrChipID_t tmu, FxU32 start_address, GrTexInfo* info)
 		// y: 0 = no replacement, else 1 + the act palette a full-colour (v5) replacement was made with (shader u_BakePal row)
 		const bool use_hi = hi && hires::active(hi);
 		const uint16_t bake = use_hi && hires::g_bc7 == 1 ? (uint16_t)((((const hires::PakEntry*)hi)->flags >> 3) & 7) : 0;
-		ctx->setVertexTexNum({ sub_tex_info->tex_num, (uint16_t)(use_hi ? 1 + (bake < 5 ? bake : 0) : 0) });
+		ctx->setVertexTexNum({ sub_tex_info->tex_num, (uint16_t)(use_hi ? 1 + (bake < 7 ? bake : 0) : 0) });
 		ctx->setVertexOffset(sub_tex_info->offset);
 		ctx->setVertexTexShift(sub_tex_info->shift);
 		ctx->setVertexTexRect({ sub_tex_info->offset.x, sub_tex_info->offset.y, (uint16_t)glm::min(width, 512u), (uint16_t)glm::min(height, 512u) });

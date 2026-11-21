@@ -282,10 +282,10 @@ Context::Context()
 		hires_texture_ci.slot = TEXTURE_SLOT_HIRES;
 		m_hires_texture = std::make_unique<Texture>(hires_texture_ci);
 		TextureCreateInfo bake_pal_ci;
-		bake_pal_ci.size = { 256, 5 };
+		bake_pal_ci.size = { 256, 7 };
 		bake_pal_ci.slot = TEXTURE_SLOT_BAKEPAL;
 		m_bake_pal_texture = std::make_unique<Texture>(bake_pal_ci);
-		m_bake_pal_texture->fill(g_hires_bake_pal, 256, 5);
+		m_bake_pal_texture->fill(g_hires_bake_pal, 256, 7);
 		if (hires)
 			trace_log("hires_textures: %u interface + %u world + %u item + %u extra replacements, scale %u", hires::g_packs[0].count, hires::g_packs[1].count, hires::g_packs[2].count, hires::g_packs[3].count, hires::g_scale);
 
