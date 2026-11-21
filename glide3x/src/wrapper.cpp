@@ -305,6 +305,22 @@ void Wrapper::grTexDownloadTable(void* data)
 	glm::vec4 palette[256];
 	uint32_t* pal = (uint32_t*)data;
 	memcpy(hires::g_pal, pal, sizeof(hires::g_pal));
+	// debug: with a file d2gl_pal_dump next to the game, every distinct palette the game sets (up to 64) is appended to
+	// d2gl_pal_dump.bin: u32 GetTickCount, 256 x u32 (0x00RRGGBB as the game passes it)
+	static int pal_dump = GetFileAttributesA("d2gl_pal_dump") != INVALID_FILE_ATTRIBUTES ? 64 : 0;
+	if (pal_dump > 0) {
+		static std::unordered_set<uint32_t> seen;
+		if (seen.insert(hash).second) {
+			FILE* f = nullptr;
+			if (fopen_s(&f, "d2gl_pal_dump.bin", "ab") == 0 && f) {
+				const uint32_t t = GetTickCount();
+				fwrite(&t, 4, 1, f);
+				fwrite(pal, 4, 256, f);
+				fclose(f);
+			}
+			pal_dump--;
+		}
+	}
 
 	for (int32_t i = 0; i < 256; i++) {
 		palette[i].a = (float)((pal[i] >> 24) & 0xFF) / 255;
