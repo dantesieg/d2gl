@@ -49,11 +49,17 @@ struct TextureManagerData {
 
 typedef std::vector<std::pair<uint16_t, uint16_t>> SubTextureCounts;
 
+// one entry per glide download address (one hash lookup per draw instead of several)
+struct GlideSlot {
+	uint32_t hash = 0;
+	const void* hires = nullptr; // [Graphic] hires_textures: hires::PakEntry of the download at this address
+	const void* retry = nullptr; // match not uploaded for lack of room: entry, retried the next frame
+	uint32_t retry_frame = 0;
+};
+
 struct GlideTexture {
 	uint8_t* memory = nullptr;
-	std::unordered_map<uint32_t, uint32_t> hash;
-	std::unordered_map<uint32_t, const void*> hires; // [Graphic] hires_textures: hires::PakEntry of the download at this address
-	std::unordered_map<uint32_t, std::pair<const void*, uint32_t>> hires_retry; // match not uploaded for lack of room: entry, frame; retried the next frame
+	std::unordered_map<uint32_t, GlideSlot> slots;
 };
 
 extern GlideTexture g_glide_texture;
@@ -62,7 +68,7 @@ class TextureManager {
 	std::map<uint16_t, TextureManagerData> m_data;
 	SubTextureCounts m_size_counts;
 
-	uint32_t upload(uint32_t address, uint16_t width, uint16_t height, uint32_t frame_count, const SubTextureInfo* info, uint32_t hash, const void** hi);
+	uint32_t upload(uint32_t address, uint16_t width, uint16_t height, uint32_t frame_count, const SubTextureInfo* info, uint32_t hash, GlideSlot* hi);
 	static void evictGlobal(TextureManagerData& data, uint32_t frame_count);
 
 public:
@@ -71,7 +77,7 @@ public:
 
 	inline size_t getUsage(uint16_t size) { return m_data[size].tex_count - m_data[size].available.size(); }
 
-	const SubTextureInfo* getSubTextureInfo(uint32_t address, uint16_t size, uint16_t width, uint16_t height, uint32_t frame_count);
+	const SubTextureInfo* getSubTextureInfo(uint32_t address, uint16_t size, uint16_t width, uint16_t height, uint32_t frame_count, const GlideSlot** slot_out = nullptr);
 	void clearCache();
 };
 

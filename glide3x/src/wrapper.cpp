@@ -212,13 +212,14 @@ void Wrapper::grTexSource(GrChipID_t tmu, FxU32 start_address, GrTexInfo* info)
 	const auto frame_index = ctx->getFrameIndex();
 	const auto frame_count = ctx->getFrameCount();
 	hires::g_pending.active = false;
-	const auto sub_tex_info = m_texture_manager->getSubTextureInfo(start_address, size, width, height, frame_count);
+	const GlideSlot* slot = nullptr;
+	const auto sub_tex_info = m_texture_manager->getSubTextureInfo(start_address, size, width, height, frame_count, &slot);
 	if (sub_tex_info) {
 		hires::g_on[0] = App.hires_ui, hires::g_on[1] = App.hires_textures, hires::g_on[2] = App.hires_items, hires::g_on[3] = App.hires_ui;
-		const auto hi = (hires::g_count && !d2::drawing_orb_liquid) ? g_glide_texture.hires.find(start_address) : g_glide_texture.hires.end();
+		const void* hi = (hires::g_count && !d2::drawing_orb_liquid && slot) ? slot->hires : nullptr;
 		// y: 0 = no replacement, else 1 + the act palette a full-colour (v5) replacement was made with (shader u_BakePal row)
-		const bool use_hi = hi != g_glide_texture.hires.end() && hires::active(hi->second);
-		const uint16_t bake = use_hi && hires::g_bc7 == 1 ? (uint16_t)((((const hires::PakEntry*)hi->second)->flags >> 3) & 7) : 0;
+		const bool use_hi = hi && hires::active(hi);
+		const uint16_t bake = use_hi && hires::g_bc7 == 1 ? (uint16_t)((((const hires::PakEntry*)hi)->flags >> 3) & 7) : 0;
 		ctx->setVertexTexNum({ sub_tex_info->tex_num, (uint16_t)(use_hi ? 1 + (bake < 5 ? bake : 0) : 0) });
 		ctx->setVertexOffset(sub_tex_info->offset);
 		ctx->setVertexTexShift(sub_tex_info->shift);
@@ -234,11 +235,12 @@ void Wrapper::grTexDownloadMipMap(GrChipID_t tmu, FxU32 start_address, GrTexInfo
 	start_address += GLIDE_TEX_MEMORY * tmu;
 
 	memcpy(g_glide_texture.memory + start_address, info->data, width * height);
-	g_glide_texture.hash[start_address] = helpers::hash(info->data, width * height);
-	g_glide_texture.hires_retry.erase(start_address); // new contents: a pending retry is stale
+	GlideSlot& slot = g_glide_texture.slots[start_address];
+	slot.hash = helpers::hash(info->data, width * height);
+	slot.retry = nullptr; // new contents: a pending retry is stale
 	if (hires::g_count) {
 		hires::g_on[0] = App.hires_ui, hires::g_on[1] = App.hires_textures, hires::g_on[2] = App.hires_items, hires::g_on[3] = App.hires_ui;
-		const hires::PakEntry* hi = hires::find(g_glide_texture.hash[start_address], width, height);
+		const hires::PakEntry* hi = hires::find(slot.hash, width, height);
 		hires::g_luts.erase(start_address);
 		auto& pd = hires::g_pending;
 		const bool from_sprite_hook = pd.active;
@@ -259,7 +261,7 @@ void Wrapper::grTexDownloadMipMap(GrChipID_t tmu, FxU32 start_address, GrTexInfo
 		if (!hi && dump > 0) {
 			static std::unordered_set<uint32_t> dumped;
 			const bool rem = pd.active && pd.src && pd.tw == width && pd.th == height;
-			if (dumped.insert(rem ? pd.hash : g_glide_texture.hash[start_address]).second) {
+			if (dumped.insert(rem ? pd.hash : slot.hash).second) {
 				static FILE* df = [] { FILE* f = nullptr; fopen_s(&f, "d2gl_hires_dump.bin", "wb"); return f; }();
 				if (df) {
 					const uint16_t d[3] = { (uint16_t)width, (uint16_t)height, (uint16_t)(rem ? 1 : 0) };
@@ -273,7 +275,7 @@ void Wrapper::grTexDownloadMipMap(GrChipID_t tmu, FxU32 start_address, GrTexInfo
 			}
 		}
 		pd.active = false;
-		g_glide_texture.hires[start_address] = hi;
+		slot.hires = hi;
 		static uint32_t seen = 0, matched = 0, top = 0, remapped = 0, tiles = 0;
 		seen++, matched += hi ? 1 : 0;
 		if (!hi && !from_sprite_hook && ((width == 256 && height == 128) || (width == 32 && height == 32)))

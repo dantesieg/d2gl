@@ -74,27 +74,29 @@ TextureManager::TextureManager(const SubTextureCounts& size_counts)
 	}
 }
 
-const SubTextureInfo* TextureManager::getSubTextureInfo(uint32_t address, uint16_t size, uint16_t width, uint16_t height, uint32_t frame_count)
+const SubTextureInfo* TextureManager::getSubTextureInfo(uint32_t address, uint16_t size, uint16_t width, uint16_t height, uint32_t frame_count, const GlideSlot** slot_out)
 {
-	if (g_glide_texture.hash.find(address) == g_glide_texture.hash.end())
+	const auto st = g_glide_texture.slots.find(address);
+	if (st == g_glide_texture.slots.end())
 		return nullptr;
+	GlideSlot& slot = st->second;
+	if (slot_out)
+		*slot_out = &slot;
 
-	auto hash = g_glide_texture.hash[address];
+	auto hash = slot.hash;
 	// a match that found no room in an earlier frame's hi-res arena / queue was drawn from the original: try it again now
 	// (it used to stay on the original until the game downloaded the texture again, which for cached tiles is rarely)
-	const auto rt = g_glide_texture.hires_retry.find(address);
-	if (rt != g_glide_texture.hires_retry.end() && rt->second.second != frame_count) {
-		g_glide_texture.hires[address] = rt->second.first;
-		g_glide_texture.hires_retry.erase(rt);
+	if (slot.retry && slot.retry_frame != frame_count) {
+		slot.hires = slot.retry;
+		slot.retry = nullptr;
 		hires::g_retry++;
 	}
 	// [Graphic] hires_textures: whether the slot holds a replacement is part of the cache key. Otherwise a slot cached
 	// without one (arena full, corrupt chunk) is reused after a re-download of the same data that matched, and the
 	// draw samples whatever an earlier texture left in that hi-res region.
-	const auto hi = g_glide_texture.hires.find(address);
-	if (hi != g_glide_texture.hires.end() && hi->second)
+	if (slot.hires)
 		hash ^= 0x5BD1E995u;
-	const void** hi_slot = (hi != g_glide_texture.hires.end() && hi->second) ? &hi->second : nullptr;
+	GlideSlot* hi_slot = slot.hires ? &slot : nullptr;
 	auto& data = m_data[size];
 
 	if (App.glide_global_cache) {
@@ -117,9 +119,7 @@ const SubTextureInfo* TextureManager::getSubTextureInfo(uint32_t address, uint16
 		return texture_info;
 	}
 
-	if (data.cache.find(address) == data.cache.end())
-		data.cache.insert({ address, { frame_count } });
-	auto& cache = data.cache[address];
+	auto& cache = data.cache.try_emplace(address, TextureCache{ frame_count }).first->second;
 
 	if (cache.last_used_frame != frame_count) {
 		for (auto it = cache.items.begin(); it != cache.items.end();) {
@@ -132,7 +132,8 @@ const SubTextureInfo* TextureManager::getSubTextureInfo(uint32_t address, uint16
 		cache.last_used_frame = frame_count;
 	}
 
-	if (cache.items.find(hash) == cache.items.end()) {
+	const auto ci = cache.items.find(hash);
+	if (ci == cache.items.end()) {
 		if (data.available.begin() == data.available.end())
 			return nullptr;
 
@@ -146,20 +147,20 @@ const SubTextureInfo* TextureManager::getSubTextureInfo(uint32_t address, uint16
 		return texture_info;
 	}
 
-	return &data.sub_texure_info[cache.items[hash]];
+	return &data.sub_texure_info[ci->second];
 }
 
 // uploads the download at address (and its hi-res replacement, if any) into the slot; returns the cache hash, which
 // drops the hi-res bit when the replacement could not be uploaded
-uint32_t TextureManager::upload(uint32_t address, uint16_t width, uint16_t height, uint32_t frame_count, const SubTextureInfo* texture_info, uint32_t hash, const void** hi)
+uint32_t TextureManager::upload(uint32_t address, uint16_t width, uint16_t height, uint32_t frame_count, const SubTextureInfo* texture_info, uint32_t hash, GlideSlot* hi)
 {
 	const auto command_buffer = App.context->getCommandBuffer();
 
 	const auto rm = hires::g_luts.find(address); // remapped frame: its un-remapped download goes to the atlas G channel
 	const bool has_orig = rm != hires::g_luts.end() && rm->second.src.size() == (size_t)width * height;
 	command_buffer->textureUpdate(g_glide_texture.memory + address, has_orig ? rm->second.src.data() : g_glide_texture.memory + address, texture_info->tex_num, { width, height }, texture_info->offset);
-	if (hi && *hi && hires::g_bc7 == 1) { // v5: BC7 blocks of the whole download, recoloured in the shader
-		const auto he = (const hires::PakEntry*)*hi;
+	if (hi && hi->hires && hires::g_bc7 == 1) { // v5: BC7 blocks of the whole download, recoloured in the shader
+		const auto he = (const hires::PakEntry*)hi->hires;
 		const size_t bytes = hires::bc7Size(width, height);
 		uint8_t* dst = command_buffer->allocHi(bytes);
 		const bool ok = dst && hires::expandBc7(he, dst);
@@ -168,19 +169,19 @@ uint32_t TextureManager::upload(uint32_t address, uint16_t width, uint16_t heigh
 			command_buffer->textureUpdateHi(dst, texture_info->tex_num, { pw, ph }, { (uint16_t)(texture_info->offset.x * hires::g_scale), (uint16_t)(texture_info->offset.y * hires::g_scale) }, (uint32_t)bytes);
 		else {
 			if (!dst) {
-				g_glide_texture.hires_retry[address] = { *hi, frame_count };
+				hi->retry = hi->hires, hi->retry_frame = frame_count;
 				hires::g_no_room++;
 			} else
 				hires::g_bad++;
-			*hi = nullptr;
+			hi->hires = nullptr;
 			hash ^= 0x5BD1E995u;
 		}
 		return hash;
 	}
-	if (hi && *hi) {
+	if (hi && hi->hires) {
 		const uint16_t s = (uint16_t)hires::g_scale;
 		uint8_t* dst = command_buffer->allocHi((size_t)width * s * height * s);
-		const auto he = (const hires::PakEntry*)*hi;
+		const auto he = (const hires::PakEntry*)hi->hires;
 		bool ok = dst && hires::expand(he, dst);
 		const auto lut = ok ? hires::g_luts.find(address) : hires::g_luts.end();
 		if (ok && (he->flags & 2)) {
@@ -201,11 +202,11 @@ uint32_t TextureManager::upload(uint32_t address, uint16_t width, uint16_t heigh
 			command_buffer->textureUpdateHi(dst, texture_info->tex_num, { (uint16_t)(width * s), (uint16_t)(height * s) }, { (uint16_t)(texture_info->offset.x * s), (uint16_t)(texture_info->offset.y * s) });
 		else {
 			if (!dst) { // no room this frame: retried the next frame (corrupt / mismatched entries stay off)
-				g_glide_texture.hires_retry[address] = { *hi, frame_count };
+				hi->retry = hi->hires, hi->retry_frame = frame_count;
 				hires::g_no_room++;
 			} else
 				hires::g_bad++;
-			*hi = nullptr;       // not uploaded: draw the original
+			hi->hires = nullptr;       // not uploaded: draw the original
 			hash ^= 0x5BD1E995u; // cached as a plain slot
 		}
 	}

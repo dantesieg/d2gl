@@ -29,6 +29,8 @@
 
 namespace d2gl::helpers {
 
+const bool g_f16c = [] { int r[4]; __cpuid(r, 1); return ((r[2] >> 29) & 1) != 0; }();
+
 std::string getCurrentDir()
 {
 	auto path = std::filesystem::current_path() / "";

@@ -47,5 +47,8 @@
 
 #include <glm/detail/type_half.hpp>
 
+#include <intrin.h>
+#include <immintrin.h>
+
 #include "app.h"
 #include "log.h"

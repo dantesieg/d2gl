@@ -1669,8 +1669,8 @@ void Context::pushVertex(const GlideVertex* vertex, glm::vec2 fix, glm::ivec2 of
 		flushVertices();
 
 	m_vertices.ptr->position = {
-		glm::detail::toFloat16(vertex->x - (float)offset.x),
-		glm::detail::toFloat16(vertex->y - (float)offset.y),
+		helpers::toHalf(vertex->x - (float)offset.x),
+		helpers::toHalf(vertex->y - (float)offset.y),
 	};
 	m_vertices.ptr->tex_coord = {
 		((float)((uint32_t)vertex->s >> m_vertex_params.tex_shift) + (float)m_vertex_params.offsets.x) / (512.0f + fix.x),
@@ -1747,7 +1747,7 @@ bool Context::pushFlatQuad(glm::vec2 pos, glm::vec2 size, uint32_t color)
 	const glm::vec2 corners[4] = { { pos.x, pos.y }, { end.x, pos.y }, { end.x, end.y }, { pos.x, end.y } };
 
 	for (const auto& corner : corners) {
-		m_vertices.ptr->position = { glm::detail::toFloat16(corner.x), glm::detail::toFloat16(corner.y) };
+		m_vertices.ptr->position = { helpers::toHalf(corner.x), helpers::toHalf(corner.y) };
 		m_vertices.ptr->tex_coord = { 0.0f, 0.0f };
 		m_vertices.ptr->color1 = 0xFFFFFFFF;
 		m_vertices.ptr->color2 = color;
@@ -1789,7 +1789,7 @@ void Context::pushAdditiveQuads(const glm::vec2* pos, const uint32_t* colors, ui
 		if (m_vertices.count >= MAX_VERTICES - 4)
 			flushVertices();
 		for (uint32_t i = q * 4; i < q * 4 + 4; i++) {
-			m_vertices.ptr->position = { glm::detail::toFloat16(pos[i].x), glm::detail::toFloat16(pos[i].y) };
+			m_vertices.ptr->position = { helpers::toHalf(pos[i].x), helpers::toHalf(pos[i].y) };
 			m_vertices.ptr->tex_coord = { 0.0f, 0.0f };
 			m_vertices.ptr->color1 = colors[i];
 			m_vertices.ptr->color2 = 0xFFFFFFFF;
@@ -1820,7 +1820,7 @@ bool Context::pushOrbQuad(glm::vec4 rect, uint32_t color, uint32_t params)
 	const glm::vec2 corners[4] = { { rect.x, rect.y }, { rect.z, rect.y }, { rect.z, rect.w }, { rect.x, rect.w } };
 	const glm::vec2 uvs[4] = { { 0.0f, 0.0f }, { 1.0f, 0.0f }, { 1.0f, 1.0f }, { 0.0f, 1.0f } };
 	for (int i = 0; i < 4; i++) {
-		m_vertices.ptr->position = { glm::detail::toFloat16(corners[i].x), glm::detail::toFloat16(corners[i].y) };
+		m_vertices.ptr->position = { helpers::toHalf(corners[i].x), helpers::toHalf(corners[i].y) };
 		m_vertices.ptr->tex_coord = uvs[i];
 		m_vertices.ptr->color1 = color;
 		m_vertices.ptr->color2 = params;
@@ -1919,10 +1919,10 @@ void Context::flushVertices()
 void Context::drawQuad(int8_t flag_x, int8_t flag_y, int16_t tex_id)
 {
 	static Vertex quad[4] = {
-		{ { glm::detail::toFloat16(-1.0f), glm::detail::toFloat16(-1.0f) }, { 0.0f, 0.0f } },
-		{ { glm::detail::toFloat16(+1.0f), glm::detail::toFloat16(-1.0f) }, { 1.0f, 0.0f } },
-		{ { glm::detail::toFloat16(+1.0f), glm::detail::toFloat16(+1.0f) }, { 1.0f, 1.0f } },
-		{ { glm::detail::toFloat16(-1.0f), glm::detail::toFloat16(+1.0f) }, { 0.0f, 1.0f } },
+		{ { helpers::toHalf(-1.0f), helpers::toHalf(-1.0f) }, { 0.0f, 0.0f } },
+		{ { helpers::toHalf(+1.0f), helpers::toHalf(-1.0f) }, { 1.0f, 0.0f } },
+		{ { helpers::toHalf(+1.0f), helpers::toHalf(+1.0f) }, { 1.0f, 1.0f } },
+		{ { helpers::toHalf(-1.0f), helpers::toHalf(+1.0f) }, { 0.0f, 1.0f } },
 	};
 	for (size_t i = 0; i < 4; i++) {
 		quad[i].tex_ids = { tex_id, 0 };
