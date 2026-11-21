@@ -367,4 +367,4 @@ FodyWeavers.xsd
 /data
 /d2gl.props
 !/d2gl/vendor/lib/Debug/
-!/d2gl/vendor/lib/Release/
+!/d2gl/vendor/lib/Release/d2gl/src/build_stamp_ci.h

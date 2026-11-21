@@ -331,3 +331,10 @@ FX_ENTRY FxU32 FX_CALL grTexTextureMemRequired(FxU32 evenOdd, GrTexInfo* info)
 #ifdef __cplusplus
 }
 #endif
+// D2GL build stamp for MedianRevived ("<hash>[-dirty] built <date>", hash "unknown" for local builds); exported undecorated
+#include "build_stamp.h"
+extern "C" const char* __stdcall d2glVersion(void)
+{
+	return D2GL_VERSION_STRING;
+}
+#pragma comment(linker, "/EXPORT:d2glVersion=_d2glVersion@0")

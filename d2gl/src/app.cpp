@@ -17,6 +17,7 @@
 */
 
 #include "pch.h"
+#include "build_stamp.h"
 #include "d2/common.h"
 #include "graphic/hdr/hdr_presenter.h"
 #include "helpers.h"
@@ -98,6 +99,7 @@ void dllAttach(HMODULE hmodule)
 		error_log("Game version is not supported!");
 		exit(1);
 	}
+	trace_log("D2GL %s", D2GL_VERSION_STRING);
 	trace_log("Diablo 2 LoD (%s) version %s detected.", helpers::getLangString().c_str(), helpers::getVersionString().c_str());
 
 	checkCompatibilityMode();

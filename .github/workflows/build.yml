@@ -6,6 +6,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: microsoft/setup-msbuild@v2
+      - name: build stamp
+        shell: bash
+        run: |
+          h=$(git rev-parse --short=8 HEAD)
+          git diff --quiet HEAD || h="$h-dirty"
+          printf '#define D2GL_GIT_HASH "%s"\n#define D2GL_BUILD_DATE "%s"\n' "$h" "$(date -u -d "+3 hours" +%Y-%m-%d)" > d2gl/src/build_stamp_ci.h
+          cat d2gl/src/build_stamp_ci.h
       - run: msbuild d2gl.sln /m /p:Configuration=Release /p:Platform=x86 /p:PlatformToolset=v143
       - uses: actions/upload-artifact@v4
         with:

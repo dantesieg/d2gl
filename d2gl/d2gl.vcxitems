@@ -108,6 +108,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="$(MSBuildThisFileDirectory)src\app.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)src\build_stamp.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\d2gl.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\d2\common.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)src\d2\funcs.h" />
