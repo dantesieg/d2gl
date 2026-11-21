@@ -377,7 +377,7 @@ static int replay(const char* cap_path, const char* out_dir, const char* ini_pat
 	size_t pos = (size_t)h.header_size + h.ini_size;
 	std::vector<GlideVertex> verts;
 	std::vector<void*> ptrs;
-	std::vector<uint32_t> words;
+	std::vector<FxU32> words;
 	const size_t tex_total = (size_t)GLIDE_TEX_MEMORY * GLIDE_MAX_NUM_TMU;
 	int rc = 0;
 
